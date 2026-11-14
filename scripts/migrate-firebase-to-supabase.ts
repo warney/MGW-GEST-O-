@@ -459,6 +459,10 @@ async function readFirestoreTenantData(
     }
   }
 
+  if (!settings) {
+    throw new Error(`Configuração legada ausente para ${spec.slug}; migração interrompida para evitar criar tenant sem as configurações originais.`);
+  }
+
   const productsSnap = await db.collection(`${basePath}products`).get();
   const products: LegacyProductDoc[] = productsSnap.docs.map((docSnap) => {
     const d = docSnap.data();
