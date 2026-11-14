@@ -1,0 +1,8 @@
+{
+  "name": "MGW GESTÃO",
+  "description": "Sistema interno de gestão financeira, controle diário de vendas de X-Saladas, despesas, relatórios e lucro líquido para a lanchonete MGW Lanches.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

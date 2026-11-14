@@ -1,0 +1,403 @@
+{
+  "entities": {
+    "Settings": {
+      "title": "Configurações da Lanchonete",
+      "description": "Configurações operacionais e metas financeiras exclusivas do proprietário.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID do proprietário autenticado",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "establishmentName": {
+          "type": "string",
+          "description": "Nome do estabelecimento",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "xSaladaPrice": {
+          "type": "number",
+          "description": "Preço unitário padrão do X-Salada em reais"
+        },
+        "dailyGoal": {
+          "type": "number",
+          "description": "Meta diária de faturamento em reais"
+        },
+        "monthlyGoal": {
+          "type": "number",
+          "description": "Meta mensal de faturamento em reais"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Data de início das operações no formato YYYY-MM-DD",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de criação no servidor"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data da última atualização no servidor"
+        }
+      },
+      "required": [
+        "ownerId",
+        "establishmentName",
+        "xSaladaPrice",
+        "dailyGoal",
+        "monthlyGoal",
+        "startDate",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Product": {
+      "title": "Produto da Lanchonete",
+      "description": "Produto individual utilizado em vendas diretas e composição de combos.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID do proprietário autenticado",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome do produto",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "category": {
+          "type": "string",
+          "description": "Categoria do produto",
+          "enum": ["Lanche", "Bebida", "Adicional", "Outro"]
+        },
+        "unitPrice": {
+          "type": "number",
+          "description": "Preço unitário de venda individual em reais"
+        },
+        "countsAsXSalada": {
+          "type": "boolean",
+          "description": "Indica se cada unidade deste produto contabiliza como X-Salada vendido"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Status ativo ou inativo do produto"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de criação no servidor"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data da última atualização no servidor"
+        }
+      },
+      "required": [
+        "ownerId",
+        "name",
+        "category",
+        "unitPrice",
+        "countsAsXSalada",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Combo": {
+      "title": "Combo Promocional",
+      "description": "Combo composto por produtos e quantidades configuráveis.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID do proprietário autenticado",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome do combo",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "description": "Descrição do combo",
+          "maxLength": 240
+        },
+        "items": {
+          "type": "array",
+          "description": "Lista de produtos e quantidades que compõem o combo"
+        },
+        "salePrice": {
+          "type": "number",
+          "description": "Preço de venda do combo em reais"
+        },
+        "estimatedCost": {
+          "type": "number",
+          "description": "Custo estimado opcional do combo em reais"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Status ativo ou inativo do combo"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de criação no servidor"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data da última atualização no servidor"
+        }
+      },
+      "required": [
+        "ownerId",
+        "name",
+        "description",
+        "items",
+        "salePrice",
+        "estimatedCost",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Sale": {
+      "title": "Venda / Pedido",
+      "description": "Registro individual de venda com cópia imutável de combos e produtos vendidos.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID do proprietário autenticado",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "description": "Data da venda no formato YYYY-MM-DD",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "Quantidade base legada ou total de itens principais"
+        },
+        "unitPrice": {
+          "type": "number",
+          "description": "Preço unitário médio ou do item"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Valor total da venda calculado"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Forma de pagamento",
+          "enum": ["Dinheiro", "Pix", "Cartão de débito", "Crédito", "Cartão de crédito", "Outros"]
+        },
+        "note": {
+          "type": "string",
+          "description": "Observação opcional sobre a venda",
+          "maxLength": 240
+        },
+        "saleMode": {
+          "type": "string",
+          "description": "Tipo da venda: individual, combo ou mista",
+          "enum": ["individual", "combo", "mixed"]
+        },
+        "xSaladaCount": {
+          "type": "integer",
+          "description": "Total de X-Saladas contabilizados nesta venda (individuais + combos)"
+        },
+        "combosCount": {
+          "type": "integer",
+          "description": "Total de combos vendidos neste pedido"
+        },
+        "items": {
+          "type": "array",
+          "description": "Cópia histórica dos combos e produtos vendidos no momento da venda"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de criação no servidor"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data da última atualização no servidor"
+        }
+      },
+      "required": [
+        "ownerId",
+        "date",
+        "quantity",
+        "unitPrice",
+        "totalAmount",
+        "paymentMethod",
+        "note",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Expense": {
+      "title": "Despesa da Lanchonete",
+      "description": "Registro de despesa operacional ou compra de insumos.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID do proprietário autenticado",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Descrição da despesa",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "amount": {
+          "type": "number",
+          "description": "Valor em reais"
+        },
+        "category": {
+          "type": "string",
+          "description": "Categoria da despesa",
+          "enum": [
+            "Ingredientes",
+            "Carnes e hambúrgueres",
+            "Pães",
+            "Queijos e frios",
+            "Bebidas",
+            "Embalagens",
+            "Gás",
+            "Energia",
+            "Transporte",
+            "Outros"
+          ]
+        },
+        "date": {
+          "type": "string",
+          "description": "Data da despesa no formato YYYY-MM-DD",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Forma de pagamento",
+          "enum": ["Dinheiro", "Pix", "Cartão de débito", "Crédito", "Cartão de crédito", "Outros"]
+        },
+        "note": {
+          "type": "string",
+          "description": "Observação opcional sobre a despesa",
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de criação no servidor"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data da última atualização no servidor"
+        }
+      },
+      "required": [
+        "ownerId",
+        "description",
+        "amount",
+        "category",
+        "date",
+        "paymentMethod",
+        "note",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/Settings"
+      },
+      "description": "Configurações da lanchonete MGW Lanches pertencentes ao proprietário"
+    },
+    "/products/{productId}": {
+      "schema": {
+        "$ref": "#/entities/Product"
+      },
+      "description": "Cadastro permanente de produtos individuais"
+    },
+    "/combos/{comboId}": {
+      "schema": {
+        "$ref": "#/entities/Combo"
+      },
+      "description": "Cadastro permanente de combos promocionais"
+    },
+    "/sales/{saleId}": {
+      "schema": {
+        "$ref": "#/entities/Sale"
+      },
+      "description": "Histórico permanente de vendas e pedidos"
+    },
+    "/expenses/{expenseId}": {
+      "schema": {
+        "$ref": "#/entities/Expense"
+      },
+      "description": "Histórico permanente de despesas operacionais e insumos"
+    },
+    "/workspaces/{workspaceId}/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/Settings"
+      },
+      "description": "Configurações isoladas de lanchonete separada por workspace"
+    },
+    "/workspaces/{workspaceId}/products/{productId}": {
+      "schema": {
+        "$ref": "#/entities/Product"
+      },
+      "description": "Produtos isolados de lanchonete separada por workspace"
+    },
+    "/workspaces/{workspaceId}/combos/{comboId}": {
+      "schema": {
+        "$ref": "#/entities/Combo"
+      },
+      "description": "Combos isolados de lanchonete separada por workspace"
+    },
+    "/workspaces/{workspaceId}/sales/{saleId}": {
+      "schema": {
+        "$ref": "#/entities/Sale"
+      },
+      "description": "Vendas isoladas de lanchonete separada por workspace"
+    },
+    "/workspaces/{workspaceId}/expenses/{expenseId}": {
+      "schema": {
+        "$ref": "#/entities/Expense"
+      },
+      "description": "Despesas isoladas de lanchonete separada por workspace"
+    }
+  }
+}
