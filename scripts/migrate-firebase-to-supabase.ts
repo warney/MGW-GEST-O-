@@ -626,37 +626,55 @@ async function ensureFoundingTenantInSupabase(
   return tenantId;
 }
 
+async function fetchAllTenantRows(
+  supabase: SupabaseClient,
+  table: 'sales' | 'expenses',
+  columns: string,
+  tenantId: string,
+): Promise<Array<Record<string, unknown>>> {
+  const pageSize = 1000;
+  const rows: Array<Record<string, unknown>> = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .eq('tenant_id', tenantId)
+      .order('id', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Falha ao verificar paridade em ${table}: ${error.message}`);
+    const page = (data ?? []) as Array<Record<string, unknown>>;
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+}
+
 async function readSupabaseTenantParity(
   supabase: SupabaseClient,
   tenantId: string,
 ): Promise<TenantParitySummary> {
-  const [{ count: productsCount }, { count: combosCount }, { data: sales }, { data: expenses }] =
-    await Promise.all([
-      supabase.from('products').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-      supabase.from('combos').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-      supabase
-        .from('sales')
-        .select('date, quantity, total_amount, payment_method, x_salada_count, combos_count, items')
-        .eq('tenant_id', tenantId),
-      supabase.from('expenses').select('amount').eq('tenant_id', tenantId),
-    ]);
+  const [productsResult, combosResult, sales, expenses] = await Promise.all([
+    supabase.from('products').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    supabase.from('combos').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    fetchAllTenantRows(supabase, 'sales', 'date, quantity, total_amount, payment_method, x_salada_count, combos_count, items', tenantId),
+    fetchAllTenantRows(supabase, 'expenses', 'amount', tenantId),
+  ]);
+  if (productsResult.error) throw new Error(`Falha ao contar products: ${productsResult.error.message}`);
+  if (combosResult.error) throw new Error(`Falha ao contar combos: ${combosResult.error.message}`);
 
   return computeDatasetParitySummary({
-    productsCount: productsCount ?? 0,
-    combosCount: combosCount ?? 0,
-    sales: ((sales ?? []) as Array<Record<string, unknown>>).map((s) => ({
+    productsCount: productsResult.count ?? 0,
+    combosCount: combosResult.count ?? 0,
+    sales: sales.map((s) => ({
       date: String(s.date).slice(0, 10),
       quantity: Number(s.quantity) || 0,
       totalAmount: Number(s.total_amount) || 0,
       paymentMethod: String(s.payment_method || 'Dinheiro'),
-      xSaladaCount:
-        typeof s.x_salada_count === 'number' ? s.x_salada_count : null,
+      xSaladaCount: typeof s.x_salada_count === 'number' ? s.x_salada_count : null,
       combosCount: typeof s.combos_count === 'number' ? s.combos_count : null,
       items: Array.isArray(s.items) ? (s.items as LegacySaleItem[]) : null,
     })),
-    expenses: ((expenses ?? []) as Array<{ amount: number | string }>).map((e) => ({
-      amount: Number(e.amount) || 0,
-    })),
+    expenses: expenses.map((e) => ({ amount: Number(e.amount) || 0 })),
   });
 }
 
