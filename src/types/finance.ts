@@ -268,3 +268,31 @@ export const DEFAULT_SHOP_SETTINGS: Omit<ShopSettings, 'ownerId'> = {
   monthlyGoal: 18000.0,
   startDate: '2026-01-01',
 };
+
+export type DataProviderMode = 'firebase' | 'supabase';
+
+export type TenantRole = 'owner' | 'admin';
+
+export type SubscriptionStatus =
+  | 'pending'
+  | 'authorized'
+  | 'paused'
+  | 'cancelled'
+  | 'exempt';
+
+export interface TenantContext {
+  tenantId: string;
+  slug: string;
+  name: string;
+  role: TenantRole;
+  isFounderAccount: boolean;
+  billingExempt: boolean;
+  subscriptionStatus: SubscriptionStatus;
+  graceUntil: string | null;
+}
+
+export interface AuthSessionUser {
+  uid: string;
+  email: string;
+  emailVerified: boolean;
+}

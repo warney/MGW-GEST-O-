@@ -1,12 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-  type User,
-} from 'firebase/auth';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
+  Building2,
   LayoutDashboard,
   LogOut,
   Plus,
@@ -14,42 +9,42 @@ import {
   Settings,
   ShoppingBag,
 } from 'lucide-react';
-import { auth, googleProvider } from './firebase';
+import { getActiveDataProvider } from './lib/supabase';
 import {
-  createComboInFirestore,
-  createExpenseInFirestore,
-  createProductInFirestore,
-  createSaleInFirestore,
-  deleteExpenseInFirestore,
-  deleteSaleInFirestore,
-  saveSettingsToFirestore,
-  seedDefaultCatalogInFirestore,
-  subscribeCombos,
-  subscribeExpenses,
-  subscribeProducts,
-  subscribeSales,
-  subscribeSettings,
-  updateComboInFirestore,
-  updateExpenseInFirestore,
-  updateProductInFirestore,
-  updateSaleInFirestore,
-} from './services/firestoreService';
+  addCombo,
+  addExpense,
+  addProduct,
+  addSale,
+  type DataExecutionContext,
+  deleteExpense,
+  deleteSale,
+  loginWithEmailPassword,
+  loginWithGoogle,
+  logoutSession,
+  requestPasswordReset,
+  saveSettings,
+  seedDefaultCatalog,
+  subscribeAllTenantData,
+  subscribeAuthSession,
+  updateCombo,
+  updateExpense,
+  updateProduct,
+  updateSale,
+} from './services/dataService';
 import {
-  ADMIN_EMAILS,
   type AppRoute,
+  type AuthSessionUser,
   type ComboInput,
   type ComboRecord,
   DEFAULT_SHOP_SETTINGS,
   type ExpenseInput,
   type ExpenseRecord,
-  MGW_WORKSPACE,
   type ProductInput,
   type ProductRecord,
-  resolveWorkspaceForEmail,
   type SaleInput,
   type SaleRecord,
-  SEPARATE_SHOP_EMAIL,
   type ShopSettings,
+  type TenantContext,
   type WorkspaceAccess,
 } from './types/finance';
 import {
@@ -65,6 +60,8 @@ import { SaleModal } from './components/SaleModal';
 import { SalesView } from './components/SalesView';
 import { SettingsView } from './components/SettingsView';
 
+const TENANT_PREF_KEY = 'mgw_active_tenant_id';
+
 const NAV_ITEMS: Array<{
   id: AppRoute;
   label: string;
@@ -79,7 +76,14 @@ const NAV_ITEMS: Array<{
 ];
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const activeProvider = getActiveDataProvider();
+
+  const [user, setUser] = useState<AuthSessionUser | null>(null);
+  const [tenants, setTenants] = useState<TenantContext[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('');
+  const [legacyWorkspace, setLegacyWorkspace] = useState<WorkspaceAccess | undefined>(
+    undefined,
+  );
   const [authReady, setAuthReady] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -113,38 +117,54 @@ export default function App() {
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3500);
   }
 
-  const [workspace, setWorkspace] = useState<WorkspaceAccess>(MGW_WORKSPACE);
-
-  // Firebase Auth listener
+  // Autenticacao e resolucao de estabelecimentos autorizados
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        const resolved = resolveWorkspaceForEmail(currentUser.email);
-        if (!resolved || !currentUser.emailVerified) {
-          await signOut(auth);
-          setUser(null);
-          setWorkspace(MGW_WORKSPACE);
-          setAuthError(
-            `A conta ${currentUser.email || 'selecionada'} não tem permissão. Acesso autorizado para ${ADMIN_EMAILS.join(', ')} (MGW Lanches) ou ${SEPARATE_SHOP_EMAIL} (conta separada).`,
-          );
-          setAuthReady(true);
-          return;
+    const unsub = subscribeAuthSession((state) => {
+      setUser(state.user);
+      setTenants(state.tenants);
+      setLegacyWorkspace(state.legacyWorkspace);
+      setAuthError(state.errorMessage);
+
+      if (state.tenants.length > 0) {
+        let preferred = '';
+        try {
+          preferred = window.localStorage.getItem(TENANT_PREF_KEY) || '';
+        } catch {
+          preferred = '';
         }
-        setAuthError(null);
-        setWorkspace(resolved);
-        setUser(currentUser);
+        const matched = state.tenants.find((t) => t.tenantId === preferred);
+        setSelectedTenantId((prev) => {
+          if (prev && state.tenants.some((t) => t.tenantId === prev)) {
+            return prev;
+          }
+          return matched ? matched.tenantId : state.tenants[0].tenantId;
+        });
       } else {
-        setUser(null);
-        setWorkspace(MGW_WORKSPACE);
+        setSelectedTenantId('');
       }
+
       setAuthReady(true);
     });
     return unsub;
   }, []);
 
-  // Firestore subscriptions
+  const activeTenant = useMemo<TenantContext | null>(() => {
+    if (tenants.length === 0) return null;
+    return tenants.find((t) => t.tenantId === selectedTenantId) ?? tenants[0];
+  }, [tenants, selectedTenantId]);
+
+  const dataContext = useMemo<DataExecutionContext | null>(() => {
+    if (!user || !user.emailVerified || !activeTenant) return null;
+    return {
+      user,
+      tenant: activeTenant,
+      workspace: legacyWorkspace,
+    };
+  }, [user, activeTenant, legacyWorkspace]);
+
+  // Assinatura reativa dos dados do tenant selecionado
   useEffect(() => {
-    if (!user) {
+    if (!dataContext) {
       setSales([]);
       setExpenses([]);
       setProducts([]);
@@ -159,112 +179,45 @@ export default function App() {
     setProducts([]);
     setCombos([]);
     setSettings({
-      ownerId: user.uid,
+      ownerId: dataContext.user.uid,
       ...DEFAULT_SHOP_SETTINGS,
-      establishmentName: workspace.defaultEstablishmentName,
+      establishmentName: dataContext.tenant.name,
     });
     setDataLoading(true);
     setDataError(null);
 
-    let settingsLoaded = false;
-    let salesLoaded = false;
-    let expensesLoaded = false;
-    let productsLoaded = false;
-    let combosLoaded = false;
-
-    const markReady = () => {
-      if (
-        settingsLoaded &&
-        salesLoaded &&
-        expensesLoaded &&
-        productsLoaded &&
-        combosLoaded
-      ) {
-        setDataLoading(false);
-      }
-    };
-
-    const unsubSettings = subscribeSettings(
-      user.uid,
-      (s) => {
-        setSettings(s);
-        settingsLoaded = true;
-        markReady();
-      },
-      (err) => {
+    const unsub = subscribeAllTenantData(dataContext, {
+      onSettings: setSettings,
+      onProducts: setProducts,
+      onCombos: setCombos,
+      onSales: setSales,
+      onExpenses: setExpenses,
+      onReady: () => setDataLoading(false),
+      onError: (err) => {
         setDataError(err.message);
         setDataLoading(false);
       },
-      workspace,
-    );
+    });
 
-    const unsubSales = subscribeSales(
-      (list) => {
-        setSales(list);
-        salesLoaded = true;
-        markReady();
-      },
-      (err) => {
-        setDataError(err.message);
-        setDataLoading(false);
-      },
-      workspace,
-    );
+    return unsub;
+  }, [dataContext]);
 
-    const unsubExpenses = subscribeExpenses(
-      (list) => {
-        setExpenses(list);
-        expensesLoaded = true;
-        markReady();
-      },
-      (err) => {
-        setDataError(err.message);
-        setDataLoading(false);
-      },
-      workspace,
-    );
-
-    const unsubProducts = subscribeProducts(
-      (list) => {
-        setProducts(list);
-        productsLoaded = true;
-        markReady();
-      },
-      (err) => {
-        setDataError(err.message);
-        setDataLoading(false);
-      },
-      workspace,
-    );
-
-    const unsubCombos = subscribeCombos(
-      (list) => {
-        setCombos(list);
-        combosLoaded = true;
-        markReady();
-      },
-      (err) => {
-        setDataError(err.message);
-        setDataLoading(false);
-      },
-      workspace,
-    );
-
-    return () => {
-      unsubSettings();
-      unsubSales();
-      unsubExpenses();
-      unsubProducts();
-      unsubCombos();
-    };
-  }, [user, workspace]);
+  function handleSelectTenant(nextTenantId: string) {
+    if (!tenants.some((t) => t.tenantId === nextTenantId)) return;
+    setSelectedTenantId(nextTenantId);
+    try {
+      window.localStorage.setItem(TENANT_PREF_KEY, nextTenantId);
+    } catch {
+      // Ignora erro de storage bloqueado
+    }
+  }
 
   async function handleGoogleLogin() {
     if (isSigningIn) return;
     setIsSigningIn(true);
     setAuthError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
+      await loginWithGoogle();
     } catch (err) {
       setAuthError(
         err instanceof Error
@@ -276,8 +229,18 @@ export default function App() {
     }
   }
 
+  async function handleEmailLogin(email: string, password: string) {
+    setAuthError(null);
+    await loginWithEmailPassword(email, password);
+  }
+
+  async function handlePasswordReset(email: string) {
+    setAuthError(null);
+    await requestPasswordReset(email);
+  }
+
   async function handleLogout() {
-    await signOut(auth);
+    await logoutSession();
   }
 
   async function handleSaveSale(input: SaleInput, editingId?: string) {
@@ -287,18 +250,19 @@ export default function App() {
       );
     }
 
-    if (!user) return;
+    if (!dataContext) return;
     if (editingId) {
-      await updateSaleInFirestore(editingId, input, workspace);
+      await updateSale(dataContext, editingId, input);
       showToast('Venda atualizada no banco de dados.');
     } else {
-      await createSaleInFirestore(user.uid, input, workspace);
+      await addSale(dataContext, input);
       showToast('Venda salva permanentemente.');
     }
   }
 
   async function handleDeleteSale(saleId: string) {
-    await deleteSaleInFirestore(saleId, workspace);
+    if (!dataContext) return;
+    await deleteSale(dataContext, saleId);
     showToast('Venda excluída.');
   }
 
@@ -309,30 +273,31 @@ export default function App() {
       );
     }
 
-    if (!user) return;
+    if (!dataContext) return;
     if (editingId) {
-      await updateExpenseInFirestore(editingId, input, workspace);
+      await updateExpense(dataContext, editingId, input);
       showToast('Despesa atualizada no banco de dados.');
     } else {
-      await createExpenseInFirestore(user.uid, input, workspace);
+      await addExpense(dataContext, input);
       showToast('Despesa salva permanentemente.');
     }
   }
 
   async function handleDeleteExpense(expenseId: string) {
-    await deleteExpenseInFirestore(expenseId, workspace);
+    if (!dataContext) return;
+    await deleteExpense(dataContext, expenseId);
     showToast('Despesa excluída.');
   }
 
   async function handleSaveSettings(next: Omit<ShopSettings, 'ownerId'>) {
-    if (!user) return;
-    await saveSettingsToFirestore(user.uid, next, workspace);
+    if (!dataContext) return;
+    await saveSettings(dataContext, next);
     showToast('Configurações salvas.');
   }
 
   async function handleCreateProduct(input: ProductInput): Promise<string> {
-    if (!user) return '';
-    const id = await createProductInFirestore(user.uid, input, workspace);
+    if (!dataContext) return '';
+    const id = await addProduct(dataContext, input);
     showToast('Produto cadastrado.');
     return id;
   }
@@ -341,13 +306,14 @@ export default function App() {
     productId: string,
     input: ProductInput,
   ): Promise<void> {
-    await updateProductInFirestore(productId, input, workspace);
+    if (!dataContext) return;
+    await updateProduct(dataContext, productId, input);
     showToast('Produto atualizado.');
   }
 
   async function handleCreateCombo(input: ComboInput): Promise<string> {
-    if (!user) return '';
-    const id = await createComboInFirestore(user.uid, input, workspace);
+    if (!dataContext) return '';
+    const id = await addCombo(dataContext, input);
     showToast('Combo cadastrado.');
     return id;
   }
@@ -356,13 +322,14 @@ export default function App() {
     comboId: string,
     input: ComboInput,
   ): Promise<void> {
-    await updateComboInFirestore(comboId, input, workspace);
+    if (!dataContext) return;
+    await updateCombo(dataContext, comboId, input);
     showToast('Combo atualizado.');
   }
 
   async function handleSeedCatalog(): Promise<void> {
-    if (!user) return;
-    await seedDefaultCatalogInFirestore(user.uid, settings.xSaladaPrice, workspace);
+    if (!dataContext) return;
+    await seedDefaultCatalog(dataContext, settings.xSaladaPrice);
     showToast('Produtos base e Combos 1 a 4 criados.');
   }
 
@@ -374,10 +341,13 @@ export default function App() {
     );
   }
 
-  if (!user) {
+  if (!user || !dataContext) {
     return (
       <LoginScreen
         onGoogleLogin={handleGoogleLogin}
+        onEmailLogin={handleEmailLogin}
+        onPasswordReset={handlePasswordReset}
+        supportsEmailAuth={activeProvider === 'supabase'}
         isSigningIn={isSigningIn}
         errorMessage={authError}
       />
@@ -385,6 +355,7 @@ export default function App() {
   }
 
   const currentNav = NAV_ITEMS.find((item) => item.id === route) ?? NAV_ITEMS[0];
+  const hasMultipleTenants = tenants.length > 1;
 
   return (
     <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex flex-col lg:flex-row">
@@ -426,6 +397,30 @@ export default function App() {
         </nav>
 
         <div className="p-4 border-t border-[#232834] space-y-3">
+          {hasMultipleTenants && (
+            <div>
+              <label
+                htmlFor="desktop-tenant-select"
+                className="flex items-center gap-1.5 text-[11px] font-medium text-[#9CA3AF] mb-1.5"
+              >
+                <Building2 className="w-3.5 h-3.5 text-[#F5B731]" />
+                Estabelecimento
+              </label>
+              <select
+                id="desktop-tenant-select"
+                value={activeTenant?.tenantId ?? ''}
+                onChange={(e) => handleSelectTenant(e.target.value)}
+                className="w-full min-h-[38px] px-2.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-xs text-[#F3F4F6]"
+              >
+                {tenants.map((t) => (
+                  <option key={t.tenantId} value={t.tenantId}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="text-xs text-[#9CA3AF] truncate">
             {user.email}
           </div>
@@ -448,6 +443,20 @@ export default function App() {
             <span className="lg:hidden font-display font-bold text-sm text-[#F5B731] whitespace-nowrap shrink-0">
               MGW GESTÃO
             </span>
+            {hasMultipleTenants && (
+              <select
+                aria-label="Selecionar estabelecimento"
+                value={activeTenant?.tenantId ?? ''}
+                onChange={(e) => handleSelectTenant(e.target.value)}
+                className="lg:hidden max-w-[120px] min-h-[34px] px-2 rounded-lg bg-[#12151C] border border-[#232834] text-[11px] text-[#F3F4F6]"
+              >
+                {tenants.map((t) => (
+                  <option key={t.tenantId} value={t.tenantId}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            )}
             <h1 className="hidden lg:block text-lg font-bold text-[#F3F4F6] whitespace-nowrap truncate">
               {currentNav.label}
             </h1>
