@@ -203,6 +203,31 @@ test('hasActiveTenantBillingAccess and buildTenantContextFromRows enforce founde
   assert.match(mapSupabaseAuthErrorMessage(new Error('JWT expired')), /expirou/i);
 });
 
+test('legacy dates fail closed instead of silently substituting a date', () => {
+  assert.equal(normalizeLegacyDateOnly('2026-11-14'), '2026-11-14');
+  assert.throws(() => normalizeLegacyDateOnly(undefined, 'venda fs-1'), /ausente ou inválido/i);
+  assert.throws(() => normalizeLegacyDateOnly('2026-02-30', 'venda fs-2'), /data inexistente/i);
+});
+
+test('migration refuses dangling product references in combo snapshots', () => {
+  assert.throws(() => transformComboForSupabase(
+    'tenant-1',
+    {
+      id: 'combo-1',
+      ownerId: 'owner',
+      name: 'Combo',
+      description: '',
+      items: [{ productId: 'missing-product', productName: 'Produto', quantity: 1, countsAsXSalada: false }],
+      salePrice: 20,
+      estimatedCost: 10,
+      active: true,
+      createdAtIso: '2026-11-14T10:00:00.000Z',
+      updatedAtIso: '2026-11-14T10:00:00.000Z',
+    },
+    new Map(),
+  ), /sem UUID no Supabase/i);
+});
+
 test('migration helpers remap legacy_product_id -> UUID in combos & sales snapshots and verify dataset parity', () => {
   const productMap = new Map<string, string>([
     ['fs-prod-xsalada', '11111111-1111-4111-8111-111111111111'],
