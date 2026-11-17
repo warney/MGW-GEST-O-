@@ -470,3 +470,37 @@ test('beverage-only order counts 0 X-Saladas while legacy sales without snapshot
   assert.equal(getSaleXSaladaCount(drinkSale), 0);
   assert.equal(getSaleXSaladaCount(sampleSales[0]), sampleSales[0].quantity);
 });
+
+test('computeReportSummary separates Manual vs Online channel breakdown with zero double counting', () => {
+  const mixedSales: SaleRecord[] = [
+    ...sampleSales.filter((s) => s.date.startsWith('2026-11')),
+    {
+      id: 's-online-nov',
+      ownerId: 'owner1',
+      date: '2026-11-13',
+      quantity: 2,
+      unitPrice: 28,
+      totalAmount: 56,
+      paymentMethod: 'Pix',
+      note: '#0001 · Cliente Web',
+      saleOrigin: 'online',
+      onlineOrderId: 'ord-nov-1',
+      onlineOrderNumber: 1,
+      deliveryFee: 5,
+      xSaladaCount: 2,
+      combosCount: 1,
+      createdAtMs: 9000,
+      updatedAtMs: 9000,
+    },
+  ];
+
+  const report = computeReportSummary(mixedSales, sampleExpenses, 'thisMonth', '2026-11-13');
+  assert.equal(report.totalRevenue, 540); // 484 manual + 56 online
+  assert.equal(report.channelBreakdown.manualRevenue, 484);
+  assert.equal(report.channelBreakdown.manualCount, 4);
+  assert.equal(report.channelBreakdown.onlineRevenue, 56);
+  assert.equal(report.channelBreakdown.onlineCount, 1);
+  assert.equal(report.channelBreakdown.onlineDeliveryFees, 5);
+  assert.equal(report.channelBreakdown.onlineXSaladas, 2);
+});
+

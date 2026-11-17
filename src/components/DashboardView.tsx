@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CreditCard,
   DollarSign,
+  Globe,
   Layers,
   Plus,
   QrCode,
@@ -18,6 +19,7 @@ import {
 import type {
   DashboardGranularity,
   ExpenseRecord,
+  OnlineOrderRecord,
   SaleRecord,
   ShopSettings,
 } from '../types/finance';
@@ -42,24 +44,34 @@ import {
   RevenueVsExpensesChart,
   XSaladaDailyChart,
 } from './Charts';
+import { computeOnlineOrdersDashboardStats } from '../utils/onlineOrders';
 
 interface DashboardViewProps {
   sales: SaleRecord[];
   expenses: ExpenseRecord[];
   settings: ShopSettings;
+  onlineOrders?: OnlineOrderRecord[];
   onOpenNewSale: () => void;
   onOpenNewExpense: () => void;
+  onOpenOrders?: () => void;
 }
 
 export function DashboardView({
   sales,
   expenses,
   settings,
+  onlineOrders = [],
   onOpenNewSale,
   onOpenNewExpense,
+  onOpenOrders,
 }: DashboardViewProps) {
   const [granularity, setGranularity] = useState<DashboardGranularity>('daily');
   const today = getLocalTodayDate();
+
+  const onlineStats = useMemo(
+    () => computeOnlineOrdersDashboardStats(onlineOrders, sales, today),
+    [onlineOrders, sales, today],
+  );
 
   const metrics = useMemo(
     () => computeDashboardMetrics(sales, expenses, today),
@@ -799,6 +811,95 @@ export function DashboardView({
               </div>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Cardápio Digital e Pedidos Online (bloco aditivo preservando os KPIs existentes) */}
+      <section
+        aria-labelledby="digital-menu-dashboard-heading"
+        className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#232834] pb-3.5">
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-[#F5B731]" />
+            <h3
+              id="digital-menu-dashboard-heading"
+              className="text-sm sm:text-base font-bold text-[#F3F4F6]"
+            >
+              Cardápio Digital e Pedidos Online
+            </h3>
+          </div>
+          {onOpenOrders && (
+            <button
+              type="button"
+              onClick={onOpenOrders}
+              className="min-h-[38px] px-3.5 rounded-xl border border-[#232834] hover:border-[#F5B731]/50 bg-[#0B0D11] text-xs font-semibold text-[#F5B731] self-start sm:self-center cursor-pointer"
+            >
+              Abrir Central de Pedidos
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="p-3 rounded-xl bg-[#0B0D11]/70 border border-[#232834] space-y-1">
+            <p className="text-[11px] text-[#9CA3AF]">Recebidos hoje</p>
+            <p
+              data-testid="kpi-online-received-today"
+              className="text-lg font-bold text-[#F3F4F6] font-mono tabular-nums"
+            >
+              {onlineStats.receivedTodayCount}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[#0B0D11]/70 border border-[#232834] space-y-1">
+            <p className="text-[11px] text-[#9CA3AF]">Em andamento</p>
+            <p
+              data-testid="kpi-online-in-progress"
+              className="text-lg font-bold text-[#F5B731] font-mono tabular-nums"
+            >
+              {onlineStats.inProgressCount + onlineStats.pendingApprovalCount}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[#0B0D11]/70 border border-[#232834] space-y-1">
+            <p className="text-[11px] text-[#9CA3AF]">Concluídos hoje</p>
+            <p
+              data-testid="kpi-online-completed-today"
+              className="text-lg font-bold text-[#22C55E] font-mono tabular-nums"
+            >
+              {onlineStats.completedTodayCount}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[#0B0D11]/70 border border-[#232834] space-y-1">
+            <p className="text-[11px] text-[#9CA3AF]">Recusados / Cancelados</p>
+            <p
+              data-testid="kpi-online-rejected-today"
+              className="text-lg font-bold text-[#F87171] font-mono tabular-nums"
+            >
+              {onlineStats.rejectedOrCancelledTodayCount}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[#0B0D11]/70 border border-[#232834] space-y-1">
+            <p className="text-[11px] text-[#9CA3AF]">Faturamento online (mês)</p>
+            <p
+              data-testid="kpi-online-revenue-month"
+              className="text-base font-bold text-[#F5B731] font-mono tabular-nums truncate"
+            >
+              {formatCurrencyBRL(onlineStats.onlineRevenueMonth)}
+            </p>
+          </div>
+
+          <div className="p-3 rounded-xl bg-[#0B0D11]/70 border border-[#232834] space-y-1">
+            <p className="text-[11px] text-[#9CA3AF]">Itens online (mês)</p>
+            <p
+              data-testid="kpi-online-units-month"
+              className="text-lg font-bold text-[#F3F4F6] font-mono tabular-nums"
+            >
+              {onlineStats.onlineUnitsSoldMonth} un
+            </p>
+          </div>
         </div>
       </section>
     </div>

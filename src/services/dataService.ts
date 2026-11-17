@@ -11,11 +11,20 @@ import {
   type AuthSessionUser,
   type ComboInput,
   type ComboRecord,
+  type CreatePublicOrderPayload,
+  type CreatePublicOrderResponse,
   DEFAULT_SHOP_SETTINGS,
+  type DigitalMenuSettings,
+  type DigitalMenuSettingsInput,
   type ExpenseInput,
   type ExpenseRecord,
+  MGW_WORKSPACE,
+  type OnlineOrderRecord,
+  type OnlineOrderStatus,
   type ProductInput,
   type ProductRecord,
+  type PublicDigitalMenuPayload,
+  type PublicOrderTrackingRecord,
   resolveWorkspaceForEmail,
   type SaleInput,
   type SaleRecord,
@@ -25,20 +34,31 @@ import {
   type WorkspaceAccess,
 } from '../types/finance';
 import { roundCurrency } from '../utils/finance';
+import { DEFAULT_DIGITAL_MENU_SETTINGS, sanitizeMenuSlug } from '../utils/onlineOrders';
+import { demoMutations, isDemoSandboxActive, subscribeDemoAdminState } from './demoSandbox';
 import {
   createComboInFirestore,
   createExpenseInFirestore,
   createProductInFirestore,
+  createPublicOnlineOrderFirestore,
   createSaleInFirestore,
   deleteExpenseInFirestore,
   deleteSaleInFirestore,
+  fetchPublicDigitalMenuFirestore,
+  fetchPublicOrderByTokenFirestore,
+  markOnlineOrderViewedFirestore,
+  saveDigitalMenuSettingsFirestore,
   saveSettingsToFirestore,
   seedDefaultCatalogInFirestore,
   subscribeCombos as subscribeCombosFirestore,
+  subscribeDigitalMenuSettingsFirestore,
   subscribeExpenses as subscribeExpensesFirestore,
+  subscribeOnlineOrdersFirestore,
   subscribeProducts as subscribeProductsFirestore,
+  subscribePublicOrderByTokenHashFirestore,
   subscribeSales as subscribeSalesFirestore,
   subscribeSettings as subscribeSettingsFirestore,
+  transitionOnlineOrderStatusFirestore,
   updateComboInFirestore,
   updateExpenseInFirestore,
   updateProductInFirestore,
@@ -46,6 +66,7 @@ import {
 } from './firestoreService';
 import {
   buildComboPayloadForSupabase,
+  buildDigitalMenuSettingsPayloadForSupabase,
   buildExpensePayloadForSupabase,
   buildProductPayloadForSupabase,
   buildSalePayloadForSupabase,
@@ -53,13 +74,23 @@ import {
   buildTenantContextFromRows,
   hasActiveTenantBillingAccess,
   mapComboRow,
+  mapDigitalMenuSettingsRow,
   mapExpenseRow,
+  mapOnlineOrderItemRow,
+  mapOnlineOrderRow,
+  mapOnlineOrderStatusHistoryRow,
   mapProductRow,
+  mapPublicDigitalMenuRpcResponse,
+  mapPublicOrderTrackingRpcResponse,
   mapSaleRow,
   mapShopSettingsRow,
   mapSupabaseAuthErrorMessage,
   type SupabaseComboRow,
+  type SupabaseDigitalMenuSettingsRow,
   type SupabaseExpenseRow,
+  type SupabaseOnlineOrderItemRow,
+  type SupabaseOnlineOrderRow,
+  type SupabaseOnlineOrderStatusHistoryRow,
   type SupabaseProductRow,
   type SupabaseSaleRow,
   type SupabaseShopSettingsRow,
@@ -76,10 +107,12 @@ export interface DataExecutionContext {
 
 export interface DataSubscriptionsCallbacks {
   onSettings: (settings: ShopSettings) => void;
+  onDigitalMenuSettings?: (settings: DigitalMenuSettings) => void;
   onProducts: (products: ProductRecord[]) => void;
   onCombos: (combos: ComboRecord[]) => void;
   onSales: (sales: SaleRecord[]) => void;
   onExpenses: (expenses: ExpenseRecord[]) => void;
+  onOnlineOrders?: (orders: OnlineOrderRecord[]) => void;
   onReady: () => void;
   onError: (err: Error) => void;
 }
@@ -235,6 +268,31 @@ async function resolveSupabaseAuthenticatedContext(
 export function subscribeAuthSession(
   onChange: (state: AuthResolutionState) => void,
 ): () => void {
+  if (isDemoSandboxActive()) {
+    onChange({
+      user: {
+        uid: 'demo-owner',
+        email: 'warney.fernandes22@gmail.com',
+        emailVerified: true,
+      },
+      tenants: [
+        {
+          tenantId: 'mgw_lanches',
+          slug: 'mgw_lanches',
+          name: 'MGW Lanches',
+          role: 'owner',
+          isFounderAccount: true,
+          billingExempt: true,
+          subscriptionStatus: 'exempt',
+          graceUntil: null,
+        },
+      ],
+      legacyWorkspace: MGW_WORKSPACE,
+      errorMessage: null,
+    });
+    return () => {};
+  }
+
   const provider = getActiveDataProvider();
 
   if (provider === 'firebase') {
@@ -431,6 +489,19 @@ export function subscribeAllTenantData(
   ctx: DataExecutionContext,
   callbacks: DataSubscriptionsCallbacks,
 ): () => void {
+  if (isDemoSandboxActive()) {
+    return subscribeDemoAdminState({
+      onSettings: callbacks.onSettings,
+      onDigitalMenuSettings: (d) => callbacks.onDigitalMenuSettings?.(d),
+      onProducts: callbacks.onProducts,
+      onCombos: callbacks.onCombos,
+      onSales: callbacks.onSales,
+      onExpenses: callbacks.onExpenses,
+      onOrders: (o) => callbacks.onOnlineOrders?.(o),
+      onReady: callbacks.onReady,
+    });
+  }
+
   if (getActiveDataProvider() === 'firebase') {
     const workspace =
       ctx.workspace ??
@@ -510,12 +581,32 @@ export function subscribeAllTenantData(
       workspace,
     );
 
+    const unsubDigitalMenu = callbacks.onDigitalMenuSettings
+      ? subscribeDigitalMenuSettingsFirestore(
+          ctx.user.uid,
+          ctx.tenant.name,
+          callbacks.onDigitalMenuSettings,
+          (err) => callbacks.onError(err),
+          workspace,
+        )
+      : () => {};
+
+    const unsubOrders = callbacks.onOnlineOrders
+      ? subscribeOnlineOrdersFirestore(
+          callbacks.onOnlineOrders,
+          (err) => callbacks.onError(err),
+          workspace,
+        )
+      : () => {};
+
     return () => {
       unsubSettings();
       unsubSales();
       unsubExpenses();
       unsubProducts();
       unsubCombos();
+      unsubDigitalMenu();
+      unsubOrders();
     };
   }
 
@@ -562,6 +653,45 @@ export function subscribeAllTenantData(
       callbacks.onSettings(
         mapShopSettingsRow(inserted as SupabaseShopSettingsRow, ctx.user.email),
       );
+    }
+  };
+
+  const fetchDigitalMenuSettings = async () => {
+    if (!callbacks.onDigitalMenuSettings) return;
+    const { data, error } = await supabase
+      .from('digital_menu_settings')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    if (error) {
+      // Caso a tabela ainda nao exista em ambientes sem Migration 003, degrada graciosamente sem bloquear o sistema financeiro
+      if (error.message.toLowerCase().includes('does not exist')) {
+        if (active) {
+          callbacks.onDigitalMenuSettings({
+            tenantId,
+            ...DEFAULT_DIGITAL_MENU_SETTINGS,
+            slug: sanitizeMenuSlug(ctx.tenant.slug, 'mgw_lanches'),
+            storeName: ctx.tenant.name || DEFAULT_DIGITAL_MENU_SETTINGS.storeName,
+          });
+        }
+        return;
+      }
+      throw new Error(error.message);
+    }
+
+    if (!active) return;
+    if (data) {
+      callbacks.onDigitalMenuSettings(
+        mapDigitalMenuSettingsRow(data as SupabaseDigitalMenuSettingsRow),
+      );
+    } else {
+      callbacks.onDigitalMenuSettings({
+        tenantId,
+        ...DEFAULT_DIGITAL_MENU_SETTINGS,
+        slug: sanitizeMenuSlug(ctx.tenant.slug, 'mgw_lanches'),
+        storeName: ctx.tenant.name || DEFAULT_DIGITAL_MENU_SETTINGS.storeName,
+      });
     }
   };
 
@@ -617,14 +747,83 @@ export function subscribeAllTenantData(
     }
   };
 
+  const fetchOnlineOrders = async () => {
+    if (!callbacks.onOnlineOrders) return;
+    const { data: orderRows, error: ordersError } = await supabase
+      .from('online_orders')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false });
+
+    if (ordersError) {
+      if (ordersError.message.toLowerCase().includes('does not exist')) {
+        if (active) callbacks.onOnlineOrders([]);
+        return;
+      }
+      throw new Error(ordersError.message);
+    }
+
+    const typedOrders = (orderRows ?? []) as SupabaseOnlineOrderRow[];
+    if (typedOrders.length === 0) {
+      if (active) callbacks.onOnlineOrders([]);
+      return;
+    }
+
+    const [itemsRes, historyRes] = await Promise.all([
+      supabase
+        .from('online_order_items')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('online_order_status_history')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: true }),
+    ]);
+
+    const itemsByOrder = new Map<string, ReturnType<typeof mapOnlineOrderItemRow>[]>();
+    for (const row of (itemsRes.data ?? []) as SupabaseOnlineOrderItemRow[]) {
+      const mapped = mapOnlineOrderItemRow(row);
+      const list = itemsByOrder.get(row.order_id) ?? [];
+      list.push(mapped);
+      itemsByOrder.set(row.order_id, list);
+    }
+
+    const historyByOrder = new Map<
+      string,
+      ReturnType<typeof mapOnlineOrderStatusHistoryRow>[]
+    >();
+    for (const row of (historyRes.data ?? []) as SupabaseOnlineOrderStatusHistoryRow[]) {
+      const mapped = mapOnlineOrderStatusHistoryRow(row);
+      const list = historyByOrder.get(row.order_id) ?? [];
+      list.push(mapped);
+      historyByOrder.set(row.order_id, list);
+    }
+
+    if (active) {
+      callbacks.onOnlineOrders(
+        typedOrders.map((row) =>
+          mapOnlineOrderRow(
+            row,
+            itemsByOrder.get(row.id) ?? [],
+            historyByOrder.get(row.id) ?? [],
+          ),
+        ),
+      );
+    }
+  };
+
   const fetchAll = async () => {
     try {
       await Promise.all([
         fetchSettings(),
+        fetchDigitalMenuSettings(),
         fetchProducts(),
         fetchCombos(),
         fetchSales(),
         fetchExpenses(),
+        fetchOnlineOrders(),
       ]);
       if (active) callbacks.onReady();
     } catch (err) {
@@ -651,6 +850,11 @@ export function subscribeAllTenantData(
     )
     .on(
       'postgres_changes',
+      { event: '*', schema: 'public', table: 'digital_menu_settings', filter: `tenant_id=eq.${tenantId}` },
+      () => void fetchDigitalMenuSettings().catch((e) => active && callbacks.onError(e as Error)),
+    )
+    .on(
+      'postgres_changes',
       { event: '*', schema: 'public', table: 'products', filter: `tenant_id=eq.${tenantId}` },
       () => void fetchProducts().catch((e) => active && callbacks.onError(e as Error)),
     )
@@ -668,6 +872,21 @@ export function subscribeAllTenantData(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'expenses', filter: `tenant_id=eq.${tenantId}` },
       () => void fetchExpenses().catch((e) => active && callbacks.onError(e as Error)),
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'online_orders', filter: `tenant_id=eq.${tenantId}` },
+      () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'online_order_items', filter: `tenant_id=eq.${tenantId}` },
+      () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'online_order_status_history', filter: `tenant_id=eq.${tenantId}` },
+      () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
     )
     .subscribe();
 
@@ -688,6 +907,10 @@ export async function saveSettings(
   ctx: DataExecutionContext,
   input: Omit<ShopSettings, 'ownerId'>,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.saveSettings(input);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await saveSettingsToFirestore(ctx.user.uid, input, ctx.workspace);
     return;
@@ -707,10 +930,39 @@ export async function saveSettings(
   notifyTenantRefresh(ctx.tenant.tenantId);
 }
 
+export async function saveDigitalMenuSettings(
+  ctx: DataExecutionContext,
+  input: DigitalMenuSettingsInput,
+): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.saveDigitalMenuSettings(input);
+    return;
+  }
+  if (getActiveDataProvider() === 'firebase') {
+    await saveDigitalMenuSettingsFirestore(ctx.user.uid, input, ctx.workspace);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDigitalMenuSettingsPayloadForSupabase(input);
+  const { error } = await supabase.from('digital_menu_settings').upsert(
+    {
+      tenant_id: ctx.tenant.tenantId,
+      ...payload,
+    },
+    { onConflict: 'tenant_id' },
+  );
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
 export async function addProduct(
   ctx: DataExecutionContext,
   input: ProductInput,
 ): Promise<string> {
+  if (isDemoSandboxActive()) {
+    return demoMutations.addProduct(input);
+  }
   if (getActiveDataProvider() === 'firebase') {
     return createProductInFirestore(ctx.user.uid, input, ctx.workspace);
   }
@@ -736,6 +988,10 @@ export async function updateProduct(
   productId: string,
   input: ProductInput,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.updateProduct(productId, input);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await updateProductInFirestore(productId, input, ctx.workspace);
     return;
@@ -756,6 +1012,9 @@ export async function addCombo(
   ctx: DataExecutionContext,
   input: ComboInput,
 ): Promise<string> {
+  if (isDemoSandboxActive()) {
+    return demoMutations.addCombo(input);
+  }
   if (getActiveDataProvider() === 'firebase') {
     return createComboInFirestore(ctx.user.uid, input, ctx.workspace);
   }
@@ -781,6 +1040,10 @@ export async function updateCombo(
   comboId: string,
   input: ComboInput,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.updateCombo(comboId, input);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await updateComboInFirestore(comboId, input, ctx.workspace);
     return;
@@ -801,7 +1064,7 @@ export async function seedDefaultCatalog(
   ctx: DataExecutionContext,
   xSaladaPrice: number,
 ): Promise<void> {
-  if (getActiveDataProvider() === 'firebase') {
+  if (getActiveDataProvider() === 'firebase' && !isDemoSandboxActive()) {
     await seedDefaultCatalogInFirestore(ctx.user.uid, xSaladaPrice, ctx.workspace);
     return;
   }
@@ -893,6 +1156,10 @@ export async function addSale(
   ctx: DataExecutionContext,
   input: SaleInput,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.addSale(input);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await createSaleInFirestore(ctx.user.uid, input, ctx.workspace);
     return;
@@ -914,6 +1181,10 @@ export async function updateSale(
   saleId: string,
   input: SaleInput,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.updateSale(saleId, input);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await updateSaleInFirestore(saleId, input, ctx.workspace);
     return;
@@ -934,6 +1205,10 @@ export async function deleteSale(
   ctx: DataExecutionContext,
   saleId: string,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.deleteSale(saleId);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await deleteSaleInFirestore(saleId, ctx.workspace);
     return;
@@ -953,6 +1228,10 @@ export async function addExpense(
   ctx: DataExecutionContext,
   input: ExpenseInput,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.addExpense(input);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await createExpenseInFirestore(ctx.user.uid, input, ctx.workspace);
     return;
@@ -974,6 +1253,10 @@ export async function updateExpense(
   expenseId: string,
   input: ExpenseInput,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.updateExpense(expenseId, input);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await updateExpenseInFirestore(expenseId, input, ctx.workspace);
     return;
@@ -994,6 +1277,10 @@ export async function deleteExpense(
   ctx: DataExecutionContext,
   expenseId: string,
 ): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.deleteExpense(expenseId);
+    return;
+  }
   if (getActiveDataProvider() === 'firebase') {
     await deleteExpenseInFirestore(expenseId, ctx.workspace);
     return;
@@ -1007,4 +1294,166 @@ export async function deleteExpense(
     .eq('tenant_id', ctx.tenant.tenantId);
   if (error) throw new Error(error.message);
   notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+// ==================== PEDIDOS ONLINE (ADMIN & PUBLICO) ====================
+
+export async function markOnlineOrderViewed(
+  ctx: DataExecutionContext,
+  order: OnlineOrderRecord,
+): Promise<void> {
+  if (order.viewedAtMs) return;
+  if (isDemoSandboxActive()) {
+    demoMutations.markOrderViewed(order.id);
+    return;
+  }
+  if (getActiveDataProvider() === 'firebase') {
+    await markOnlineOrderViewedFirestore(order, ctx.workspace);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('mark_online_order_viewed', {
+    p_order_id: order.id,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function transitionOnlineOrderStatus(
+  ctx: DataExecutionContext,
+  order: OnlineOrderRecord,
+  nextStatus: OnlineOrderStatus,
+  reason = '',
+): Promise<void> {
+  if (isDemoSandboxActive()) {
+    demoMutations.transitionOrderStatus(order.id, nextStatus, reason);
+    return;
+  }
+  if (getActiveDataProvider() === 'firebase') {
+    await transitionOnlineOrderStatusFirestore(
+      ctx.user.uid,
+      order,
+      nextStatus,
+      reason,
+      ctx.workspace,
+    );
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('transition_online_order_status', {
+    p_order_id: order.id,
+    p_next_status: nextStatus,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function fetchPublicDigitalMenu(
+  slug?: string,
+): Promise<PublicDigitalMenuPayload> {
+  if (isDemoSandboxActive()) {
+    return demoMutations.fetchPublicMenu(slug);
+  }
+  if (getActiveDataProvider() === 'firebase') {
+    return fetchPublicDigitalMenuFirestore(slug);
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('get_public_digital_menu', {
+    p_slug: slug ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return mapPublicDigitalMenuRpcResponse(data);
+}
+
+export async function createPublicOnlineOrder(
+  payload: CreatePublicOrderPayload,
+): Promise<CreatePublicOrderResponse> {
+  if (isDemoSandboxActive()) {
+    return demoMutations.createPublicOrder(payload);
+  }
+  if (getActiveDataProvider() === 'firebase') {
+    return createPublicOnlineOrderFirestore(payload);
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('create_public_online_order', {
+    p_slug: payload.slug ?? null,
+    p_customer_name: payload.customerName,
+    p_customer_phone: payload.customerPhone,
+    p_fulfillment_type: payload.fulfillmentType,
+    p_delivery_address: payload.deliveryAddress,
+    p_delivery_reference: payload.deliveryReference,
+    p_payment_method: payload.paymentMethod,
+    p_change_for: payload.changeFor,
+    p_customer_note: payload.customerNote,
+    p_items: payload.items,
+  });
+  if (error) throw new Error(error.message);
+  return data as CreatePublicOrderResponse;
+}
+
+export async function fetchPublicOrderByToken(
+  token: string,
+): Promise<PublicOrderTrackingRecord | null> {
+  if (isDemoSandboxActive()) {
+    return demoMutations.getPublicOrderByToken(token);
+  }
+  if (getActiveDataProvider() === 'firebase') {
+    return fetchPublicOrderByTokenFirestore(token);
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('get_public_order_by_token', {
+    p_tracking_token: token,
+  });
+  if (error) throw new Error(error.message);
+  return mapPublicOrderTrackingRpcResponse(data);
+}
+
+export function subscribePublicOrderTracking(
+  token: string,
+  tokenHash: string,
+  onUpdate: (order: PublicOrderTrackingRecord | null) => void,
+  onError: (err: Error) => void,
+): () => void {
+  if (isDemoSandboxActive()) {
+    return demoMutations.subscribeTrackingByToken(token, onUpdate);
+  }
+  if (getActiveDataProvider() === 'firebase') {
+    return subscribePublicOrderByTokenHashFirestore(tokenHash, onUpdate, onError);
+  }
+
+  const supabase = getSupabaseClient();
+  let active = true;
+
+  const channel = supabase
+    .channel(`public-order-${tokenHash.slice(0, 16)}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'online_order_realtime_pings',
+        filter: `token_hash=eq.${tokenHash}`,
+      },
+      () => {
+        void fetchPublicOrderByToken(token)
+          .then((order) => {
+            if (active) onUpdate(order);
+          })
+          .catch((e) => {
+            if (active) onError(e instanceof Error ? e : new Error(String(e)));
+          });
+      },
+    )
+    .subscribe();
+
+  return () => {
+    active = false;
+    void supabase.removeChannel(channel);
+  };
 }

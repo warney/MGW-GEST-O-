@@ -236,6 +236,25 @@
           "type": "array",
           "description": "Cópia histórica dos combos e produtos vendidos no momento da venda"
         },
+        "saleOrigin": {
+          "type": "string",
+          "description": "Origem da venda: manual ou cardápio online",
+          "enum": ["manual", "online"]
+        },
+        "onlineOrderId": {
+          "type": "string",
+          "description": "ID do pedido online vinculado quando concluído",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "onlineOrderNumber": {
+          "type": "integer",
+          "description": "Número sequencial do pedido online vinculado"
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Taxa de entrega incluída no total da venda online"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -336,6 +355,242 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "DigitalMenuSettings": {
+      "title": "Configurações do Cardápio Digital",
+      "description": "Configurações operacionais e link público do cardápio digital por estabelecimento.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "slug": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9_\\-]{1,63}$"
+        },
+        "isActive": { "type": "boolean" },
+        "isOpen": { "type": "boolean" },
+        "storeName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 300 },
+        "phoneWhatsapp": { "type": "string", "maxLength": 32 },
+        "address": { "type": "string", "maxLength": 240 },
+        "openingHours": { "type": "string", "maxLength": 160 },
+        "deliveryFee": { "type": "number" },
+        "minimumOrderAmount": { "type": "number" },
+        "acceptsDelivery": { "type": "boolean" },
+        "acceptsPickup": { "type": "boolean" },
+        "nextOrderSeq": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "slug",
+        "isActive",
+        "isOpen",
+        "storeName",
+        "description",
+        "phoneWhatsapp",
+        "address",
+        "openingHours",
+        "deliveryFee",
+        "minimumOrderAmount",
+        "acceptsDelivery",
+        "acceptsPickup",
+        "nextOrderSeq",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PublicMenu": {
+      "title": "Snapshot Público do Cardápio Digital",
+      "description": "Projeção pública somente-leitura com produtos e combos ativos para o cardápio online sem autenticação.",
+      "type": "object",
+      "properties": {
+        "workspaceId": { "type": "string", "enum": ["mgw_lanches", "gf_lanches"] },
+        "slug": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "isActive": { "type": "boolean" },
+        "isOpen": { "type": "boolean" },
+        "storeName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 300 },
+        "phoneWhatsapp": { "type": "string", "maxLength": 32 },
+        "address": { "type": "string", "maxLength": 240 },
+        "openingHours": { "type": "string", "maxLength": 160 },
+        "deliveryFee": { "type": "number" },
+        "minimumOrderAmount": { "type": "number" },
+        "acceptsDelivery": { "type": "boolean" },
+        "acceptsPickup": { "type": "boolean" },
+        "products": { "type": "array" },
+        "combos": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "workspaceId",
+        "slug",
+        "isActive",
+        "isOpen",
+        "storeName",
+        "description",
+        "phoneWhatsapp",
+        "address",
+        "openingHours",
+        "deliveryFee",
+        "minimumOrderAmount",
+        "acceptsDelivery",
+        "acceptsPickup",
+        "products",
+        "combos",
+        "updatedAt"
+      ]
+    },
+    "OnlineOrder": {
+      "title": "Pedido Online Recebido",
+      "description": "Pedido efetuado pelo cardápio digital com fluxo completo de atendimento e vínculo financeiro idempotente.",
+      "type": "object",
+      "properties": {
+        "workspaceId": { "type": "string", "enum": ["mgw_lanches", "gf_lanches"] },
+        "menuSlug": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "orderNumber": { "type": "integer" },
+        "orderCode": { "type": "string", "minLength": 3, "maxLength": 24 },
+        "tokenHash": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "status": {
+          "type": "string",
+          "enum": [
+            "received",
+            "accepted",
+            "preparing",
+            "ready",
+            "out_for_delivery",
+            "ready_for_pickup",
+            "completed",
+            "rejected",
+            "cancelled"
+          ]
+        },
+        "fulfillmentType": { "type": "string", "enum": ["delivery", "pickup"] },
+        "customerName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "customerPhone": { "type": "string", "minLength": 8, "maxLength": 32 },
+        "deliveryAddress": { "type": "string", "maxLength": 280 },
+        "deliveryReference": { "type": "string", "maxLength": 160 },
+        "paymentMethod": { "type": "string", "enum": ["Pix", "Dinheiro", "Cartão"] },
+        "changeFor": { "type": ["number", "null"] },
+        "customerNote": { "type": "string", "maxLength": 300 },
+        "subtotalAmount": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "rejectionReason": { "type": "string", "maxLength": 300 },
+        "viewedAtMs": { "type": ["integer", "null"] },
+        "acceptedAtMs": { "type": ["integer", "null"] },
+        "preparingAtMs": { "type": ["integer", "null"] },
+        "readyAtMs": { "type": ["integer", "null"] },
+        "dispatchedAtMs": { "type": ["integer", "null"] },
+        "completedAtMs": { "type": ["integer", "null"] },
+        "cancelledAtMs": { "type": ["integer", "null"] },
+        "saleId": { "type": ["string", "null"], "maxLength": 128 },
+        "items": { "type": "array" },
+        "statusHistory": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "workspaceId",
+        "menuSlug",
+        "orderNumber",
+        "orderCode",
+        "tokenHash",
+        "status",
+        "fulfillmentType",
+        "customerName",
+        "customerPhone",
+        "deliveryAddress",
+        "deliveryReference",
+        "paymentMethod",
+        "customerNote",
+        "subtotalAmount",
+        "deliveryFee",
+        "totalAmount",
+        "rejectionReason",
+        "items",
+        "statusHistory",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PublicOrderTracking": {
+      "title": "Acompanhamento Público do Pedido",
+      "description": "Documento indexado pelo hash SHA-256 do token secreto do pedido para acompanhamento em tempo real.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "workspaceId": { "type": "string", "enum": ["mgw_lanches", "gf_lanches"] },
+        "tokenHash": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "orderNumber": { "type": "integer" },
+        "orderCode": { "type": "string", "minLength": 3, "maxLength": 24 },
+        "status": {
+          "type": "string",
+          "enum": [
+            "received",
+            "accepted",
+            "preparing",
+            "ready",
+            "out_for_delivery",
+            "ready_for_pickup",
+            "completed",
+            "rejected",
+            "cancelled"
+          ]
+        },
+        "fulfillmentType": { "type": "string", "enum": ["delivery", "pickup"] },
+        "customerName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "deliveryAddress": { "type": "string", "maxLength": 280 },
+        "deliveryReference": { "type": "string", "maxLength": 160 },
+        "paymentMethod": { "type": "string", "enum": ["Pix", "Dinheiro", "Cartão"] },
+        "changeFor": { "type": ["number", "null"] },
+        "customerNote": { "type": "string", "maxLength": 300 },
+        "subtotalAmount": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "rejectionReason": { "type": "string", "maxLength": 300 },
+        "storeName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "storeSlug": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "storeWhatsapp": { "type": "string", "maxLength": 32 },
+        "storeAddress": { "type": "string", "maxLength": 240 },
+        "items": { "type": "array" },
+        "statusHistory": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderId",
+        "workspaceId",
+        "tokenHash",
+        "orderNumber",
+        "orderCode",
+        "status",
+        "fulfillmentType",
+        "customerName",
+        "deliveryAddress",
+        "deliveryReference",
+        "paymentMethod",
+        "customerNote",
+        "subtotalAmount",
+        "deliveryFee",
+        "totalAmount",
+        "rejectionReason",
+        "storeName",
+        "storeSlug",
+        "storeWhatsapp",
+        "storeAddress",
+        "items",
+        "statusHistory",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -344,6 +599,30 @@
         "$ref": "#/entities/Settings"
       },
       "description": "Configurações da lanchonete MGW Lanches pertencentes ao proprietário"
+    },
+    "/digital_menu_settings/{workspaceId}": {
+      "schema": {
+        "$ref": "#/entities/DigitalMenuSettings"
+      },
+      "description": "Configurações do cardápio digital por workspace"
+    },
+    "/public_menus/{menuSlug}": {
+      "schema": {
+        "$ref": "#/entities/PublicMenu"
+      },
+      "description": "Projeção pública do cardápio ativo acessível sem autenticação por slug"
+    },
+    "/online_orders/{orderId}": {
+      "schema": {
+        "$ref": "#/entities/OnlineOrder"
+      },
+      "description": "Pedidos online recebidos pela MGW Lanches"
+    },
+    "/public_order_tracking/{tokenHash}": {
+      "schema": {
+        "$ref": "#/entities/PublicOrderTracking"
+      },
+      "description": "Acompanhamento em tempo real de pedidos via hash SHA-256 do token"
     },
     "/products/{productId}": {
       "schema": {
@@ -374,6 +653,12 @@
         "$ref": "#/entities/Settings"
       },
       "description": "Configurações isoladas de lanchonete separada por workspace"
+    },
+    "/workspaces/{workspaceId}/online_orders/{orderId}": {
+      "schema": {
+        "$ref": "#/entities/OnlineOrder"
+      },
+      "description": "Pedidos online isolados de lanchonete separada por workspace"
     },
     "/workspaces/{workspaceId}/products/{productId}": {
       "schema": {

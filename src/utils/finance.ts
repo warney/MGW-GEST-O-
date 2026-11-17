@@ -125,6 +125,58 @@ export function formatSaleItemsSummary(sale: SaleRecord): string {
   return `${sale.quantity} X-Salada${sale.quantity > 1 ? 's' : ''}`;
 }
 
+export function getSaleOrigin(sale: Pick<SaleRecord, 'saleOrigin'>): 'manual' | 'online' {
+  return sale.saleOrigin === 'online' ? 'online' : 'manual';
+}
+
+export interface ReportChannelBreakdown {
+  manualRevenue: number;
+  manualCount: number;
+  manualXSaladas: number;
+  onlineRevenue: number;
+  onlineCount: number;
+  onlineXSaladas: number;
+  onlineDeliveryFees: number;
+}
+
+export function computeReportChannelBreakdown(
+  sales: SaleRecord[],
+): ReportChannelBreakdown {
+  let manualRevenue = 0;
+  let manualCount = 0;
+  let manualXSaladas = 0;
+  let onlineRevenue = 0;
+  let onlineCount = 0;
+  let onlineXSaladas = 0;
+  let onlineDeliveryFees = 0;
+
+  for (const s of sales) {
+    const xCount = getSaleXSaladaCount(s);
+    if (getSaleOrigin(s) === 'online') {
+      onlineRevenue = roundCurrency(onlineRevenue + s.totalAmount);
+      onlineCount += 1;
+      onlineXSaladas += xCount;
+      onlineDeliveryFees = roundCurrency(
+        onlineDeliveryFees + Math.max(0, Number(s.deliveryFee) || 0),
+      );
+    } else {
+      manualRevenue = roundCurrency(manualRevenue + s.totalAmount);
+      manualCount += 1;
+      manualXSaladas += xCount;
+    }
+  }
+
+  return {
+    manualRevenue,
+    manualCount,
+    manualXSaladas,
+    onlineRevenue,
+    onlineCount,
+    onlineXSaladas,
+    onlineDeliveryFees,
+  };
+}
+
 export function buildSaleInputFromOrder(
   draftItems: SaleOrderDraftItem[],
   date: string,
@@ -888,6 +940,7 @@ export interface ReportSummary {
   topCombos: TopComboStat[];
   topProducts: TopProductStat[];
   paymentBreakdown: PaymentMethodStat[];
+  channelBreakdown: ReportChannelBreakdown;
   comparison: PeriodComparison;
 }
 
@@ -983,6 +1036,7 @@ export function computeReportSummary(
     topCombos: computeTopCombos(filteredSales),
     topProducts: computeTopProducts(filteredSales),
     paymentBreakdown: computePaymentMethodBreakdown(filteredSales),
+    channelBreakdown: computeReportChannelBreakdown(filteredSales),
     comparison: {
       previousRevenue,
       previousExpenses,

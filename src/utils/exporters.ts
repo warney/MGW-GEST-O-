@@ -8,6 +8,7 @@ import {
   formatDateBR,
   formatSaleItemsSummary,
   getSaleCombosCount,
+  getSaleOrigin,
   getSaleXSaladaCount,
 } from './finance';
 
@@ -49,6 +50,8 @@ export function exportReportToPDF(
     head: [['Indicador', 'Valor']],
     body: [
       ['Faturamento total', formatCurrencyBRL(summary.totalRevenue)],
+      ['  · Vendas manuais (Balcão)', `${formatCurrencyBRL(summary.channelBreakdown.manualRevenue)} (${summary.channelBreakdown.manualCount} pedidos)`],
+      ['  · Pedidos online (Cardápio Digital)', `${formatCurrencyBRL(summary.channelBreakdown.onlineRevenue)} (${summary.channelBreakdown.onlineCount} pedidos)`],
       ['Despesas totais', formatCurrencyBRL(summary.totalExpenses)],
       ['Resultado líquido estimado', formatCurrencyBRL(summary.netProfit)],
       ['X-Saladas vendidos', `${summary.totalXSaladas} un`],
@@ -132,9 +135,10 @@ export function exportReportToPDF(
 
     autoTable(doc, {
       startY: getLastY(200) + 13,
-      head: [['Data', 'Itens', 'X-Saladas', 'Total', 'Pagamento', 'Observação']],
+      head: [['Data', 'Origem', 'Itens', 'X-Saladas', 'Total', 'Pagamento', 'Observação']],
       body: summary.filteredSales.map((s) => [
         formatDateBR(s.date),
+        getSaleOrigin(s) === 'online' ? 'Cardápio Online' : 'Manual',
         formatSaleItemsSummary(s),
         String(getSaleXSaladaCount(s)),
         formatCurrencyBRL(s.totalAmount),
@@ -183,6 +187,8 @@ export function exportReportToExcel(
     { Campo: 'Estabelecimento', Valor: establishmentName },
     { Campo: 'Período', Valor: `${formatDateBR(summary.range.start)} a ${formatDateBR(summary.range.end)}` },
     { Campo: 'Faturamento total (R$)', Valor: summary.totalRevenue },
+    { Campo: 'Vendas manuais (R$)', Valor: summary.channelBreakdown.manualRevenue },
+    { Campo: 'Pedidos online (R$)', Valor: summary.channelBreakdown.onlineRevenue },
     { Campo: 'Despesas totais (R$)', Valor: summary.totalExpenses },
     { Campo: 'Resultado líquido estimado (R$)', Valor: summary.netProfit },
     { Campo: 'X-Saladas vendidos (un)', Valor: summary.totalXSaladas },
@@ -207,6 +213,7 @@ export function exportReportToExcel(
 
   const salesRows = summary.filteredSales.map((s) => ({
     Data: formatDateBR(s.date),
+    Origem: getSaleOrigin(s) === 'online' ? 'Cardápio Online' : 'Manual',
     Itens: formatSaleItemsSummary(s),
     X_Saladas: getSaleXSaladaCount(s),
     Combos: getSaleCombosCount(s),
@@ -217,7 +224,7 @@ export function exportReportToExcel(
   const wsSales = XLSX.utils.json_to_sheet(
     salesRows.length > 0
       ? salesRows
-      : [{ Data: 'Sem vendas no período', Itens: '', X_Saladas: 0, Combos: 0, Valor_Total_RS: 0, Forma_Pagamento: '', Observacao: '' }],
+      : [{ Data: 'Sem vendas no período', Origem: '', Itens: '', X_Saladas: 0, Combos: 0, Valor_Total_RS: 0, Forma_Pagamento: '', Observacao: '' }],
   );
   XLSX.utils.book_append_sheet(wb, wsSales, 'Vendas');
 

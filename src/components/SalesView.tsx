@@ -12,6 +12,7 @@ import {
   getLocalTodayDate,
   getMonthBounds,
   getSaleCombosCount,
+  getSaleOrigin,
   getSaleXSaladaCount,
 } from '../utils/finance';
 
@@ -30,6 +31,7 @@ export function SalesView({
 }: SalesViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
+  const [originFilter, setOriginFilter] = useState<'all' | 'manual' | 'online'>('all');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -73,15 +75,18 @@ export function SalesView({
     const q = searchTerm.trim().toLowerCase();
     return sales.filter((s) => {
       const pm = normalizePaymentMethod(s.paymentMethod);
+      const origin = getSaleOrigin(s);
       if (paymentFilter !== 'all' && pm !== paymentFilter) return false;
+      if (originFilter !== 'all' && origin !== originFilter) return false;
       if (dateFilter && s.date !== dateFilter) return false;
       if (q) {
-        const hay = `${formatSaleItemsSummary(s)} ${s.note} ${pm} ${formatDateBR(s.date)} ${getSaleXSaladaCount(s)}`.toLowerCase();
+        const originLabel = origin === 'online' ? 'cardápio online' : 'manual';
+        const hay = `${formatSaleItemsSummary(s)} ${s.note} ${pm} ${originLabel} ${formatDateBR(s.date)} ${getSaleXSaladaCount(s)}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [sales, paymentFilter, dateFilter, searchTerm]);
+  }, [sales, paymentFilter, originFilter, dateFilter, searchTerm]);
 
   async function handleConfirmDelete(id: string) {
     if (deletingId) return;
@@ -171,6 +176,19 @@ export function SalesView({
             ))}
           </select>
 
+          <select
+            aria-label="Filtrar por origem da venda"
+            value={originFilter}
+            onChange={(e) =>
+              setOriginFilter(e.target.value as 'all' | 'manual' | 'online')
+            }
+            className="min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+          >
+            <option value="all">Todas as origens</option>
+            <option value="manual">Vendas Manuais</option>
+            <option value="online">Cardápio Online</option>
+          </select>
+
           <input
             type="date"
             aria-label="Filtrar por data"
@@ -179,12 +197,16 @@ export function SalesView({
             className="min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono"
           />
 
-          {(dateFilter || paymentFilter !== 'all' || searchTerm) && (
+          {(dateFilter ||
+            paymentFilter !== 'all' ||
+            originFilter !== 'all' ||
+            searchTerm) && (
             <button
               type="button"
               onClick={() => {
                 setSearchTerm('');
                 setPaymentFilter('all');
+                setOriginFilter('all');
                 setDateFilter('');
               }}
               className="min-h-[44px] px-3.5 rounded-xl border border-[#232834] hover:border-[#374151] text-xs font-medium text-[#D1D5DB] cursor-pointer"
@@ -235,6 +257,7 @@ export function SalesView({
               const xCount = getSaleXSaladaCount(sale);
               const combosCount = getSaleCombosCount(sale);
               const pm = normalizePaymentMethod(sale.paymentMethod);
+              const origin = getSaleOrigin(sale);
               const summaryText = formatSaleItemsSummary(sale);
 
               return (
@@ -251,6 +274,16 @@ export function SalesView({
                         ·
                       </span>
                       <span className="text-xs text-[#D1D5DB]">{pm}</span>
+                      <span className="text-xs text-[#9CA3AF]" aria-hidden="true">
+                        ·
+                      </span>
+                      <span
+                        className={`text-xs font-semibold ${
+                          origin === 'online' ? 'text-[#F5B731]' : 'text-[#9CA3AF]'
+                        }`}
+                      >
+                        {origin === 'online' ? 'Cardápio Online' : 'Manual'}
+                      </span>
                       <span className="text-xs text-[#9CA3AF]" aria-hidden="true">
                         ·
                       </span>

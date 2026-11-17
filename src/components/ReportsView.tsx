@@ -5,6 +5,7 @@ import {
   CreditCard,
   Download,
   FileSpreadsheet,
+  Globe,
   Layers,
   Package,
   QrCode,
@@ -27,6 +28,7 @@ import {
   formatSaleItemsSummary,
   getLocalTodayDate,
   getSaleCombosCount,
+  getSaleOrigin,
   getSaleXSaladaCount,
 } from '../utils/finance';
 
@@ -491,6 +493,69 @@ export function ReportsView({ sales, expenses, settings }: ReportsViewProps) {
         </div>
       </section>
 
+      {/* Origem das Vendas (Manual vs Cardápio Online) */}
+      <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2 border-b border-[#232834] pb-3">
+          <Globe className="w-4 h-4 text-[#F5B731]" />
+          <h3 className="text-sm font-bold text-[#F3F4F6]">
+            Origem das Vendas (Manual vs Cardápio Online)
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-4 rounded-xl bg-[#0B0D11]/70 border border-[#232834] space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#D1D5DB]">Vendas Manuais</span>
+              <span className="font-mono tabular-nums text-[#9CA3AF]">
+                {(summary.totalRevenue > 0
+                  ? (summary.channelBreakdown.manualRevenue / summary.totalRevenue) * 100
+                  : 0
+                )
+                  .toFixed(1)
+                  .replace('.', ',')}
+                % do faturamento
+              </span>
+            </div>
+            <p className="text-xl font-bold text-[#F3F4F6] font-mono tabular-nums">
+              {formatCurrencyBRL(summary.channelBreakdown.manualRevenue)}
+            </p>
+            <p className="text-xs text-[#9CA3AF] font-mono tabular-nums">
+              {summary.channelBreakdown.manualCount} pedido
+              {summary.channelBreakdown.manualCount === 1 ? '' : 's'} ·{' '}
+              {summary.channelBreakdown.manualXSaladas} X-Salada
+              {summary.channelBreakdown.manualXSaladas === 1 ? '' : 's'}
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-[#0B0D11]/70 border border-[#232834] space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#F5B731]">Cardápio Online</span>
+              <span className="font-mono tabular-nums text-[#9CA3AF]">
+                {(summary.totalRevenue > 0
+                  ? (summary.channelBreakdown.onlineRevenue / summary.totalRevenue) * 100
+                  : 0
+                )
+                  .toFixed(1)
+                  .replace('.', ',')}
+                % do faturamento
+              </span>
+            </div>
+            <p className="text-xl font-bold text-[#F5B731] font-mono tabular-nums">
+              {formatCurrencyBRL(summary.channelBreakdown.onlineRevenue)}
+            </p>
+            <p className="text-xs text-[#9CA3AF] font-mono tabular-nums">
+              {summary.channelBreakdown.onlineCount} pedido
+              {summary.channelBreakdown.onlineCount === 1 ? '' : 's'} ·{' '}
+              {summary.channelBreakdown.onlineXSaladas} X-Salada
+              {summary.channelBreakdown.onlineXSaladas === 1 ? '' : 's'}
+              {summary.channelBreakdown.onlineDeliveryFees > 0
+                ? ` · Taxas de entrega ${formatCurrencyBRL(summary.channelBreakdown.onlineDeliveryFees)}`
+                : ''}
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Period Transactions Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section className="bg-[#12151C] border border-[#232834] rounded-2xl overflow-hidden">
@@ -513,6 +578,7 @@ export function ReportsView({ sales, expenses, settings }: ReportsViewProps) {
                 const xCount = getSaleXSaladaCount(s);
                 const cCount = getSaleCombosCount(s);
                 const pm = normalizePaymentMethod(s.paymentMethod);
+                const origin = getSaleOrigin(s);
                 return (
                   <div
                     key={s.id}
@@ -520,7 +586,14 @@ export function ReportsView({ sales, expenses, settings }: ReportsViewProps) {
                   >
                     <div className="min-w-0">
                       <p className="font-semibold text-[#F3F4F6] truncate">
-                        {formatSaleItemsSummary(s)} · {pm}
+                        {formatSaleItemsSummary(s)} · {pm} ·{' '}
+                        <span
+                          className={
+                            origin === 'online' ? 'text-[#F5B731]' : 'text-[#9CA3AF]'
+                          }
+                        >
+                          {origin === 'online' ? 'Cardápio Online' : 'Manual'}
+                        </span>
                       </p>
                       <p className="text-[#9CA3AF] truncate font-mono tabular-nums">
                         {formatDateBR(s.date)} · {xCount} X-Salada{xCount === 1 ? '' : 's'}

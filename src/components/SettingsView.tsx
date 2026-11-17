@@ -1,38 +1,55 @@
 import { useEffect, useState } from 'react';
-import { Check, Layers, Save, Store } from 'lucide-react';
+import { Check, Globe, Layers, Save, Store } from 'lucide-react';
 import type {
   ComboInput,
   ComboRecord,
+  DigitalMenuSettings,
+  DigitalMenuSettingsInput,
   ProductInput,
   ProductRecord,
   ShopSettings,
 } from '../types/finance';
+import { DigitalMenuSettingsPanel } from './DigitalMenuSettingsPanel';
 import { ProductsCombosManager } from './ProductsCombosManager';
 
 interface SettingsViewProps {
   settings: ShopSettings;
   products: ProductRecord[];
   combos: ComboRecord[];
+  digitalMenuSettings: DigitalMenuSettings;
   onSaveSettings: (next: Omit<ShopSettings, 'ownerId'>) => Promise<void>;
+  onSaveDigitalMenuSettings: (next: DigitalMenuSettingsInput) => Promise<void>;
   onCreateProduct: (input: ProductInput) => Promise<string>;
   onUpdateProduct: (productId: string, input: ProductInput) => Promise<void>;
   onCreateCombo: (input: ComboInput) => Promise<string>;
   onUpdateCombo: (comboId: string, input: ComboInput) => Promise<void>;
   onSeedCatalog: () => Promise<void>;
+  onPreviewPublicMenu?: (slug: string) => void;
+  initialTab?: 'shop' | 'catalog' | 'digital_menu';
 }
 
 export function SettingsView({
   settings,
   products,
   combos,
+  digitalMenuSettings,
   onSaveSettings,
+  onSaveDigitalMenuSettings,
   onCreateProduct,
   onUpdateProduct,
   onCreateCombo,
   onUpdateCombo,
   onSeedCatalog,
+  onPreviewPublicMenu,
+  initialTab = 'shop',
 }: SettingsViewProps) {
-  const [activeTab, setActiveTab] = useState<'shop' | 'catalog'>('shop');
+  const [activeTab, setActiveTab] = useState<'shop' | 'catalog' | 'digital_menu'>(
+    initialTab,
+  );
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const [establishmentName, setEstablishmentName] = useState(
     settings.establishmentName,
@@ -112,14 +129,14 @@ export function SettingsView({
       <div
         role="tablist"
         aria-label="Opções de configuração"
-        className="inline-flex p-1 bg-[#12151C] border border-[#232834] rounded-xl"
+        className="flex flex-wrap p-1 bg-[#12151C] border border-[#232834] rounded-xl gap-1"
       >
         <button
           type="button"
           role="tab"
           aria-selected={activeTab === 'shop'}
           onClick={() => setActiveTab('shop')}
-          className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer ${
+          className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
             activeTab === 'shop'
               ? 'bg-[#F5B731] text-[#0B0D11]'
               : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
@@ -134,7 +151,7 @@ export function SettingsView({
           role="tab"
           aria-selected={activeTab === 'catalog'}
           onClick={() => setActiveTab('catalog')}
-          className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer ${
+          className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
             activeTab === 'catalog'
               ? 'bg-[#F5B731] text-[#0B0D11]'
               : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
@@ -142,6 +159,21 @@ export function SettingsView({
         >
           <Layers className="w-4 h-4" />
           Produtos e Combos
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'digital_menu'}
+          onClick={() => setActiveTab('digital_menu')}
+          className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
+            activeTab === 'digital_menu'
+              ? 'bg-[#F5B731] text-[#0B0D11]'
+              : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          Cardápio Digital
         </button>
       </div>
 
@@ -155,6 +187,14 @@ export function SettingsView({
           onCreateCombo={onCreateCombo}
           onUpdateCombo={onUpdateCombo}
           onSeedCatalog={onSeedCatalog}
+        />
+      ) : activeTab === 'digital_menu' ? (
+        <DigitalMenuSettingsPanel
+          settings={digitalMenuSettings}
+          activeProductsCount={products.filter((p) => p.active).length}
+          activeCombosCount={combos.filter((c) => c.active).length}
+          onSave={onSaveDigitalMenuSettings}
+          onPreviewPublicMenu={onPreviewPublicMenu}
         />
       ) : (
         <section className="max-w-2xl bg-[#12151C] border border-[#232834] rounded-2xl p-5 sm:p-6 space-y-5">

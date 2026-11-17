@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
   Building2,
+  ClipboardList,
   LayoutDashboard,
   LogOut,
   Plus,
@@ -21,11 +22,14 @@ import {
   loginWithEmailPassword,
   loginWithGoogle,
   logoutSession,
+  markOnlineOrderViewed,
   requestPasswordReset,
+  saveDigitalMenuSettings,
   saveSettings,
   seedDefaultCatalog,
   subscribeAllTenantData,
   subscribeAuthSession,
+  transitionOnlineOrderStatus,
   updateCombo,
   updateExpense,
   updateProduct,
@@ -37,8 +41,12 @@ import {
   type ComboInput,
   type ComboRecord,
   DEFAULT_SHOP_SETTINGS,
+  type DigitalMenuSettings,
+  type DigitalMenuSettingsInput,
   type ExpenseInput,
   type ExpenseRecord,
+  type OnlineOrderRecord,
+  type OnlineOrderStatus,
   type ProductInput,
   type ProductRecord,
   type SaleInput,
@@ -51,16 +59,50 @@ import {
   isLikelyDuplicateExpense,
   isLikelyDuplicateSale,
 } from './utils/finance';
+import {
+  DEFAULT_DIGITAL_MENU_SETTINGS,
+  isUnreadNewOrder,
+  ORDER_STATUS_LABELS,
+} from './utils/onlineOrders';
+import {
+  playNewOrderAlertChime,
+  unlockAlertAudio,
+} from './utils/soundAlert';
 import { DashboardView } from './components/DashboardView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { ExpensesView } from './components/ExpensesView';
 import { LoginScreen } from './components/LoginScreen';
+import { OrdersCenterView } from './components/OrdersCenterView';
+import { PublicMenuView } from './components/PublicMenuView';
+import { PublicOrderTrackingView } from './components/PublicOrderTrackingView';
 import { ReportsView } from './components/ReportsView';
 import { SaleModal } from './components/SaleModal';
 import { SalesView } from './components/SalesView';
 import { SettingsView } from './components/SettingsView';
 
 const TENANT_PREF_KEY = 'mgw_active_tenant_id';
+const SOUND_PREF_KEY = 'mgw_order_sound_enabled';
+
+type PublicUrlRoute =
+  | { kind: 'admin' }
+  | { kind: 'menu'; slug?: string }
+  | { kind: 'tracking'; token: string };
+
+function parsePublicUrlRoute(pathname: string): PublicUrlRoute {
+  const normalized = pathname.replace(/\/+$/, '') || '/';
+  if (normalized === '/cardapio') {
+    return { kind: 'menu' };
+  }
+  if (normalized.startsWith('/cardapio/')) {
+    const slug = decodeURIComponent(normalized.slice('/cardapio/'.length));
+    return slug ? { kind: 'menu', slug } : { kind: 'menu' };
+  }
+  if (normalized.startsWith('/pedido/')) {
+    const token = decodeURIComponent(normalized.slice('/pedido/'.length));
+    if (token) return { kind: 'tracking', token };
+  }
+  return { kind: 'admin' };
+}
 
 const NAV_ITEMS: Array<{
   id: AppRoute;
@@ -69,14 +111,38 @@ const NAV_ITEMS: Array<{
   icon: typeof LayoutDashboard;
 }> = [
   { id: 'dashboard', label: 'Dashboard', mobileLabel: 'Início', icon: LayoutDashboard },
+  { id: 'orders', label: 'Pedidos', mobileLabel: 'Pedidos', icon: ClipboardList },
   { id: 'sales', label: 'Vendas', mobileLabel: 'Vendas', icon: ShoppingBag },
   { id: 'expenses', label: 'Despesas', mobileLabel: 'Despesas', icon: Receipt },
-  { id: 'reports', label: 'Relatórios', mobileLabel: 'Relatórios', icon: BarChart3 },
+  { id: 'reports', label: 'Relatórios', mobileLabel: 'Relat.', icon: BarChart3 },
   { id: 'settings', label: 'Configurações', mobileLabel: 'Ajustes', icon: Settings },
 ];
 
 export default function App() {
   const activeProvider = getActiveDataProvider();
+
+  const [publicRoute, setPublicRoute] = useState<PublicUrlRoute>(() =>
+    typeof window !== 'undefined'
+      ? parsePublicUrlRoute(window.location.pathname)
+      : { kind: 'admin' },
+  );
+
+  useEffect(() => {
+    const onPopState = () => {
+      setPublicRoute(parsePublicUrlRoute(window.location.pathname));
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  function navigatePublicPath(path: string) {
+    if (typeof window === 'undefined') return;
+    const isDemo = new URLSearchParams(window.location.search).get('demo') === '1';
+    const nextUrl = isDemo && !path.includes('demo=') ? `${path}?demo=1` : path;
+    window.history.pushState({}, '', nextUrl);
+    setPublicRoute(parsePublicUrlRoute(path));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   const [user, setUser] = useState<AuthSessionUser | null>(null);
   const [tenants, setTenants] = useState<TenantContext[]>([]);
@@ -89,16 +155,36 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [route, setRoute] = useState<AppRoute>('dashboard');
+  const [settingsInitialTab, setSettingsInitialTab] = useState<
+    'shop' | 'catalog' | 'digital_menu'
+  >('shop');
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [combos, setCombos] = useState<ComboRecord[]>([]);
+  const [onlineOrders, setOnlineOrders] = useState<OnlineOrderRecord[]>([]);
   const [settings, setSettings] = useState<ShopSettings>({
     ownerId: '',
     ...DEFAULT_SHOP_SETTINGS,
   });
+  const [digitalMenuSettings, setDigitalMenuSettings] =
+    useState<DigitalMenuSettings>({
+      tenantId: '',
+      ...DEFAULT_DIGITAL_MENU_SETTINGS,
+    });
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      const saved = window.localStorage.getItem(SOUND_PREF_KEY);
+      return saved === null ? true : saved === '1';
+    } catch {
+      return true;
+    }
+  });
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const ordersInitializedRef = useRef(false);
 
   const [saleModalOpen, setSaleModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
@@ -117,8 +203,39 @@ export default function App() {
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3500);
   }
 
-  // Autenticacao e resolucao de estabelecimentos autorizados
+  function handleToggleSound() {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SOUND_PREF_KEY, next ? '1' : '0');
+      } catch {
+        // Ignora erro de storage
+      }
+      if (next) {
+        void unlockAlertAudio().then((ok) => {
+          if (ok) void playNewOrderAlertChime();
+        });
+      }
+      return next;
+    });
+  }
+
   useEffect(() => {
+    if (!soundEnabled || publicRoute.kind !== 'admin') return;
+    const unlock = () => {
+      void unlockAlertAudio();
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, [soundEnabled, publicRoute.kind]);
+
+  // Autenticacao e resolucao de estabelecimentos autorizados (apenas rota administrativa)
+  useEffect(() => {
+    if (publicRoute.kind !== 'admin') return;
     const unsub = subscribeAuthSession((state) => {
       setUser(state.user);
       setTenants(state.tenants);
@@ -146,7 +263,7 @@ export default function App() {
       setAuthReady(true);
     });
     return unsub;
-  }, []);
+  }, [publicRoute.kind]);
 
   const activeTenant = useMemo<TenantContext | null>(() => {
     if (tenants.length === 0) return null;
@@ -154,13 +271,14 @@ export default function App() {
   }, [tenants, selectedTenantId]);
 
   const dataContext = useMemo<DataExecutionContext | null>(() => {
+    if (publicRoute.kind !== 'admin') return null;
     if (!user || !user.emailVerified || !activeTenant) return null;
     return {
       user,
       tenant: activeTenant,
       workspace: legacyWorkspace,
     };
-  }, [user, activeTenant, legacyWorkspace]);
+  }, [publicRoute.kind, user, activeTenant, legacyWorkspace]);
 
   // Assinatura reativa dos dados do tenant selecionado
   useEffect(() => {
@@ -169,7 +287,14 @@ export default function App() {
       setExpenses([]);
       setProducts([]);
       setCombos([]);
+      setOnlineOrders([]);
       setSettings({ ownerId: '', ...DEFAULT_SHOP_SETTINGS });
+      setDigitalMenuSettings({
+        tenantId: '',
+        ...DEFAULT_DIGITAL_MENU_SETTINGS,
+      });
+      knownOrderIdsRef.current = new Set();
+      ordersInitializedRef.current = false;
       setDataLoading(false);
       return;
     }
@@ -178,20 +303,31 @@ export default function App() {
     setExpenses([]);
     setProducts([]);
     setCombos([]);
+    setOnlineOrders([]);
     setSettings({
       ownerId: dataContext.user.uid,
       ...DEFAULT_SHOP_SETTINGS,
       establishmentName: dataContext.tenant.name,
     });
+    setDigitalMenuSettings({
+      tenantId: dataContext.tenant.tenantId,
+      ...DEFAULT_DIGITAL_MENU_SETTINGS,
+      slug: dataContext.tenant.slug,
+      storeName: dataContext.tenant.name,
+    });
+    knownOrderIdsRef.current = new Set();
+    ordersInitializedRef.current = false;
     setDataLoading(true);
     setDataError(null);
 
     const unsub = subscribeAllTenantData(dataContext, {
       onSettings: setSettings,
+      onDigitalMenuSettings: setDigitalMenuSettings,
       onProducts: setProducts,
       onCombos: setCombos,
       onSales: setSales,
       onExpenses: setExpenses,
+      onOnlineOrders: setOnlineOrders,
       onReady: () => setDataLoading(false),
       onError: (err) => {
         setDataError(err.message);
@@ -201,6 +337,43 @@ export default function App() {
 
     return unsub;
   }, [dataContext]);
+
+  const unviewedOrdersCount = useMemo(
+    () => onlineOrders.filter(isUnreadNewOrder).length,
+    [onlineOrders],
+  );
+
+  // Alerta sonoro imediato na chegada de novos pedidos nao visualizados
+  useEffect(() => {
+    if (publicRoute.kind !== 'admin') return;
+    if (!ordersInitializedRef.current) {
+      if (!dataLoading) {
+        knownOrderIdsRef.current = new Set(onlineOrders.map((o) => o.id));
+        ordersInitializedRef.current = true;
+      }
+      return;
+    }
+
+    const newlyArrived = onlineOrders.filter(
+      (o) => !knownOrderIdsRef.current.has(o.id) && isUnreadNewOrder(o),
+    );
+    knownOrderIdsRef.current = new Set(onlineOrders.map((o) => o.id));
+
+    if (newlyArrived.length > 0 && soundEnabled) {
+      void playNewOrderAlertChime();
+    }
+  }, [onlineOrders, dataLoading, soundEnabled, publicRoute.kind]);
+
+  // Reforco sonoro sutil enquanto houver pedido aguardando visualizacao
+  useEffect(() => {
+    if (publicRoute.kind !== 'admin' || !soundEnabled || unviewedOrdersCount === 0) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void playNewOrderAlertChime();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [publicRoute.kind, soundEnabled, unviewedOrdersCount]);
 
   function handleSelectTenant(nextTenantId: string) {
     if (!tenants.some((t) => t.tenantId === nextTenantId)) return;
@@ -327,10 +500,53 @@ export default function App() {
     showToast('Combo atualizado.');
   }
 
+  async function handleSaveDigitalMenuSettings(next: DigitalMenuSettingsInput) {
+    if (!dataContext) return;
+    await saveDigitalMenuSettings(dataContext, next);
+    showToast('Configurações do cardápio digital salvas.');
+  }
+
+  async function handleMarkOnlineOrderViewed(order: OnlineOrderRecord) {
+    if (!dataContext) return;
+    await markOnlineOrderViewed(dataContext, order);
+  }
+
+  async function handleTransitionOnlineOrderStatus(
+    order: OnlineOrderRecord,
+    nextStatus: OnlineOrderStatus,
+    reason = '',
+  ) {
+    if (!dataContext) return;
+    await transitionOnlineOrderStatus(dataContext, order, nextStatus, reason);
+    showToast(
+      `Pedido #${String(order.orderNumber).padStart(4, '0')} atualizado para "${ORDER_STATUS_LABELS[nextStatus]}".`,
+    );
+  }
+
   async function handleSeedCatalog(): Promise<void> {
     if (!dataContext) return;
     await seedDefaultCatalog(dataContext, settings.xSaladaPrice);
     showToast('Produtos base e Combos 1 a 4 criados.');
+  }
+
+  if (publicRoute.kind === 'menu') {
+    return (
+      <PublicMenuView
+        slug={publicRoute.slug}
+        onOrderCreated={(token) => navigatePublicPath(`/pedido/${token}`)}
+      />
+    );
+  }
+
+  if (publicRoute.kind === 'tracking') {
+    return (
+      <PublicOrderTrackingView
+        token={publicRoute.token}
+        onBackToMenu={(slug) =>
+          navigatePublicPath(slug ? `/cardapio/${slug}` : '/cardapio')
+        }
+      />
+    );
   }
 
   if (!authReady) {
@@ -377,20 +593,31 @@ export default function App() {
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = route === item.id;
+            const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setRoute(item.id)}
+                onClick={() => {
+                  if (item.id === 'settings') setSettingsInitialTab('shop');
+                  setRoute(item.id);
+                }}
                 aria-current={active ? 'page' : undefined}
-                className={`w-full min-h-[44px] px-3.5 rounded-xl flex items-center gap-3 text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                className={`w-full min-h-[44px] px-3.5 rounded-xl flex items-center justify-between gap-2 text-sm font-medium whitespace-nowrap cursor-pointer ${
                   active
                     ? 'bg-[#F5B731]/12 text-[#F5B731]'
                     : 'text-[#9CA3AF] hover:text-[#F3F4F6] hover:bg-[#181C24]'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
+                <span className="inline-flex items-center gap-3">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{item.label}</span>
+                </span>
+                {showOrdersBadge && (
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#F5B731] text-[#0B0D11] text-[11px] font-bold font-mono tabular-nums flex items-center justify-center">
+                    {unviewedOrdersCount}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -532,6 +759,7 @@ export default function App() {
                   sales={sales}
                   expenses={expenses}
                   settings={settings}
+                  onlineOrders={onlineOrders}
                   onOpenNewSale={() => {
                     setEditingSale(null);
                     setSaleModalOpen(true);
@@ -539,6 +767,22 @@ export default function App() {
                   onOpenNewExpense={() => {
                     setEditingExpense(null);
                     setExpenseModalOpen(true);
+                  }}
+                  onOpenOrders={() => setRoute('orders')}
+                />
+              )}
+
+              {route === 'orders' && (
+                <OrdersCenterView
+                  orders={onlineOrders}
+                  digitalMenuSettings={digitalMenuSettings}
+                  soundEnabled={soundEnabled}
+                  onToggleSound={handleToggleSound}
+                  onMarkViewed={handleMarkOnlineOrderViewed}
+                  onTransitionStatus={handleTransitionOnlineOrderStatus}
+                  onOpenDigitalMenuSettings={() => {
+                    setSettingsInitialTab('digital_menu');
+                    setRoute('settings');
                   }}
                 />
               )}
@@ -586,12 +830,18 @@ export default function App() {
                   settings={settings}
                   products={products}
                   combos={combos}
+                  digitalMenuSettings={digitalMenuSettings}
+                  initialTab={settingsInitialTab}
                   onSaveSettings={handleSaveSettings}
+                  onSaveDigitalMenuSettings={handleSaveDigitalMenuSettings}
                   onCreateProduct={handleCreateProduct}
                   onUpdateProduct={handleUpdateProduct}
                   onCreateCombo={handleCreateCombo}
                   onUpdateCombo={handleUpdateCombo}
                   onSeedCatalog={handleSeedCatalog}
+                  onPreviewPublicMenu={(slug) =>
+                    navigatePublicPath(slug ? `/cardapio/${slug}` : '/cardapio')
+                  }
                 />
               )}
             </>
@@ -602,22 +852,33 @@ export default function App() {
       {/* Mobile Bottom Navigation (64px) */}
       <nav
         aria-label="Menu inferior"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-[#12151C]/95 backdrop-blur-md border-t border-[#232834] grid grid-cols-5 items-center"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-[#12151C]/95 backdrop-blur-md border-t border-[#232834] grid grid-cols-6 items-center"
       >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = route === item.id;
+          const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
           return (
             <button
               key={item.id}
               type="button"
-              onClick={() => setRoute(item.id)}
+              onClick={() => {
+                if (item.id === 'settings') setSettingsInitialTab('shop');
+                setRoute(item.id);
+              }}
               aria-current={active ? 'page' : undefined}
-              className={`h-full min-h-[44px] flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer ${
+              className={`relative h-full min-h-[44px] flex flex-col items-center justify-center gap-1 cursor-pointer ${
                 active ? 'text-[#F5B731]' : 'text-[#9CA3AF]'
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <div className="relative">
+                <Icon className="w-5 h-5" />
+                {showOrdersBadge && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-[#F5B731] text-[#0B0D11] text-[9px] font-bold font-mono tabular-nums flex items-center justify-center">
+                    {unviewedOrdersCount}
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] font-medium tracking-tight whitespace-nowrap">
                 {item.mobileLabel}
               </span>

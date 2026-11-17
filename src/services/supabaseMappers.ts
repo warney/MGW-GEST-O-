@@ -3,18 +3,32 @@ import {
   type ComboProductItem,
   type ComboRecord,
   DEFAULT_SHOP_SETTINGS,
+  type DigitalMenuSettings,
+  type DigitalMenuSettingsInput,
   EXPENSE_CATEGORIES,
   type ExpenseCategory,
   type ExpenseInput,
   type ExpenseRecord,
   normalizePaymentMethod,
+  type OnlineOrderFulfillment,
+  type OnlineOrderItemSnapshot,
+  type OnlineOrderPaymentMethod,
+  type OnlineOrderRecord,
+  type OnlineOrderStatus,
+  type OnlineOrderStatusEvent,
   PRODUCT_CATEGORIES,
   type ProductCategory,
   type ProductInput,
   type ProductRecord,
+  type PublicCatalogCombo,
+  type PublicCatalogProduct,
+  type PublicDigitalMenuPayload,
+  type PublicOrderTrackingRecord,
   type SaleInput,
+  type SaleLineComponentSnapshot,
   type SaleLineItemSnapshot,
   type SaleMode,
+  type SaleOrigin,
   type SaleRecord,
   type ShopSettings,
   type SubscriptionStatus,
@@ -22,6 +36,8 @@ import {
   type TenantRole,
 } from '../types/finance';
 import { calculateSaleTotal, roundCurrency } from '../utils/finance';
+import { formatOrderNumber, sanitizeMenuSlug } from '../utils/onlineOrders';
+import { normalizeSubscriptionStatus, normalizeTenantRole } from './rbacPolicy';
 
 export interface SupabaseTenantRow {
   id: string;
@@ -35,6 +51,7 @@ export interface SupabaseTenantRow {
 export interface SupabaseSubscriptionRow {
   status: string;
   grace_until: string | null;
+  trial_ends_at?: string | null;
 }
 
 export interface SupabaseTenantMemberRow {
@@ -104,6 +121,86 @@ export interface SupabaseSaleRow {
   x_salada_count?: number | null;
   combos_count?: number | null;
   items?: unknown;
+  sale_origin?: string | null;
+  online_order_id?: string | null;
+  delivery_fee?: number | string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseDigitalMenuSettingsRow {
+  tenant_id: string;
+  slug: string;
+  is_active: boolean;
+  is_open: boolean;
+  store_name: string;
+  description: string;
+  phone_whatsapp: string;
+  address: string;
+  opening_hours: string;
+  delivery_fee: number | string;
+  minimum_order_amount: number | string;
+  accepts_delivery: boolean;
+  accepts_pickup: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SupabaseOnlineOrderItemRow {
+  id: string;
+  order_id: string;
+  tenant_id: string;
+  item_kind: string;
+  ref_id: string;
+  item_name: string;
+  quantity: number;
+  unit_price: number | string;
+  line_total: number | string;
+  estimated_unit_cost: number | string;
+  x_saladas_per_unit: number;
+  components: unknown;
+  item_note: string;
+  created_at?: string;
+}
+
+export interface SupabaseOnlineOrderStatusHistoryRow {
+  id: string;
+  order_id: string;
+  tenant_id: string;
+  from_status: string | null;
+  to_status: string;
+  reason: string;
+  actor_type?: string | null;
+  created_at: string;
+}
+
+export interface SupabaseOnlineOrderRow {
+  id: string;
+  tenant_id: string;
+  order_number: number;
+  order_code: string;
+  tracking_token_hash: string;
+  status: string;
+  fulfillment_type: string;
+  customer_name: string;
+  customer_phone: string;
+  delivery_address: string;
+  delivery_reference: string;
+  payment_method: string;
+  change_for: number | string | null;
+  customer_note: string;
+  subtotal_amount: number | string;
+  delivery_fee: number | string;
+  total_amount: number | string;
+  rejection_reason: string;
+  viewed_at: string | null;
+  accepted_at: string | null;
+  preparing_at: string | null;
+  ready_at: string | null;
+  dispatched_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  sale_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -238,6 +335,8 @@ export function mapSaleRow(row: SupabaseSaleRow): SaleRecord {
       ? row.sale_mode
       : undefined;
 
+  const saleOrigin: SaleOrigin = row.sale_origin === 'online' ? 'online' : 'manual';
+
   return {
     id: row.id,
     ownerId: String(row.owner_email || row.tenant_id),
@@ -253,6 +352,12 @@ export function mapSaleRow(row: SupabaseSaleRow): SaleRecord {
     combosCount:
       typeof row.combos_count === 'number' ? row.combos_count : undefined,
     items: parseSaleItemsSafe(row.items),
+    saleOrigin,
+    onlineOrderId: row.online_order_id ?? null,
+    deliveryFee:
+      row.delivery_fee !== undefined && row.delivery_fee !== null
+        ? Number(row.delivery_fee) || 0
+        : 0,
     createdAtMs: isoTimestampToMs(row.created_at),
     updatedAtMs: isoTimestampToMs(row.updated_at),
   };
@@ -290,6 +395,9 @@ export function buildSalePayloadForSupabase(
   x_salada_count: number | null;
   combos_count: number | null;
   items: SaleLineItemSnapshot[] | null;
+  sale_origin: SaleOrigin;
+  online_order_id: string | null;
+  delivery_fee: number;
 } {
   const quantity = Math.max(1, Math.trunc(Number(input.quantity)));
   const totalAmount =
@@ -327,6 +435,9 @@ export function buildSalePayloadForSupabase(
         ? Math.max(0, Math.trunc(input.combosCount))
         : null,
     items: input.items && input.items.length > 0 ? input.items.slice(0, 50) : null,
+    sale_origin: input.saleOrigin === 'online' ? 'online' : 'manual',
+    online_order_id: input.onlineOrderId ?? null,
+    delivery_fee: roundCurrency(Math.max(0, Number(input.deliveryFee || 0))),
   };
 }
 
@@ -465,8 +576,17 @@ export function hasActiveTenantBillingAccess(
   if (tenant.status !== 'active') return false;
   if (tenant.billing_exempt) return true;
   if (!subscription) return false;
-  if (subscription.status === 'exempt' || subscription.status === 'authorized') {
+  if (
+    subscription.status === 'exempt' ||
+    subscription.status === 'authorized' ||
+    subscription.status === 'free'
+  ) {
     return true;
+  }
+  if (subscription.status === 'trialing') {
+    if (!subscription.trial_ends_at) return true;
+    const trialEndMs = Date.parse(subscription.trial_ends_at);
+    return Number.isFinite(trialEndMs) && trialEndMs > nowMs;
   }
   if (subscription.status === 'paused' && subscription.grace_until) {
     const graceMs = Date.parse(subscription.grace_until);
@@ -486,16 +606,11 @@ export function buildTenantContextFromRows(
     return null;
   }
 
-  const role: TenantRole = member.role === 'owner' ? 'owner' : 'admin';
-  const subStatus: SubscriptionStatus =
-    subscription?.status === 'authorized' ||
-    subscription?.status === 'paused' ||
-    subscription?.status === 'cancelled' ||
-    subscription?.status === 'exempt'
-      ? subscription.status
-      : tenantRaw.billing_exempt
-        ? 'exempt'
-        : 'pending';
+  const role: TenantRole = normalizeTenantRole(member.role);
+  const subStatus: SubscriptionStatus = normalizeSubscriptionStatus(
+    subscription?.status,
+    Boolean(tenantRaw.billing_exempt),
+  );
 
   return {
     tenantId: tenantRaw.id,
@@ -532,3 +647,315 @@ export function mapSupabaseAuthErrorMessage(error: unknown): string {
   }
   return msg;
 }
+
+// ==================== CARDAPIO DIGITAL & PEDIDOS ONLINE ====================
+
+const VALID_ONLINE_STATUSES: ReadonlySet<OnlineOrderStatus> = new Set([
+  'received',
+  'accepted',
+  'preparing',
+  'ready',
+  'out_for_delivery',
+  'ready_for_pickup',
+  'completed',
+  'rejected',
+  'cancelled',
+]);
+
+export function normalizeOnlineOrderStatus(raw: unknown): OnlineOrderStatus {
+  const s = String(raw || '').trim().toLowerCase() as OnlineOrderStatus;
+  return VALID_ONLINE_STATUSES.has(s) ? s : 'received';
+}
+
+export function normalizeOnlinePaymentMethod(raw: unknown): OnlineOrderPaymentMethod {
+  const s = String(raw || '').trim();
+  if (s === 'Pix') return 'Pix';
+  if (s === 'Dinheiro') return 'Dinheiro';
+  return 'Cartão';
+}
+
+export function normalizeOnlineFulfillment(raw: unknown): OnlineOrderFulfillment {
+  return String(raw || '').trim().toLowerCase() === 'pickup' ? 'pickup' : 'delivery';
+}
+
+export function mapDigitalMenuSettingsRow(
+  row: SupabaseDigitalMenuSettingsRow,
+): DigitalMenuSettings {
+  return {
+    tenantId: row.tenant_id,
+    slug: sanitizeMenuSlug(row.slug || 'mgw_lanches'),
+    isActive: Boolean(row.is_active),
+    isOpen: row.is_open !== false,
+    storeName: String(row.store_name || 'MGW Lanches'),
+    description: String(row.description || ''),
+    phoneWhatsapp: String(row.phone_whatsapp || ''),
+    address: String(row.address || ''),
+    openingHours: String(row.opening_hours || ''),
+    deliveryFee: roundCurrency(Math.max(0, Number(row.delivery_fee) || 0)),
+    minimumOrderAmount: roundCurrency(Math.max(0, Number(row.minimum_order_amount) || 0)),
+    acceptsDelivery: row.accepts_delivery !== false,
+    acceptsPickup: row.accepts_pickup !== false,
+    updatedAtMs: row.updated_at ? isoTimestampToMs(row.updated_at) : undefined,
+  };
+}
+
+export function buildDigitalMenuSettingsPayloadForSupabase(
+  input: DigitalMenuSettingsInput,
+): {
+  slug: string;
+  is_active: boolean;
+  is_open: boolean;
+  store_name: string;
+  description: string;
+  phone_whatsapp: string;
+  address: string;
+  opening_hours: string;
+  delivery_fee: number;
+  minimum_order_amount: number;
+  accepts_delivery: boolean;
+  accepts_pickup: boolean;
+} {
+  const storeName = input.storeName.trim().slice(0, 80);
+  if (!storeName) {
+    throw new Error('Informe o nome da loja no cardápio digital.');
+  }
+  const acceptsDelivery = Boolean(input.acceptsDelivery);
+  const acceptsPickup = Boolean(input.acceptsPickup);
+  if (!acceptsDelivery && !acceptsPickup) {
+    throw new Error('Ative pelo menos Entrega ou Retirada no local.');
+  }
+
+  return {
+    slug: sanitizeMenuSlug(input.slug),
+    is_active: Boolean(input.isActive),
+    is_open: Boolean(input.isOpen),
+    store_name: storeName,
+    description: input.description.trim().slice(0, 300),
+    phone_whatsapp: input.phoneWhatsapp.trim().slice(0, 32),
+    address: input.address.trim().slice(0, 240),
+    opening_hours: input.openingHours.trim().slice(0, 160),
+    delivery_fee: roundCurrency(Math.max(0, Math.min(1000, Number(input.deliveryFee) || 0))),
+    minimum_order_amount: roundCurrency(
+      Math.max(0, Math.min(10000, Number(input.minimumOrderAmount) || 0)),
+    ),
+    accepts_delivery: acceptsDelivery,
+    accepts_pickup: acceptsPickup,
+  };
+}
+
+function parseOrderItemComponents(raw: unknown): SaleLineComponentSnapshot[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === 'object'))
+    .slice(0, 30)
+    .map((entry) => ({
+      productId: String(entry.productId || ''),
+      productName: String(entry.productName || 'Produto'),
+      quantityPerUnit: Math.max(1, Math.trunc(Number(entry.quantityPerUnit) || 1)),
+      totalQuantity: Math.max(1, Math.trunc(Number(entry.totalQuantity) || 1)),
+      countsAsXSalada: Boolean(entry.countsAsXSalada),
+    }));
+}
+
+export function mapOnlineOrderItemRow(
+  row: SupabaseOnlineOrderItemRow,
+): OnlineOrderItemSnapshot {
+  return {
+    id: row.id,
+    itemKind: row.item_kind === 'combo' ? 'combo' : 'product',
+    refId: row.ref_id,
+    itemName: String(row.item_name || 'Item'),
+    quantity: Math.max(1, Math.trunc(Number(row.quantity) || 1)),
+    unitPrice: roundCurrency(Number(row.unit_price) || 0),
+    lineTotal: roundCurrency(Number(row.line_total) || 0),
+    estimatedUnitCost: roundCurrency(Math.max(0, Number(row.estimated_unit_cost) || 0)),
+    xSaladasPerUnit: Math.max(0, Math.trunc(Number(row.x_saladas_per_unit) || 0)),
+    components: parseOrderItemComponents(row.components),
+    itemNote: String(row.item_note || ''),
+  };
+}
+
+export function mapOnlineOrderStatusHistoryRow(
+  row: SupabaseOnlineOrderStatusHistoryRow,
+): OnlineOrderStatusEvent {
+  const actorType =
+    row.actor_type === 'customer' || row.actor_type === 'admin'
+      ? row.actor_type
+      : 'system';
+  return {
+    id: row.id,
+    fromStatus: row.from_status ? normalizeOnlineOrderStatus(row.from_status) : null,
+    toStatus: normalizeOnlineOrderStatus(row.to_status),
+    reason: String(row.reason || ''),
+    actorType,
+    createdAtMs: isoTimestampToMs(row.created_at),
+  };
+}
+
+export function mapOnlineOrderRow(
+  row: SupabaseOnlineOrderRow,
+  items: OnlineOrderItemSnapshot[],
+  statusHistory: OnlineOrderStatusEvent[],
+): OnlineOrderRecord {
+  const orderNumber = Math.max(1, Math.trunc(Number(row.order_number) || 1));
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    orderNumber,
+    orderCode: String(row.order_code || formatOrderNumber(orderNumber)),
+    tokenHash: String(row.tracking_token_hash || ''),
+    status: normalizeOnlineOrderStatus(row.status),
+    fulfillmentType: normalizeOnlineFulfillment(row.fulfillment_type),
+    customerName: String(row.customer_name || ''),
+    customerPhone: String(row.customer_phone || ''),
+    deliveryAddress: String(row.delivery_address || ''),
+    deliveryReference: String(row.delivery_reference || ''),
+    paymentMethod: normalizeOnlinePaymentMethod(row.payment_method),
+    changeFor:
+      row.change_for !== null && row.change_for !== undefined
+        ? roundCurrency(Number(row.change_for) || 0)
+        : null,
+    customerNote: String(row.customer_note || ''),
+    subtotalAmount: roundCurrency(Number(row.subtotal_amount) || 0),
+    deliveryFee: roundCurrency(Number(row.delivery_fee) || 0),
+    totalAmount: roundCurrency(Number(row.total_amount) || 0),
+    rejectionReason: String(row.rejection_reason || ''),
+    viewedAtMs: row.viewed_at ? isoTimestampToMs(row.viewed_at) : null,
+    acceptedAtMs: row.accepted_at ? isoTimestampToMs(row.accepted_at) : null,
+    preparingAtMs: row.preparing_at ? isoTimestampToMs(row.preparing_at) : null,
+    readyAtMs: row.ready_at ? isoTimestampToMs(row.ready_at) : null,
+    dispatchedAtMs: row.dispatched_at ? isoTimestampToMs(row.dispatched_at) : null,
+    completedAtMs: row.completed_at ? isoTimestampToMs(row.completed_at) : null,
+    cancelledAtMs: row.cancelled_at ? isoTimestampToMs(row.cancelled_at) : null,
+    saleId: row.sale_id ?? null,
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+    items,
+    statusHistory,
+  };
+}
+
+export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenuPayload {
+  if (!raw || typeof raw !== 'object') {
+    return { found: false, store: null, products: [], combos: [] };
+  }
+  const obj = raw as Record<string, unknown>;
+  if (!obj.found || !obj.store || typeof obj.store !== 'object') {
+    return { found: false, store: null, products: [], combos: [] };
+  }
+  const st = obj.store as Record<string, unknown>;
+  const store: DigitalMenuSettingsInput = {
+    slug: sanitizeMenuSlug(String(st.slug || 'mgw_lanches')),
+    isActive: Boolean(st.isActive),
+    isOpen: Boolean(st.isOpen),
+    storeName: String(st.storeName || 'MGW Lanches'),
+    description: String(st.description || ''),
+    phoneWhatsapp: String(st.phoneWhatsapp || ''),
+    address: String(st.address || ''),
+    openingHours: String(st.openingHours || ''),
+    deliveryFee: roundCurrency(Math.max(0, Number(st.deliveryFee) || 0)),
+    minimumOrderAmount: roundCurrency(Math.max(0, Number(st.minimumOrderAmount) || 0)),
+    acceptsDelivery: st.acceptsDelivery !== false,
+    acceptsPickup: st.acceptsPickup !== false,
+  };
+
+  const products: PublicCatalogProduct[] = Array.isArray(obj.products)
+    ? obj.products
+        .filter((p): p is Record<string, unknown> => Boolean(p && typeof p === 'object'))
+        .map((p) => {
+          const cat = String(p.category || 'Outro');
+          return {
+            id: String(p.id || ''),
+            name: String(p.name || ''),
+            category: PRODUCT_CATEGORIES.includes(cat as ProductCategory)
+              ? (cat as ProductCategory)
+              : 'Outro',
+            unitPrice: roundCurrency(Math.max(0, Number(p.unitPrice) || 0)),
+            countsAsXSalada: Boolean(p.countsAsXSalada),
+          };
+        })
+    : [];
+
+  const combos: PublicCatalogCombo[] = Array.isArray(obj.combos)
+    ? obj.combos
+        .filter((c): c is Record<string, unknown> => Boolean(c && typeof c === 'object'))
+        .map((c) => ({
+          id: String(c.id || ''),
+          name: String(c.name || ''),
+          description: String(c.description || ''),
+          items: parseComboItemsSafe(c.items),
+          salePrice: roundCurrency(Math.max(0, Number(c.salePrice) || 0)),
+        }))
+    : [];
+
+  return { found: true, store, products, combos };
+}
+
+export function mapPublicOrderTrackingRpcResponse(
+  raw: unknown,
+): PublicOrderTrackingRecord | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  if (!obj.found || !obj.order || typeof obj.order !== 'object') return null;
+
+  const o = obj.order as Record<string, unknown>;
+  const orderNumber = Math.max(1, Math.trunc(Number(o.orderNumber) || 1));
+
+  const items = Array.isArray(o.items)
+    ? o.items
+        .filter((it): it is Record<string, unknown> => Boolean(it && typeof it === 'object'))
+        .map((it) => ({
+          id: String(it.id || ''),
+          itemKind: (it.itemKind === 'combo' ? 'combo' : 'product') as 'product' | 'combo',
+          refId: String(it.refId || ''),
+          itemName: String(it.itemName || 'Item'),
+          quantity: Math.max(1, Math.trunc(Number(it.quantity) || 1)),
+          unitPrice: roundCurrency(Number(it.unitPrice) || 0),
+          lineTotal: roundCurrency(Number(it.lineTotal) || 0),
+          itemNote: String(it.itemNote || ''),
+        }))
+    : [];
+
+  const statusHistory: OnlineOrderStatusEvent[] = Array.isArray(o.statusHistory)
+    ? o.statusHistory
+        .filter((h): h is Record<string, unknown> => Boolean(h && typeof h === 'object'))
+        .map((h) => ({
+          id: String(h.id || ''),
+          fromStatus: h.fromStatus ? normalizeOnlineOrderStatus(h.fromStatus) : null,
+          toStatus: normalizeOnlineOrderStatus(h.toStatus),
+          reason: String(h.reason || ''),
+          createdAtMs: isoTimestampToMs(h.createdAt),
+        }))
+    : [];
+
+  return {
+    orderId: String(o.orderId || ''),
+    tokenHash: String(o.tokenHash || ''),
+    orderNumber,
+    orderCode: String(o.orderCode || formatOrderNumber(orderNumber)),
+    status: normalizeOnlineOrderStatus(o.status),
+    fulfillmentType: normalizeOnlineFulfillment(o.fulfillmentType),
+    customerName: String(o.customerName || ''),
+    deliveryAddress: String(o.deliveryAddress || ''),
+    deliveryReference: String(o.deliveryReference || ''),
+    paymentMethod: normalizeOnlinePaymentMethod(o.paymentMethod),
+    changeFor:
+      o.changeFor !== null && o.changeFor !== undefined
+        ? roundCurrency(Number(o.changeFor) || 0)
+        : null,
+    customerNote: String(o.customerNote || ''),
+    subtotalAmount: roundCurrency(Number(o.subtotalAmount) || 0),
+    deliveryFee: roundCurrency(Number(o.deliveryFee) || 0),
+    totalAmount: roundCurrency(Number(o.totalAmount) || 0),
+    rejectionReason: String(o.rejectionReason || ''),
+    storeName: String(o.storeName || 'MGW Lanches'),
+    storeSlug: String(o.storeSlug || 'mgw_lanches'),
+    storeWhatsapp: String(o.storeWhatsapp || ''),
+    storeAddress: String(o.storeAddress || ''),
+    createdAtMs: isoTimestampToMs(o.createdAt),
+    updatedAtMs: isoTimestampToMs(o.updatedAt),
+    items,
+    statusHistory,
+  };
+}
+

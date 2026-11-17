@@ -222,6 +222,10 @@ service cloud.firestore {
           'xSaladaCount',
           'combosCount',
           'items',
+          'saleOrigin',
+          'onlineOrderId',
+          'onlineOrderNumber',
+          'deliveryFee',
           'createdAt',
           'updatedAt'
         ])
@@ -243,6 +247,10 @@ service cloud.firestore {
         && (!('xSaladaCount' in data) || (data.xSaladaCount is int && data.xSaladaCount >= 0 && data.xSaladaCount <= 100000))
         && (!('combosCount' in data) || (data.combosCount is int && data.combosCount >= 0 && data.combosCount <= 100000))
         && (!('items' in data) || (data.items is list && data.items.size() <= 50 && (data.items.size() == 0 || data.items[0] is map)))
+        && (!('saleOrigin' in data) || (data.saleOrigin is string && data.saleOrigin in ['manual', 'online']))
+        && (!('onlineOrderId' in data) || data.onlineOrderId == null || (data.onlineOrderId is string && data.onlineOrderId.size() >= 1 && data.onlineOrderId.size() <= 128))
+        && (!('onlineOrderNumber' in data) || data.onlineOrderNumber == null || (data.onlineOrderNumber is int && data.onlineOrderNumber >= 1))
+        && (!('deliveryFee' in data) || (data.deliveryFee is number && data.deliveryFee >= 0 && data.deliveryFee <= 10000))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -641,6 +649,575 @@ service cloud.firestore {
       allow delete: if isSeparateShopOwner(workspaceId)
         && isValidId(workspaceId)
         && isValidId(expenseId);
+    }
+
+    // ==================== CARDAPIO DIGITAL & PEDIDOS ONLINE ====================
+
+    function isValidTokenHash(h) {
+      return h is string
+        && h.size() == 64
+        && h.matches('^[a-f0-9]{64}$');
+    }
+
+    function isValidOnlineStatus(s) {
+      return s is string
+        && s in [
+          'received',
+          'accepted',
+          'preparing',
+          'ready',
+          'out_for_delivery',
+          'ready_for_pickup',
+          'completed',
+          'rejected',
+          'cancelled'
+        ];
+    }
+
+    function isValidOnlinePayment(p) {
+      return p is string && p in ['Pix', 'Dinheiro', 'Cartão'];
+    }
+
+    function isValidDigitalMenuSettings(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'slug',
+          'isActive',
+          'isOpen',
+          'storeName',
+          'description',
+          'phoneWhatsapp',
+          'address',
+          'openingHours',
+          'deliveryFee',
+          'minimumOrderAmount',
+          'acceptsDelivery',
+          'acceptsPickup',
+          'nextOrderSeq',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'slug',
+          'isActive',
+          'isOpen',
+          'storeName',
+          'description',
+          'phoneWhatsapp',
+          'address',
+          'openingHours',
+          'deliveryFee',
+          'minimumOrderAmount',
+          'acceptsDelivery',
+          'acceptsPickup',
+          'nextOrderSeq',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && isValidId(data.slug)
+        && data.slug.size() >= 2
+        && data.slug.size() <= 64
+        && data.isActive is bool
+        && data.isOpen is bool
+        && data.storeName is string
+        && data.storeName.size() >= 1
+        && data.storeName.size() <= 80
+        && data.description is string
+        && data.description.size() <= 300
+        && data.phoneWhatsapp is string
+        && data.phoneWhatsapp.size() <= 32
+        && data.address is string
+        && data.address.size() <= 240
+        && data.openingHours is string
+        && data.openingHours.size() <= 160
+        && data.deliveryFee is number
+        && data.deliveryFee >= 0
+        && data.deliveryFee <= 1000
+        && data.minimumOrderAmount is number
+        && data.minimumOrderAmount >= 0
+        && data.minimumOrderAmount <= 10000
+        && data.acceptsDelivery is bool
+        && data.acceptsPickup is bool
+        && (data.acceptsDelivery || data.acceptsPickup)
+        && data.nextOrderSeq is int
+        && data.nextOrderSeq >= 1
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicMenu(data) {
+      return data.keys().hasAll([
+          'workspaceId',
+          'slug',
+          'isActive',
+          'isOpen',
+          'storeName',
+          'description',
+          'phoneWhatsapp',
+          'address',
+          'openingHours',
+          'deliveryFee',
+          'minimumOrderAmount',
+          'acceptsDelivery',
+          'acceptsPickup',
+          'products',
+          'combos',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'workspaceId',
+          'slug',
+          'isActive',
+          'isOpen',
+          'storeName',
+          'description',
+          'phoneWhatsapp',
+          'address',
+          'openingHours',
+          'deliveryFee',
+          'minimumOrderAmount',
+          'acceptsDelivery',
+          'acceptsPickup',
+          'products',
+          'combos',
+          'updatedAt'
+        ])
+        && data.workspaceId in ['mgw_lanches', 'gf_lanches']
+        && isValidId(data.slug)
+        && data.slug.size() >= 2
+        && data.slug.size() <= 64
+        && data.isActive is bool
+        && data.isOpen is bool
+        && data.storeName is string
+        && data.storeName.size() >= 1
+        && data.storeName.size() <= 80
+        && data.description is string
+        && data.description.size() <= 300
+        && data.phoneWhatsapp is string
+        && data.phoneWhatsapp.size() <= 32
+        && data.address is string
+        && data.address.size() <= 240
+        && data.openingHours is string
+        && data.openingHours.size() <= 160
+        && data.deliveryFee is number
+        && data.deliveryFee >= 0
+        && data.deliveryFee <= 1000
+        && data.minimumOrderAmount is number
+        && data.minimumOrderAmount >= 0
+        && data.minimumOrderAmount <= 10000
+        && data.acceptsDelivery is bool
+        && data.acceptsPickup is bool
+        && data.products is list
+        && data.products.size() <= 150
+        && (data.products.size() == 0 || data.products[0] is map)
+        && data.combos is list
+        && data.combos.size() <= 100
+        && (data.combos.size() == 0 || data.combos[0] is map)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOnlineOrderFields(data) {
+      return data.keys().hasAll([
+          'workspaceId',
+          'menuSlug',
+          'orderNumber',
+          'orderCode',
+          'tokenHash',
+          'status',
+          'fulfillmentType',
+          'customerName',
+          'customerPhone',
+          'deliveryAddress',
+          'deliveryReference',
+          'paymentMethod',
+          'changeFor',
+          'customerNote',
+          'subtotalAmount',
+          'deliveryFee',
+          'totalAmount',
+          'rejectionReason',
+          'viewedAtMs',
+          'acceptedAtMs',
+          'preparingAtMs',
+          'readyAtMs',
+          'dispatchedAtMs',
+          'completedAtMs',
+          'cancelledAtMs',
+          'saleId',
+          'items',
+          'statusHistory',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'workspaceId',
+          'menuSlug',
+          'orderNumber',
+          'orderCode',
+          'tokenHash',
+          'status',
+          'fulfillmentType',
+          'customerName',
+          'customerPhone',
+          'deliveryAddress',
+          'deliveryReference',
+          'paymentMethod',
+          'changeFor',
+          'customerNote',
+          'subtotalAmount',
+          'deliveryFee',
+          'totalAmount',
+          'rejectionReason',
+          'viewedAtMs',
+          'acceptedAtMs',
+          'preparingAtMs',
+          'readyAtMs',
+          'dispatchedAtMs',
+          'completedAtMs',
+          'cancelledAtMs',
+          'saleId',
+          'items',
+          'statusHistory',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.workspaceId in ['mgw_lanches', 'gf_lanches']
+        && isValidId(data.menuSlug)
+        && data.orderNumber is int
+        && data.orderNumber >= 1
+        && data.orderCode is string
+        && data.orderCode.size() >= 3
+        && data.orderCode.size() <= 24
+        && isValidTokenHash(data.tokenHash)
+        && isValidOnlineStatus(data.status)
+        && data.fulfillmentType in ['delivery', 'pickup']
+        && data.customerName is string
+        && data.customerName.size() >= 2
+        && data.customerName.size() <= 120
+        && data.customerPhone is string
+        && data.customerPhone.size() >= 8
+        && data.customerPhone.size() <= 32
+        && data.deliveryAddress is string
+        && data.deliveryAddress.size() <= 280
+        && (data.fulfillmentType != 'delivery' || data.deliveryAddress.size() >= 5)
+        && data.deliveryReference is string
+        && data.deliveryReference.size() <= 160
+        && isValidOnlinePayment(data.paymentMethod)
+        && (data.changeFor == null || (data.changeFor is number && data.changeFor >= 0 && data.changeFor <= 100000))
+        && data.customerNote is string
+        && data.customerNote.size() <= 300
+        && data.subtotalAmount is number
+        && data.subtotalAmount > 0
+        && data.subtotalAmount <= 1000000
+        && data.deliveryFee is number
+        && data.deliveryFee >= 0
+        && data.deliveryFee <= 1000
+        && data.totalAmount is number
+        && data.totalAmount > 0
+        && data.totalAmount <= 1000000
+        && data.rejectionReason is string
+        && data.rejectionReason.size() <= 300
+        && (data.viewedAtMs == null || data.viewedAtMs is int)
+        && (data.acceptedAtMs == null || data.acceptedAtMs is int)
+        && (data.preparingAtMs == null || data.preparingAtMs is int)
+        && (data.readyAtMs == null || data.readyAtMs is int)
+        && (data.dispatchedAtMs == null || data.dispatchedAtMs is int)
+        && (data.completedAtMs == null || data.completedAtMs is int)
+        && (data.cancelledAtMs == null || data.cancelledAtMs is int)
+        && (data.saleId == null || (data.saleId is string && data.saleId.size() >= 1 && data.saleId.size() <= 128))
+        && data.items is list
+        && data.items.size() >= 1
+        && data.items.size() <= 40
+        && data.items[0] is map
+        && data.statusHistory is list
+        && data.statusHistory.size() >= 1
+        && data.statusHistory.size() <= 30
+        && data.statusHistory[0] is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicOrderTracking(data) {
+      return data.keys().hasAll([
+          'orderId',
+          'workspaceId',
+          'tokenHash',
+          'orderNumber',
+          'orderCode',
+          'status',
+          'fulfillmentType',
+          'customerName',
+          'deliveryAddress',
+          'deliveryReference',
+          'paymentMethod',
+          'changeFor',
+          'customerNote',
+          'subtotalAmount',
+          'deliveryFee',
+          'totalAmount',
+          'rejectionReason',
+          'storeName',
+          'storeSlug',
+          'storeWhatsapp',
+          'storeAddress',
+          'items',
+          'statusHistory',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'orderId',
+          'workspaceId',
+          'tokenHash',
+          'orderNumber',
+          'orderCode',
+          'status',
+          'fulfillmentType',
+          'customerName',
+          'deliveryAddress',
+          'deliveryReference',
+          'paymentMethod',
+          'changeFor',
+          'customerNote',
+          'subtotalAmount',
+          'deliveryFee',
+          'totalAmount',
+          'rejectionReason',
+          'storeName',
+          'storeSlug',
+          'storeWhatsapp',
+          'storeAddress',
+          'items',
+          'statusHistory',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.orderId)
+        && data.workspaceId in ['mgw_lanches', 'gf_lanches']
+        && isValidTokenHash(data.tokenHash)
+        && data.orderNumber is int
+        && data.orderNumber >= 1
+        && data.orderCode is string
+        && data.orderCode.size() >= 3
+        && data.orderCode.size() <= 24
+        && isValidOnlineStatus(data.status)
+        && data.fulfillmentType in ['delivery', 'pickup']
+        && data.customerName is string
+        && data.customerName.size() >= 2
+        && data.customerName.size() <= 120
+        && data.deliveryAddress is string
+        && data.deliveryAddress.size() <= 280
+        && data.deliveryReference is string
+        && data.deliveryReference.size() <= 160
+        && isValidOnlinePayment(data.paymentMethod)
+        && (data.changeFor == null || (data.changeFor is number && data.changeFor >= 0 && data.changeFor <= 100000))
+        && data.customerNote is string
+        && data.customerNote.size() <= 300
+        && data.subtotalAmount is number
+        && data.subtotalAmount > 0
+        && data.deliveryFee is number
+        && data.deliveryFee >= 0
+        && data.totalAmount is number
+        && data.totalAmount > 0
+        && data.rejectionReason is string
+        && data.rejectionReason.size() <= 300
+        && data.storeName is string
+        && data.storeName.size() >= 1
+        && data.storeName.size() <= 80
+        && isValidId(data.storeSlug)
+        && data.storeWhatsapp is string
+        && data.storeWhatsapp.size() <= 32
+        && data.storeAddress is string
+        && data.storeAddress.size() <= 240
+        && data.items is list
+        && data.items.size() >= 1
+        && data.items.size() <= 40
+        && data.items[0] is map
+        && data.statusHistory is list
+        && data.statusHistory.size() >= 1
+        && data.statusHistory.size() <= 30
+        && data.statusHistory[0] is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /digital_menu_settings/{workspaceId} {
+      allow get: if isValidId(workspaceId)
+        && ((isVerifiedAdmin() && workspaceId == 'mgw_lanches') || isSeparateShopOwner(workspaceId));
+
+      allow list: if false;
+
+      allow create: if isValidId(workspaceId)
+        && ((isVerifiedAdmin() && workspaceId == 'mgw_lanches') || isSeparateShopOwner(workspaceId))
+        && isValidDigitalMenuSettings(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(workspaceId)
+        && ((isVerifiedAdmin() && workspaceId == 'mgw_lanches') || isSeparateShopOwner(workspaceId))
+        && isValidDigitalMenuSettings(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    match /public_menus/{menuSlug} {
+      allow get: if isValidId(menuSlug);
+      allow list: if false;
+
+      allow create, update: if isValidId(menuSlug)
+        && isValidPublicMenu(incoming())
+        && incoming().slug == menuSlug
+        && ((isVerifiedAdmin() && incoming().workspaceId == 'mgw_lanches') || isSeparateShopOwner(incoming().workspaceId))
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    match /online_orders/{orderId} {
+      allow get: if isVerifiedAdmin() && isValidId(orderId);
+      allow list: if isVerifiedAdmin();
+
+      allow create: if isValidId(orderId)
+        && isValidOnlineOrderFields(incoming())
+        && incoming().workspaceId == 'mgw_lanches'
+        && incoming().status == 'received'
+        && incoming().rejectionReason == ''
+        && incoming().viewedAtMs == null
+        && incoming().saleId == null
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/public_menus/$(incoming().menuSlug))
+        && get(/databases/$(database)/documents/public_menus/$(incoming().menuSlug)).data.workspaceId == 'mgw_lanches'
+        && get(/databases/$(database)/documents/public_menus/$(incoming().menuSlug)).data.isActive == true
+        && get(/databases/$(database)/documents/public_menus/$(incoming().menuSlug)).data.isOpen == true
+        && existsAfter(/databases/$(database)/documents/public_order_tracking/$(incoming().tokenHash));
+
+      allow update: if isVerifiedAdmin()
+        && isValidId(orderId)
+        && isValidOnlineOrderFields(incoming())
+        && incoming().workspaceId == existing().workspaceId
+        && incoming().menuSlug == existing().menuSlug
+        && incoming().orderNumber == existing().orderNumber
+        && incoming().orderCode == existing().orderCode
+        && incoming().tokenHash == existing().tokenHash
+        && incoming().customerName == existing().customerName
+        && incoming().customerPhone == existing().customerPhone
+        && incoming().subtotalAmount == existing().subtotalAmount
+        && incoming().deliveryFee == existing().deliveryFee
+        && incoming().totalAmount == existing().totalAmount
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status',
+          'rejectionReason',
+          'viewedAtMs',
+          'acceptedAtMs',
+          'preparingAtMs',
+          'readyAtMs',
+          'dispatchedAtMs',
+          'completedAtMs',
+          'cancelledAtMs',
+          'saleId',
+          'statusHistory',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /workspaces/{workspaceId}/online_orders/{orderId} {
+      allow get: if isSeparateShopOwner(workspaceId)
+        && isValidId(workspaceId)
+        && isValidId(orderId);
+
+      allow list: if isSeparateShopOwner(workspaceId)
+        && isValidId(workspaceId);
+
+      allow create: if isValidId(workspaceId)
+        && isValidId(orderId)
+        && workspaceId == 'gf_lanches'
+        && isValidOnlineOrderFields(incoming())
+        && incoming().workspaceId == workspaceId
+        && incoming().status == 'received'
+        && incoming().rejectionReason == ''
+        && incoming().viewedAtMs == null
+        && incoming().saleId == null
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/public_menus/$(incoming().menuSlug))
+        && get(/databases/$(database)/documents/public_menus/$(incoming().menuSlug)).data.workspaceId == workspaceId
+        && get(/databases/$(database)/documents/public_menus/$(incoming().menuSlug)).data.isActive == true
+        && get(/databases/$(database)/documents/public_menus/$(incoming().menuSlug)).data.isOpen == true
+        && existsAfter(/databases/$(database)/documents/public_order_tracking/$(incoming().tokenHash));
+
+      allow update: if isSeparateShopOwner(workspaceId)
+        && isValidId(workspaceId)
+        && isValidId(orderId)
+        && isValidOnlineOrderFields(incoming())
+        && incoming().workspaceId == existing().workspaceId
+        && incoming().menuSlug == existing().menuSlug
+        && incoming().orderNumber == existing().orderNumber
+        && incoming().orderCode == existing().orderCode
+        && incoming().tokenHash == existing().tokenHash
+        && incoming().customerName == existing().customerName
+        && incoming().customerPhone == existing().customerPhone
+        && incoming().subtotalAmount == existing().subtotalAmount
+        && incoming().deliveryFee == existing().deliveryFee
+        && incoming().totalAmount == existing().totalAmount
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status',
+          'rejectionReason',
+          'viewedAtMs',
+          'acceptedAtMs',
+          'preparingAtMs',
+          'readyAtMs',
+          'dispatchedAtMs',
+          'completedAtMs',
+          'cancelledAtMs',
+          'saleId',
+          'statusHistory',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /public_order_tracking/{tokenHash} {
+      allow get: if isValidTokenHash(tokenHash);
+      allow list: if false;
+
+      allow create: if isValidTokenHash(tokenHash)
+        && isValidPublicOrderTracking(incoming())
+        && incoming().tokenHash == tokenHash
+        && incoming().status == 'received'
+        && incoming().rejectionReason == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidTokenHash(tokenHash)
+        && ((isVerifiedAdmin() && existing().workspaceId == 'mgw_lanches') || isSeparateShopOwner(existing().workspaceId))
+        && isValidPublicOrderTracking(incoming())
+        && incoming().orderId == existing().orderId
+        && incoming().workspaceId == existing().workspaceId
+        && incoming().tokenHash == existing().tokenHash
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status',
+          'rejectionReason',
+          'statusHistory',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
     }
   }
 }

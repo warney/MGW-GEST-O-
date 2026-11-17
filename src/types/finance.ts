@@ -110,10 +110,197 @@ export type ReportPeriodPreset =
 
 export type AppRoute =
   | 'dashboard'
+  | 'orders'
   | 'sales'
   | 'expenses'
   | 'reports'
   | 'settings';
+
+export type SaleOrigin = 'manual' | 'online';
+
+export type OnlineOrderStatus =
+  | 'received'
+  | 'accepted'
+  | 'preparing'
+  | 'ready'
+  | 'out_for_delivery'
+  | 'ready_for_pickup'
+  | 'completed'
+  | 'rejected'
+  | 'cancelled';
+
+export type OnlineOrderFulfillment = 'delivery' | 'pickup';
+
+export type OnlineOrderPaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão';
+
+export interface DigitalMenuSettings {
+  tenantId: string;
+  slug: string;
+  isActive: boolean;
+  isOpen: boolean;
+  storeName: string;
+  description: string;
+  phoneWhatsapp: string;
+  address: string;
+  openingHours: string;
+  deliveryFee: number;
+  minimumOrderAmount: number;
+  acceptsDelivery: boolean;
+  acceptsPickup: boolean;
+  updatedAtMs?: number;
+}
+
+export type DigitalMenuSettingsInput = Omit<
+  DigitalMenuSettings,
+  'tenantId' | 'updatedAtMs'
+>;
+
+export interface PublicCatalogProduct {
+  id: string;
+  name: string;
+  category: ProductCategory;
+  unitPrice: number;
+  countsAsXSalada: boolean;
+}
+
+export interface PublicCatalogCombo {
+  id: string;
+  name: string;
+  description: string;
+  items: ComboProductItem[];
+  salePrice: number;
+}
+
+export interface PublicDigitalMenuPayload {
+  found: boolean;
+  store: DigitalMenuSettingsInput | null;
+  products: PublicCatalogProduct[];
+  combos: PublicCatalogCombo[];
+}
+
+export interface OnlineOrderCartItem {
+  kind: 'product' | 'combo';
+  id: string;
+  quantity: number;
+  note?: string;
+}
+
+export interface CreatePublicOrderPayload {
+  slug?: string;
+  customerName: string;
+  customerPhone: string;
+  fulfillmentType: OnlineOrderFulfillment;
+  deliveryAddress: string;
+  deliveryReference: string;
+  paymentMethod: OnlineOrderPaymentMethod;
+  changeFor: number | null;
+  customerNote: string;
+  items: OnlineOrderCartItem[];
+}
+
+export interface CreatePublicOrderResponse {
+  orderId: string;
+  orderNumber: number;
+  orderCode: string;
+  trackingToken: string;
+  tokenHash: string;
+  status: OnlineOrderStatus;
+  subtotalAmount: number;
+  deliveryFee: number;
+  totalAmount: number;
+}
+
+export interface OnlineOrderItemSnapshot {
+  id: string;
+  itemKind: 'product' | 'combo';
+  refId: string;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  estimatedUnitCost: number;
+  xSaladasPerUnit: number;
+  components: SaleLineComponentSnapshot[];
+  itemNote: string;
+}
+
+export interface OnlineOrderStatusEvent {
+  id: string;
+  fromStatus: OnlineOrderStatus | null;
+  toStatus: OnlineOrderStatus;
+  reason: string;
+  actorType?: 'customer' | 'admin' | 'system';
+  createdAtMs: number;
+}
+
+export interface OnlineOrderRecord {
+  id: string;
+  tenantId: string;
+  orderNumber: number;
+  orderCode: string;
+  tokenHash: string;
+  status: OnlineOrderStatus;
+  fulfillmentType: OnlineOrderFulfillment;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  deliveryReference: string;
+  paymentMethod: OnlineOrderPaymentMethod;
+  changeFor: number | null;
+  customerNote: string;
+  subtotalAmount: number;
+  deliveryFee: number;
+  totalAmount: number;
+  rejectionReason: string;
+  viewedAtMs: number | null;
+  acceptedAtMs: number | null;
+  preparingAtMs: number | null;
+  readyAtMs: number | null;
+  dispatchedAtMs: number | null;
+  completedAtMs: number | null;
+  cancelledAtMs: number | null;
+  saleId: string | null;
+  createdAtMs: number;
+  updatedAtMs: number;
+  items: OnlineOrderItemSnapshot[];
+  statusHistory: OnlineOrderStatusEvent[];
+}
+
+export interface PublicOrderTrackingRecord {
+  orderId: string;
+  tokenHash: string;
+  orderNumber: number;
+  orderCode: string;
+  status: OnlineOrderStatus;
+  fulfillmentType: OnlineOrderFulfillment;
+  customerName: string;
+  deliveryAddress: string;
+  deliveryReference: string;
+  paymentMethod: OnlineOrderPaymentMethod;
+  changeFor: number | null;
+  customerNote: string;
+  subtotalAmount: number;
+  deliveryFee: number;
+  totalAmount: number;
+  rejectionReason: string;
+  storeName: string;
+  storeSlug: string;
+  storeWhatsapp: string;
+  storeAddress: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+  items: Array<{
+    id: string;
+    itemKind: 'product' | 'combo';
+    refId: string;
+    itemName: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    itemNote: string;
+  }>;
+  statusHistory: OnlineOrderStatusEvent[];
+}
 
 export interface ProductRecord {
   id: string;
@@ -199,6 +386,10 @@ export interface SaleRecord {
   xSaladaCount?: number;
   combosCount?: number;
   items?: SaleLineItemSnapshot[];
+  saleOrigin?: SaleOrigin;
+  onlineOrderId?: string | null;
+  onlineOrderNumber?: number | null;
+  deliveryFee?: number;
   createdAtMs: number;
   updatedAtMs: number;
 }
@@ -250,6 +441,10 @@ export interface SaleInput {
   xSaladaCount?: number;
   combosCount?: number;
   items?: SaleLineItemSnapshot[];
+  saleOrigin?: SaleOrigin;
+  onlineOrderId?: string | null;
+  onlineOrderNumber?: number | null;
+  deliveryFee?: number;
 }
 
 export interface ExpenseInput {
@@ -271,10 +466,12 @@ export const DEFAULT_SHOP_SETTINGS: Omit<ShopSettings, 'ownerId'> = {
 
 export type DataProviderMode = 'firebase' | 'supabase';
 
-export type TenantRole = 'owner' | 'admin';
+export type TenantRole = 'owner' | 'admin' | 'manager' | 'staff';
 
 export type SubscriptionStatus =
   | 'pending'
+  | 'trialing'
+  | 'free'
   | 'authorized'
   | 'paused'
   | 'cancelled'
