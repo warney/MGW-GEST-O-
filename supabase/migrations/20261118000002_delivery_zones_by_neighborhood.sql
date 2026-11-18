@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS public.delivery_zones (
 );
 CREATE INDEX IF NOT EXISTS idx_delivery_zones_tenant_active_order
   ON public.delivery_zones (tenant_id, active, sort_order, name);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_zones_tenant_name_ci
+  ON public.delivery_zones (tenant_id, lower(name));
 
 ALTER TABLE public.online_orders
   ADD COLUMN IF NOT EXISTS delivery_neighborhood text NOT NULL DEFAULT ''
