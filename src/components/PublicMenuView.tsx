@@ -638,7 +638,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                   maxLength={200}
                   value={deliveryAddress}
                   onChange={(e) => setDeliveryAddress(e.target.value)}
-                  placeholder="Rua, número, bairro"
+                  placeholder="Rua e número"
                   className="w-full min-h-[44px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
                 />
               </div>
