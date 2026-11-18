@@ -802,8 +802,6 @@ export default function App() {
                 <OrdersCenterView
                   orders={onlineOrders}
                   digitalMenuSettings={digitalMenuSettings}
-                  deliveryZones={deliveryZones}
-                  onSaveDeliveryZone={handleSaveDeliveryZone}
                   soundEnabled={soundEnabled}
                   onToggleSound={handleToggleSound}
                   onMarkViewed={handleMarkOnlineOrderViewed}
@@ -859,6 +857,8 @@ export default function App() {
                   products={products}
                   combos={combos}
                   digitalMenuSettings={digitalMenuSettings}
+                  deliveryZones={deliveryZones}
+                  onSaveDeliveryZone={handleSaveDeliveryZone}
                   initialTab={settingsInitialTab}
                   onSaveSettings={handleSaveSettings}
                   onSaveDigitalMenuSettings={handleSaveDigitalMenuSettings}
