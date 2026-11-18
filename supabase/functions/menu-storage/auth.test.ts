@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  assertMenuImagePermission,
   buildCanonicalMenuStoragePath,
+  inferMenuImageKindFromPath,
   MAX_MENU_IMAGE_BYTES,
   MenuStorageAuthError,
   validateTenantDeletePath,
@@ -102,4 +104,21 @@ test('validateTenantDeletePath blocks cross-tenant deletion and path traversal',
       }),
     (e: unknown) => e instanceof MenuStorageAuthError && e.status === 403,
   );
+});
+
+test('image permissions enforce owner/admin branding and manager catalog access', () => {
+  assert.doesNotThrow(() => assertMenuImagePermission('owner', 'logo'));
+  assert.doesNotThrow(() => assertMenuImagePermission('admin', 'banner'));
+  assert.doesNotThrow(() => assertMenuImagePermission('manager', 'product'));
+  assert.doesNotThrow(() => assertMenuImagePermission('manager', 'combo'));
+  assert.throws(() => assertMenuImagePermission('staff', 'product'), (e: unknown) => e instanceof MenuStorageAuthError && e.status === 403);
+  assert.throws(() => assertMenuImagePermission('manager', 'logo'), (e: unknown) => e instanceof MenuStorageAuthError && e.status === 403);
+  assert.throws(() => assertMenuImagePermission('staff', 'banner'), (e: unknown) => e instanceof MenuStorageAuthError && e.status === 403);
+});
+
+test('delete path resolves its category before role authorization', () => {
+  assert.equal(inferMenuImageKindFromPath('tenants/mgw_lanches/branding/logo/1700000000000_a.webp'), 'logo');
+  assert.equal(inferMenuImageKindFromPath('tenants/mgw_lanches/branding/banner/1700000000000_a.webp'), 'banner');
+  assert.equal(inferMenuImageKindFromPath('tenants/mgw_lanches/products/prod_1/1700000000000_a.webp'), 'product');
+  assert.equal(inferMenuImageKindFromPath('tenants/mgw_lanches/combos/combo_1/1700000000000_a.webp'), 'combo');
 });
