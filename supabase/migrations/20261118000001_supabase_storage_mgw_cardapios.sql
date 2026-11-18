@@ -8,7 +8,7 @@
 --   * Nao cria tabelas de negocio, nao altera Firebase/Firestore e nao migra dados.
 --   * Escrita (INSERT/UPDATE) e exclusao (DELETE) permanecem 100% bloqueadas para
 --     'anon' e 'authenticated' no cliente; operacoes ocorrem apenas via
---     Edge Function 'menu-storage' apos validacao de Firebase ID Token + tenant.
+--     Edge Function 'menu-storage' apos validacao de Supabase Auth + tenant.
 -- ============================================================================
 
 BEGIN;
