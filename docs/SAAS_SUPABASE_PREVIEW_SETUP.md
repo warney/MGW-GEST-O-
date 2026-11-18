@@ -29,8 +29,11 @@ A ordem prevista de migrations é:
 1. `20261114000001_initial_saas_schema.sql`
 2. `20261118000001_supabase_storage_mgw_cardapios.sql` (o bucket já existe no projeto atual; não recriar manualmente)
 3. `20261119000001_saas_signup_and_digital_menu.sql`
+4. `20261120000001_online_orders_and_trial_access.sql`
 
-A Edge Function `menu-storage` deve ser publicada depois de configurar os secrets gerenciados pelo Supabase. Ela valida o access token Supabase e confirma a associação ativa do usuário ao tenant solicitado.
+A Edge Function `menu-storage` deve ser publicada no ambiente de teste depois de configurar os secrets gerenciados pelo Supabase. Ela valida o access token Supabase e confirma a associação ativa do usuário ao tenant solicitado.
+
+A migration de pedidos cria tabelas e RPCs de checkout público, rastreamento por token, transições de status e geração de venda financeira ao concluir um pedido.
 
 ## 4. Critérios de aprovação
 
