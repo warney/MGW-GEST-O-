@@ -94,6 +94,16 @@
           "type": "boolean",
           "description": "Status ativo ou inativo do produto"
         },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL HTTPS pública da foto do produto no Supabase Storage (bucket mgw-cardapios)",
+          "maxLength": 1000
+        },
+        "imagePath": {
+          "type": "string",
+          "description": "Caminho canônico isolado do arquivo no bucket mgw-cardapios dentro de tenants/{workspaceId}/products/{productId}/",
+          "maxLength": 260
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -154,6 +164,16 @@
         "active": {
           "type": "boolean",
           "description": "Status ativo ou inativo do combo"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL HTTPS pública da foto do combo no Supabase Storage (bucket mgw-cardapios)",
+          "maxLength": 1000
+        },
+        "imagePath": {
+          "type": "string",
+          "description": "Caminho canônico isolado do arquivo no bucket mgw-cardapios dentro de tenants/{workspaceId}/combos/{comboId}/",
+          "maxLength": 260
         },
         "createdAt": {
           "type": "string",
@@ -380,10 +400,15 @@
         "phoneWhatsapp": { "type": "string", "maxLength": 32 },
         "address": { "type": "string", "maxLength": 240 },
         "openingHours": { "type": "string", "maxLength": 160 },
+        "pixKey": { "type": "string", "maxLength": 140 },
         "deliveryFee": { "type": "number" },
         "minimumOrderAmount": { "type": "number" },
         "acceptsDelivery": { "type": "boolean" },
         "acceptsPickup": { "type": "boolean" },
+        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "logoPath": { "type": "string", "maxLength": 260 },
+        "bannerUrl": { "type": "string", "maxLength": 1000 },
+        "bannerPath": { "type": "string", "maxLength": 260 },
         "nextOrderSeq": { "type": "integer" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
@@ -421,10 +446,13 @@
         "phoneWhatsapp": { "type": "string", "maxLength": 32 },
         "address": { "type": "string", "maxLength": 240 },
         "openingHours": { "type": "string", "maxLength": 160 },
+        "pixKey": { "type": "string", "maxLength": 140 },
         "deliveryFee": { "type": "number" },
         "minimumOrderAmount": { "type": "number" },
         "acceptsDelivery": { "type": "boolean" },
         "acceptsPickup": { "type": "boolean" },
+        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "bannerUrl": { "type": "string", "maxLength": 1000 },
         "products": { "type": "array" },
         "combos": { "type": "array" },
         "updatedAt": { "type": "string", "format": "date-time" }
@@ -560,6 +588,7 @@
         "storeSlug": { "type": "string", "minLength": 2, "maxLength": 64 },
         "storeWhatsapp": { "type": "string", "maxLength": 32 },
         "storeAddress": { "type": "string", "maxLength": 240 },
+        "storePixKey": { "type": "string", "maxLength": 140 },
         "items": { "type": "array" },
         "statusHistory": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" },

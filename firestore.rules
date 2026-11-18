@@ -119,6 +119,38 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidOptionalImageUrl(url) {
+      return url is string
+        && url.size() <= 1000
+        && (url.size() == 0 || url.matches('^https://.+'));
+    }
+
+    function isValidOptionalImagePathAny(path) {
+      return path is string
+        && path.size() <= 260
+        && (
+          path.size() == 0
+          || path.matches('^tenants/(mgw_lanches|gf_lanches)/(branding/(logo|banner)|(products|combos)/[a-zA-Z0-9_\\-]{1,80})/[a-zA-Z0-9_.\\-]{3,160}$')
+          || path.matches('^tenants/(mgw_lanches|gf_lanches)/(branding|products|combos)/[a-zA-Z0-9_.\\-]{3,160}$')
+        );
+    }
+
+    function isValidOptionalImagePathForWorkspace(path, workspaceId) {
+      return path is string
+        && path.size() <= 260
+        && (
+          path.size() == 0
+          || (workspaceId == 'mgw_lanches' && (
+            path.matches('^tenants/mgw_lanches/(branding/(logo|banner)|(products|combos)/[a-zA-Z0-9_\\-]{1,80})/[a-zA-Z0-9_.\\-]{3,160}$')
+            || path.matches('^tenants/mgw_lanches/(branding|products|combos)/[a-zA-Z0-9_.\\-]{3,160}$')
+          ))
+          || (workspaceId == 'gf_lanches' && (
+            path.matches('^tenants/gf_lanches/(branding/(logo|banner)|(products|combos)/[a-zA-Z0-9_\\-]{1,80})/[a-zA-Z0-9_.\\-]{3,160}$')
+            || path.matches('^tenants/gf_lanches/(branding|products|combos)/[a-zA-Z0-9_.\\-]{3,160}$')
+          ))
+        );
+    }
+
     function isValidProduct(data) {
       return data.keys().hasAll([
           'ownerId',
@@ -137,6 +169,8 @@ service cloud.firestore {
           'unitPrice',
           'countsAsXSalada',
           'active',
+          'imageUrl',
+          'imagePath',
           'createdAt',
           'updatedAt'
         ])
@@ -150,6 +184,8 @@ service cloud.firestore {
         && data.unitPrice <= 10000
         && data.countsAsXSalada is bool
         && data.active is bool
+        && (!('imageUrl' in data) || isValidOptionalImageUrl(data.imageUrl))
+        && (!('imagePath' in data) || isValidOptionalImagePathAny(data.imagePath))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -174,6 +210,8 @@ service cloud.firestore {
           'salePrice',
           'estimatedCost',
           'active',
+          'imageUrl',
+          'imagePath',
           'createdAt',
           'updatedAt'
         ])
@@ -194,6 +232,8 @@ service cloud.firestore {
         && data.estimatedCost >= 0
         && data.estimatedCost <= 100000
         && data.active is bool
+        && (!('imageUrl' in data) || isValidOptionalImageUrl(data.imageUrl))
+        && (!('imagePath' in data) || isValidOptionalImagePathAny(data.imagePath))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -336,6 +376,7 @@ service cloud.firestore {
       allow create: if isVerifiedAdmin()
         && isValidId(productId)
         && isValidProduct(incoming())
+        && (!('imagePath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().imagePath, 'mgw_lanches'))
         && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
@@ -343,6 +384,7 @@ service cloud.firestore {
       allow update: if isVerifiedAdmin()
         && isValidId(productId)
         && isValidProduct(incoming())
+        && (!('imagePath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().imagePath, 'mgw_lanches'))
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
@@ -352,6 +394,8 @@ service cloud.firestore {
           'unitPrice',
           'countsAsXSalada',
           'active',
+          'imageUrl',
+          'imagePath',
           'updatedAt'
         ]);
 
@@ -365,6 +409,7 @@ service cloud.firestore {
       allow create: if isVerifiedAdmin()
         && isValidId(comboId)
         && isValidCombo(incoming())
+        && (!('imagePath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().imagePath, 'mgw_lanches'))
         && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
@@ -372,6 +417,7 @@ service cloud.firestore {
       allow update: if isVerifiedAdmin()
         && isValidId(comboId)
         && isValidCombo(incoming())
+        && (!('imagePath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().imagePath, 'mgw_lanches'))
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
@@ -382,6 +428,8 @@ service cloud.firestore {
           'salePrice',
           'estimatedCost',
           'active',
+          'imageUrl',
+          'imagePath',
           'updatedAt'
         ]);
 
@@ -508,6 +556,7 @@ service cloud.firestore {
         && isValidId(workspaceId)
         && isValidId(productId)
         && isValidProduct(incoming())
+        && (!('imagePath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().imagePath, workspaceId))
         && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
@@ -516,6 +565,7 @@ service cloud.firestore {
         && isValidId(workspaceId)
         && isValidId(productId)
         && isValidProduct(incoming())
+        && (!('imagePath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().imagePath, workspaceId))
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
@@ -525,6 +575,8 @@ service cloud.firestore {
           'unitPrice',
           'countsAsXSalada',
           'active',
+          'imageUrl',
+          'imagePath',
           'updatedAt'
         ]);
 
@@ -545,6 +597,7 @@ service cloud.firestore {
         && isValidId(workspaceId)
         && isValidId(comboId)
         && isValidCombo(incoming())
+        && (!('imagePath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().imagePath, workspaceId))
         && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
@@ -553,6 +606,7 @@ service cloud.firestore {
         && isValidId(workspaceId)
         && isValidId(comboId)
         && isValidCombo(incoming())
+        && (!('imagePath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().imagePath, workspaceId))
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
@@ -563,6 +617,8 @@ service cloud.firestore {
           'salePrice',
           'estimatedCost',
           'active',
+          'imageUrl',
+          'imagePath',
           'updatedAt'
         ]);
 
@@ -707,10 +763,15 @@ service cloud.firestore {
           'phoneWhatsapp',
           'address',
           'openingHours',
+          'pixKey',
           'deliveryFee',
           'minimumOrderAmount',
           'acceptsDelivery',
           'acceptsPickup',
+          'logoUrl',
+          'logoPath',
+          'bannerUrl',
+          'bannerPath',
           'nextOrderSeq',
           'createdAt',
           'updatedAt'
@@ -732,6 +793,7 @@ service cloud.firestore {
         && data.address.size() <= 240
         && data.openingHours is string
         && data.openingHours.size() <= 160
+        && (!('pixKey' in data) || (data.pixKey is string && data.pixKey.size() <= 140))
         && data.deliveryFee is number
         && data.deliveryFee >= 0
         && data.deliveryFee <= 1000
@@ -741,6 +803,10 @@ service cloud.firestore {
         && data.acceptsDelivery is bool
         && data.acceptsPickup is bool
         && (data.acceptsDelivery || data.acceptsPickup)
+        && (!('logoUrl' in data) || isValidOptionalImageUrl(data.logoUrl))
+        && (!('logoPath' in data) || isValidOptionalImagePathAny(data.logoPath))
+        && (!('bannerUrl' in data) || isValidOptionalImageUrl(data.bannerUrl))
+        && (!('bannerPath' in data) || isValidOptionalImagePathAny(data.bannerPath))
         && data.nextOrderSeq is int
         && data.nextOrderSeq >= 1
         && data.createdAt is timestamp
@@ -776,10 +842,13 @@ service cloud.firestore {
           'phoneWhatsapp',
           'address',
           'openingHours',
+          'pixKey',
           'deliveryFee',
           'minimumOrderAmount',
           'acceptsDelivery',
           'acceptsPickup',
+          'logoUrl',
+          'bannerUrl',
           'products',
           'combos',
           'updatedAt'
@@ -801,6 +870,7 @@ service cloud.firestore {
         && data.address.size() <= 240
         && data.openingHours is string
         && data.openingHours.size() <= 160
+        && (!('pixKey' in data) || (data.pixKey is string && data.pixKey.size() <= 140))
         && data.deliveryFee is number
         && data.deliveryFee >= 0
         && data.deliveryFee <= 1000
@@ -809,6 +879,8 @@ service cloud.firestore {
         && data.minimumOrderAmount <= 10000
         && data.acceptsDelivery is bool
         && data.acceptsPickup is bool
+        && (!('logoUrl' in data) || isValidOptionalImageUrl(data.logoUrl))
+        && (!('bannerUrl' in data) || isValidOptionalImageUrl(data.bannerUrl))
         && data.products is list
         && data.products.size() <= 150
         && (data.products.size() == 0 || data.products[0] is map)
@@ -989,6 +1061,7 @@ service cloud.firestore {
           'storeSlug',
           'storeWhatsapp',
           'storeAddress',
+          'storePixKey',
           'items',
           'statusHistory',
           'createdAt',
@@ -1031,6 +1104,7 @@ service cloud.firestore {
         && data.storeWhatsapp.size() <= 32
         && data.storeAddress is string
         && data.storeAddress.size() <= 240
+        && (!('storePixKey' in data) || (data.storePixKey is string && data.storePixKey.size() <= 140))
         && data.items is list
         && data.items.size() >= 1
         && data.items.size() <= 40
@@ -1052,6 +1126,8 @@ service cloud.firestore {
       allow create: if isValidId(workspaceId)
         && ((isVerifiedAdmin() && workspaceId == 'mgw_lanches') || isSeparateShopOwner(workspaceId))
         && isValidDigitalMenuSettings(incoming())
+        && (!('logoPath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().logoPath, workspaceId))
+        && (!('bannerPath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().bannerPath, workspaceId))
         && incoming().ownerId == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
@@ -1059,9 +1135,32 @@ service cloud.firestore {
       allow update: if isValidId(workspaceId)
         && ((isVerifiedAdmin() && workspaceId == 'mgw_lanches') || isSeparateShopOwner(workspaceId))
         && isValidDigitalMenuSettings(incoming())
+        && (!('logoPath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().logoPath, workspaceId))
+        && (!('bannerPath' in incoming()) || isValidOptionalImagePathForWorkspace(incoming().bannerPath, workspaceId))
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
-        && incoming().updatedAt == request.time;
+        && incoming().nextOrderSeq == existing().nextOrderSeq
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'slug',
+          'isActive',
+          'isOpen',
+          'storeName',
+          'description',
+          'phoneWhatsapp',
+          'address',
+          'openingHours',
+          'pixKey',
+          'deliveryFee',
+          'minimumOrderAmount',
+          'acceptsDelivery',
+          'acceptsPickup',
+          'logoUrl',
+          'logoPath',
+          'bannerUrl',
+          'bannerPath',
+          'updatedAt'
+        ]);
 
       allow delete: if false;
     }

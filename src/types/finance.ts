@@ -143,10 +143,15 @@ export interface DigitalMenuSettings {
   phoneWhatsapp: string;
   address: string;
   openingHours: string;
+  pixKey: string;
   deliveryFee: number;
   minimumOrderAmount: number;
   acceptsDelivery: boolean;
   acceptsPickup: boolean;
+  logoUrl?: string;
+  logoPath?: string;
+  bannerUrl?: string;
+  bannerPath?: string;
   updatedAtMs?: number;
 }
 
@@ -161,6 +166,7 @@ export interface PublicCatalogProduct {
   category: ProductCategory;
   unitPrice: number;
   countsAsXSalada: boolean;
+  imageUrl?: string;
 }
 
 export interface PublicCatalogCombo {
@@ -169,6 +175,7 @@ export interface PublicCatalogCombo {
   description: string;
   items: ComboProductItem[];
   salePrice: number;
+  imageUrl?: string;
 }
 
 export interface PublicDigitalMenuPayload {
@@ -287,6 +294,7 @@ export interface PublicOrderTrackingRecord {
   storeSlug: string;
   storeWhatsapp: string;
   storeAddress: string;
+  storePixKey: string;
   createdAtMs: number;
   updatedAtMs: number;
   items: Array<{
@@ -310,16 +318,21 @@ export interface ProductRecord {
   unitPrice: number;
   countsAsXSalada: boolean;
   active: boolean;
+  imageUrl?: string;
+  imagePath?: string;
   createdAtMs: number;
   updatedAtMs: number;
 }
 
 export interface ProductInput {
+  preferredId?: string;
   name: string;
   category: ProductCategory;
   unitPrice: number;
   countsAsXSalada: boolean;
   active: boolean;
+  imageUrl?: string;
+  imagePath?: string;
 }
 
 export interface ComboProductItem {
@@ -338,17 +351,22 @@ export interface ComboRecord {
   salePrice: number;
   estimatedCost: number;
   active: boolean;
+  imageUrl?: string;
+  imagePath?: string;
   createdAtMs: number;
   updatedAtMs: number;
 }
 
 export interface ComboInput {
+  preferredId?: string;
   name: string;
   description: string;
   items: ComboProductItem[];
   salePrice: number;
   estimatedCost: number;
   active: boolean;
+  imageUrl?: string;
+  imagePath?: string;
 }
 
 export type SaleMode = 'individual' | 'combo' | 'mixed';

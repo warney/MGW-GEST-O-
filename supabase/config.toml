@@ -1,0 +1,4 @@
+project_id = "rlinibriiwbkdqjrfapd"
+
+[functions.menu-storage]
+verify_jwt = false

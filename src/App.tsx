@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
+  BellRing,
   Building2,
   ClipboardList,
   LayoutDashboard,
@@ -9,6 +10,7 @@ import {
   Receipt,
   Settings,
   ShoppingBag,
+  X,
 } from 'lucide-react';
 import { getActiveDataProvider } from './lib/supabase';
 import {
@@ -56,14 +58,28 @@ import {
   type WorkspaceAccess,
 } from './types/finance';
 import {
+  formatCurrencyBRL,
   isLikelyDuplicateExpense,
   isLikelyDuplicateSale,
 } from './utils/finance';
 import {
   DEFAULT_DIGITAL_MENU_SETTINGS,
+  formatOrderNumber,
   isUnreadNewOrder,
   ORDER_STATUS_LABELS,
 } from './utils/onlineOrders';
+import {
+  BASE_APP_TITLE,
+  type BrowserNotificationPermissionState,
+  buildNewOrderNotificationContent,
+  formatPendingOrdersDocumentTitle,
+  getBrowserNotificationPermission,
+  requestMobileOrderNotificationsPermission,
+  resolveInitialRouteFromSearch,
+  sendMobileSystemNotification,
+  updateAppUnreadBadge,
+  vibrateMobileDevice,
+} from './utils/orderNotifications';
 import {
   playNewOrderAlertChime,
   unlockAlertAudio,
@@ -72,6 +88,7 @@ import { DashboardView } from './components/DashboardView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { ExpensesView } from './components/ExpensesView';
 import { LoginScreen } from './components/LoginScreen';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { OrdersCenterView } from './components/OrdersCenterView';
 import { PublicMenuView } from './components/PublicMenuView';
 import { PublicOrderTrackingView } from './components/PublicOrderTrackingView';
@@ -82,6 +99,7 @@ import { SettingsView } from './components/SettingsView';
 
 const TENANT_PREF_KEY = 'mgw_active_tenant_id';
 const SOUND_PREF_KEY = 'mgw_order_sound_enabled';
+const PUSH_PREF_KEY = 'mgw_order_push_enabled';
 
 type PublicUrlRoute =
   | { kind: 'admin' }
@@ -154,7 +172,11 @@ export default function App() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const [route, setRoute] = useState<AppRoute>('dashboard');
+  const [route, setRoute] = useState<AppRoute>(() =>
+    typeof window !== 'undefined'
+      ? resolveInitialRouteFromSearch(window.location.search)
+      : 'dashboard',
+  );
   const [settingsInitialTab, setSettingsInitialTab] = useState<
     'shop' | 'catalog' | 'digital_menu'
   >('shop');
@@ -183,6 +205,21 @@ export default function App() {
       return true;
     }
   });
+  const [pushEnabled, setPushEnabled] = useState<boolean>(() => {
+    try {
+      const saved = window.localStorage.getItem(PUSH_PREF_KEY);
+      return saved === null ? true : saved === '1';
+    } catch {
+      return true;
+    }
+  });
+  const [notificationPermission, setNotificationPermission] =
+    useState<BrowserNotificationPermissionState>(() =>
+      getBrowserNotificationPermission(),
+    );
+  const [liveOrderBanner, setLiveOrderBanner] = useState<
+    OnlineOrderRecord[] | null
+  >(null);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const ordersInitializedRef = useRef(false);
 
@@ -219,6 +256,137 @@ export default function App() {
       return next;
     });
   }
+
+  async function handleEnableMobileNotifications() {
+    if (soundEnabled) {
+      void unlockAlertAudio();
+    }
+    const permission = await requestMobileOrderNotificationsPermission();
+    setNotificationPermission(permission);
+
+    if (permission === 'granted') {
+      setPushEnabled(true);
+      try {
+        window.localStorage.setItem(PUSH_PREF_KEY, '1');
+      } catch {
+        // Ignora erro de storage
+      }
+      if (soundEnabled) {
+        void playNewOrderAlertChime();
+      }
+      vibrateMobileDevice();
+      await sendMobileSystemNotification({
+        title: `Notificações ativadas — ${digitalMenuSettings.storeName || settings.establishmentName || 'MGW GESTÃO'}`,
+        body: 'Você receberá alertas em tempo real no celular sempre que chegar um novo pedido.',
+        tag: 'mgw-notifications-enabled',
+        orderId: null,
+      });
+      showToast('Notificações no celular ativadas para novos pedidos!');
+      return;
+    }
+
+    if (permission === 'denied') {
+      showToast(
+        'Permissão bloqueada no navegador. Libere as notificações nas configurações do site.',
+        'err',
+      );
+      return;
+    }
+
+    if (permission === 'unsupported') {
+      showToast(
+        'Este navegador não suporta notificações do sistema. No iPhone, instale o app na Tela de Início.',
+        'err',
+      );
+    }
+  }
+
+  function handleTogglePushNotifications() {
+    const currentPermission = getBrowserNotificationPermission();
+    setNotificationPermission(currentPermission);
+    if (currentPermission !== 'granted') {
+      void handleEnableMobileNotifications();
+      return;
+    }
+
+    setPushEnabled((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(PUSH_PREF_KEY, next ? '1' : '0');
+      } catch {
+        // Ignora erro de storage
+      }
+      showToast(
+        next
+          ? 'Notificações no celular reativadas.'
+          : 'Notificações no celular pausadas.',
+      );
+      return next;
+    });
+  }
+
+  async function handleTestOrderAlert() {
+    if (soundEnabled) {
+      await unlockAlertAudio();
+      void playNewOrderAlertChime();
+    }
+    vibrateMobileDevice();
+
+    const currentPermission = getBrowserNotificationPermission();
+    setNotificationPermission(currentPermission);
+
+    if (currentPermission === 'granted') {
+      const sent = await sendMobileSystemNotification({
+        title: `Teste de alerta de pedido — ${digitalMenuSettings.storeName || settings.establishmentName || 'MGW GESTÃO'}`,
+        body: 'Se você viu esta notificação, os alertas em tempo real no dispositivo estão funcionando.',
+        tag: 'mgw-test-order',
+        orderId: null,
+      });
+      if (sent) {
+        showToast('Alerta de teste enviado para o dispositivo!');
+        return;
+      }
+    }
+
+    showToast(
+      'Alerta sonoro testado! Ative as notificações do navegador para receber no celular.',
+      currentPermission === 'denied' ? 'err' : 'ok',
+    );
+  }
+
+  useEffect(() => {
+    if (publicRoute.kind !== 'admin') return;
+    const syncPermission = () => {
+      setNotificationPermission(getBrowserNotificationPermission());
+    };
+    const onFocusOrVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        syncPermission();
+      }
+    };
+    window.addEventListener('focus', syncPermission);
+    document.addEventListener('visibilitychange', onFocusOrVisibility);
+
+    let cleanupSwListener: (() => void) | undefined;
+    if ('serviceWorker' in navigator) {
+      const onSwMessage = (event: MessageEvent) => {
+        const data = event.data as { type?: string } | undefined;
+        if (data?.type === 'MGW_OPEN_ORDERS') {
+          setRoute('orders');
+          setLiveOrderBanner(null);
+        }
+      };
+      navigator.serviceWorker.addEventListener('message', onSwMessage);
+      cleanupSwListener = () =>
+        navigator.serviceWorker.removeEventListener('message', onSwMessage);
+    }
+
+    return () => {
+      window.removeEventListener('focus', syncPermission);
+      document.removeEventListener('visibilitychange', onFocusOrVisibility);
+      cleanupSwListener?.();
+    };
+  }, [publicRoute.kind]);
 
   useEffect(() => {
     if (!soundEnabled || publicRoute.kind !== 'admin') return;
@@ -343,7 +511,20 @@ export default function App() {
     [onlineOrders],
   );
 
-  // Alerta sonoro imediato na chegada de novos pedidos nao visualizados
+  // Atualiza titulo da aba e badge no icone do app instalado (PWA)
+  useEffect(() => {
+    if (publicRoute.kind !== 'admin') return;
+    document.title = formatPendingOrdersDocumentTitle(
+      unviewedOrdersCount,
+      BASE_APP_TITLE,
+    );
+    updateAppUnreadBadge(unviewedOrdersCount);
+    if (unviewedOrdersCount === 0) {
+      setLiveOrderBanner(null);
+    }
+  }, [publicRoute.kind, unviewedOrdersCount]);
+
+  // Alerta imediato (notificacao mobile, vibracao, banner e som) na chegada de novos pedidos
   useEffect(() => {
     if (publicRoute.kind !== 'admin') return;
     if (!ordersInitializedRef.current) {
@@ -359,10 +540,33 @@ export default function App() {
     );
     knownOrderIdsRef.current = new Set(onlineOrders.map((o) => o.id));
 
-    if (newlyArrived.length > 0 && soundEnabled) {
-      void playNewOrderAlertChime();
+    if (newlyArrived.length > 0) {
+      setLiveOrderBanner(newlyArrived);
+      vibrateMobileDevice();
+      if (soundEnabled) {
+        void playNewOrderAlertChime();
+      }
+      const perm = getBrowserNotificationPermission();
+      setNotificationPermission(perm);
+      if (pushEnabled && perm === 'granted') {
+        const payload = buildNewOrderNotificationContent(
+          newlyArrived,
+          digitalMenuSettings.storeName || settings.establishmentName,
+        );
+        if (payload) {
+          void sendMobileSystemNotification(payload);
+        }
+      }
     }
-  }, [onlineOrders, dataLoading, soundEnabled, publicRoute.kind]);
+  }, [
+    onlineOrders,
+    dataLoading,
+    soundEnabled,
+    pushEnabled,
+    publicRoute.kind,
+    digitalMenuSettings.storeName,
+    settings.establishmentName,
+  ]);
 
   // Reforco sonoro sutil enquanto houver pedido aguardando visualizacao
   useEffect(() => {
@@ -718,6 +922,66 @@ export default function App() {
           </div>
         </header>
 
+        {/* Real-time Sticky Order Alert Banner across all Admin Screens */}
+        {liveOrderBanner &&
+          liveOrderBanner.length > 0 &&
+          unviewedOrdersCount > 0 &&
+          route !== 'orders' && (
+            <div
+              role="alert"
+              data-testid="live-order-alert"
+              className="mx-4 lg:mx-8 mt-4 rounded-2xl border border-[#F5B731] bg-[#181C24] px-4 py-3.5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-[#F5B731]/15 border border-[#F5B731]/40 text-[#F5B731] flex items-center justify-center shrink-0">
+                  <BellRing className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-bold text-[#F3F4F6] truncate">
+                    {liveOrderBanner.length === 1
+                      ? `Novo Pedido ${formatOrderNumber(liveOrderBanner[0].orderNumber)} — ${liveOrderBanner[0].customerName}`
+                      : `${liveOrderBanner.length} novos pedidos online recebidos!`}
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-[#D1D5DB] truncate">
+                    {liveOrderBanner.length === 1
+                      ? `${
+                          liveOrderBanner[0].fulfillmentType === 'delivery'
+                            ? 'Entrega'
+                            : 'Retirada'
+                        } · ${formatCurrencyBRL(liveOrderBanner[0].totalAmount)} · ${liveOrderBanner[0].items
+                          .slice(0, 2)
+                          .map((i) => `${i.quantity}x ${i.itemName}`)
+                          .join(', ')}`
+                      : `Total somado: ${formatCurrencyBRL(
+                          liveOrderBanner.reduce((acc, o) => acc + o.totalAmount, 0),
+                        )} · Toque para confirmar`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLiveOrderBanner(null);
+                    setRoute('orders');
+                  }}
+                  className="min-h-[38px] px-3.5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold cursor-pointer whitespace-nowrap"
+                >
+                  Ver Pedido
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLiveOrderBanner(null)}
+                  aria-label="Dispensar alerta de novo pedido"
+                  className="w-9 h-9 rounded-xl border border-[#232834] text-[#9CA3AF] hover:text-[#F3F4F6] flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
         {/* Toast Feedback */}
         {toast && (
           <div
@@ -777,7 +1041,14 @@ export default function App() {
                   orders={onlineOrders}
                   digitalMenuSettings={digitalMenuSettings}
                   soundEnabled={soundEnabled}
+                  pushEnabled={pushEnabled}
+                  notificationPermission={notificationPermission}
                   onToggleSound={handleToggleSound}
+                  onTogglePush={handleTogglePushNotifications}
+                  onEnableMobileNotifications={() =>
+                    void handleEnableMobileNotifications()
+                  }
+                  onTestAlert={() => void handleTestOrderAlert()}
                   onMarkViewed={handleMarkOnlineOrderViewed}
                   onTransitionStatus={handleTransitionOnlineOrderStatus}
                   onOpenDigitalMenuSettings={() => {
@@ -827,6 +1098,7 @@ export default function App() {
 
               {route === 'settings' && (
                 <SettingsView
+                  workspaceId={dataContext?.tenant.tenantId || 'mgw_lanches'}
                   settings={settings}
                   products={products}
                   combos={combos}
@@ -912,6 +1184,8 @@ export default function App() {
         }}
         onSubmit={handleSaveExpense}
       />
+
+      <OfflineIndicator />
     </div>
   );
 }

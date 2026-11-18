@@ -36,7 +36,11 @@ import {
   type TenantRole,
 } from '../types/finance';
 import { calculateSaleTotal, roundCurrency } from '../utils/finance';
-import { formatOrderNumber, sanitizeMenuSlug } from '../utils/onlineOrders';
+import {
+  formatOrderNumber,
+  normalizePixKeyInput,
+  sanitizeMenuSlug,
+} from '../utils/onlineOrders';
 import { normalizeSubscriptionStatus, normalizeTenantRole } from './rbacPolicy';
 
 export interface SupabaseTenantRow {
@@ -87,6 +91,8 @@ export interface SupabaseProductRow {
   unit_price: number | string;
   counts_as_x_salada: boolean;
   active: boolean;
+  image_url?: string | null;
+  image_path?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -102,6 +108,8 @@ export interface SupabaseComboRow {
   sale_price: number | string;
   estimated_cost: number | string;
   active: boolean;
+  image_url?: string | null;
+  image_path?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -138,6 +146,11 @@ export interface SupabaseDigitalMenuSettingsRow {
   phone_whatsapp: string;
   address: string;
   opening_hours: string;
+  pix_key?: string | null;
+  logo_url?: string | null;
+  logo_path?: string | null;
+  banner_url?: string | null;
+  banner_path?: string | null;
   delivery_fee: number | string;
   minimum_order_amount: number | string;
   accepts_delivery: boolean;
@@ -307,6 +320,8 @@ export function mapProductRow(row: SupabaseProductRow): ProductRecord {
     unitPrice: Number(row.unit_price) || 0,
     countsAsXSalada: Boolean(row.counts_as_x_salada),
     active: row.active !== false,
+    imageUrl: typeof row.image_url === 'string' ? row.image_url : '',
+    imagePath: typeof row.image_path === 'string' ? row.image_path : '',
     createdAtMs: isoTimestampToMs(row.created_at),
     updatedAtMs: isoTimestampToMs(row.updated_at),
   };
@@ -322,6 +337,8 @@ export function mapComboRow(row: SupabaseComboRow): ComboRecord {
     salePrice: Number(row.sale_price) || 0,
     estimatedCost: Number(row.estimated_cost) || 0,
     active: row.active !== false,
+    imageUrl: typeof row.image_url === 'string' ? row.image_url : '',
+    imagePath: typeof row.image_path === 'string' ? row.image_path : '',
     createdAtMs: isoTimestampToMs(row.created_at),
     updatedAtMs: isoTimestampToMs(row.updated_at),
   };
@@ -691,6 +708,11 @@ export function mapDigitalMenuSettingsRow(
     phoneWhatsapp: String(row.phone_whatsapp || ''),
     address: String(row.address || ''),
     openingHours: String(row.opening_hours || ''),
+    pixKey: normalizePixKeyInput(String(row.pix_key || '')),
+    logoUrl: typeof row.logo_url === 'string' ? row.logo_url : '',
+    logoPath: typeof row.logo_path === 'string' ? row.logo_path : '',
+    bannerUrl: typeof row.banner_url === 'string' ? row.banner_url : '',
+    bannerPath: typeof row.banner_path === 'string' ? row.banner_path : '',
     deliveryFee: roundCurrency(Math.max(0, Number(row.delivery_fee) || 0)),
     minimumOrderAmount: roundCurrency(Math.max(0, Number(row.minimum_order_amount) || 0)),
     acceptsDelivery: row.accepts_delivery !== false,
@@ -710,6 +732,7 @@ export function buildDigitalMenuSettingsPayloadForSupabase(
   phone_whatsapp: string;
   address: string;
   opening_hours: string;
+  pix_key: string;
   delivery_fee: number;
   minimum_order_amount: number;
   accepts_delivery: boolean;
@@ -734,6 +757,7 @@ export function buildDigitalMenuSettingsPayloadForSupabase(
     phone_whatsapp: input.phoneWhatsapp.trim().slice(0, 32),
     address: input.address.trim().slice(0, 240),
     opening_hours: input.openingHours.trim().slice(0, 160),
+    pix_key: normalizePixKeyInput(input.pixKey || ''),
     delivery_fee: roundCurrency(Math.max(0, Math.min(1000, Number(input.deliveryFee) || 0))),
     minimum_order_amount: roundCurrency(
       Math.max(0, Math.min(10000, Number(input.minimumOrderAmount) || 0)),
@@ -853,6 +877,9 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
     phoneWhatsapp: String(st.phoneWhatsapp || ''),
     address: String(st.address || ''),
     openingHours: String(st.openingHours || ''),
+    pixKey: normalizePixKeyInput(String(st.pixKey || '')),
+    logoUrl: typeof st.logoUrl === 'string' ? st.logoUrl : '',
+    bannerUrl: typeof st.bannerUrl === 'string' ? st.bannerUrl : '',
     deliveryFee: roundCurrency(Math.max(0, Number(st.deliveryFee) || 0)),
     minimumOrderAmount: roundCurrency(Math.max(0, Number(st.minimumOrderAmount) || 0)),
     acceptsDelivery: st.acceptsDelivery !== false,
@@ -872,6 +899,7 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
               : 'Outro',
             unitPrice: roundCurrency(Math.max(0, Number(p.unitPrice) || 0)),
             countsAsXSalada: Boolean(p.countsAsXSalada),
+            imageUrl: typeof p.imageUrl === 'string' ? p.imageUrl : '',
           };
         })
     : [];
@@ -885,6 +913,7 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
           description: String(c.description || ''),
           items: parseComboItemsSafe(c.items),
           salePrice: roundCurrency(Math.max(0, Number(c.salePrice) || 0)),
+          imageUrl: typeof c.imageUrl === 'string' ? c.imageUrl : '',
         }))
     : [];
 
@@ -952,6 +981,7 @@ export function mapPublicOrderTrackingRpcResponse(
     storeSlug: String(o.storeSlug || 'mgw_lanches'),
     storeWhatsapp: String(o.storeWhatsapp || ''),
     storeAddress: String(o.storeAddress || ''),
+    storePixKey: normalizePixKeyInput(String(o.storePixKey || '')),
     createdAtMs: isoTimestampToMs(o.createdAt),
     updatedAtMs: isoTimestampToMs(o.updatedAt),
     items,

@@ -4,17 +4,25 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  Loader2,
   Save,
   Store,
 } from 'lucide-react';
+import { deleteTenantMenuImage } from '../services/storageService';
 import type {
   DigitalMenuSettings,
   DigitalMenuSettingsInput,
 } from '../types/finance';
 import { formatCurrencyBRL } from '../utils/finance';
-import { sanitizeMenuSlug } from '../utils/onlineOrders';
+import {
+  formatDigitalMenuSaveErrorMessage,
+  normalizePixKeyInput,
+  sanitizeMenuSlug,
+} from '../utils/onlineOrders';
+import { ImageUploadField } from './ImageUploadField';
 
 interface DigitalMenuSettingsPanelProps {
+  workspaceId: string;
   settings: DigitalMenuSettings;
   activeProductsCount: number;
   activeCombosCount: number;
@@ -23,12 +31,14 @@ interface DigitalMenuSettingsPanelProps {
 }
 
 export function DigitalMenuSettingsPanel({
+  workspaceId,
   settings,
   activeProductsCount,
   activeCombosCount,
   onSave,
   onPreviewPublicMenu,
 }: DigitalMenuSettingsPanelProps) {
+  const effectiveWorkspaceId = workspaceId || settings.tenantId || 'mgw_lanches';
   const [isActive, setIsActive] = useState(settings.isActive);
   const [isOpen, setIsOpen] = useState(settings.isOpen);
   const [storeName, setStoreName] = useState(settings.storeName);
@@ -37,13 +47,20 @@ export function DigitalMenuSettingsPanel({
   const [phoneWhatsapp, setPhoneWhatsapp] = useState(settings.phoneWhatsapp);
   const [address, setAddress] = useState(settings.address);
   const [openingHours, setOpeningHours] = useState(settings.openingHours);
+  const [pixKey, setPixKey] = useState(settings.pixKey || '');
   const [deliveryFee, setDeliveryFee] = useState(String(settings.deliveryFee));
   const [minimumOrderAmount, setMinimumOrderAmount] = useState(
     String(settings.minimumOrderAmount),
   );
   const [acceptsDelivery, setAcceptsDelivery] = useState(settings.acceptsDelivery);
   const [acceptsPickup, setAcceptsPickup] = useState(settings.acceptsPickup);
+  const [logoUrl, setLogoUrl] = useState(settings.logoUrl || '');
+  const [logoPath, setLogoPath] = useState(settings.logoPath || '');
+  const [bannerUrl, setBannerUrl] = useState(settings.bannerUrl || '');
+  const [bannerPath, setBannerPath] = useState(settings.bannerPath || '');
 
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -58,10 +75,15 @@ export function DigitalMenuSettingsPanel({
     setPhoneWhatsapp(settings.phoneWhatsapp);
     setAddress(settings.address);
     setOpeningHours(settings.openingHours);
+    setPixKey(settings.pixKey || '');
     setDeliveryFee(String(settings.deliveryFee));
     setMinimumOrderAmount(String(settings.minimumOrderAmount));
     setAcceptsDelivery(settings.acceptsDelivery);
     setAcceptsPickup(settings.acceptsPickup);
+    setLogoUrl(settings.logoUrl || '');
+    setLogoPath(settings.logoPath || '');
+    setBannerUrl(settings.bannerUrl || '');
+    setBannerPath(settings.bannerPath || '');
   }, [settings]);
 
   const normalizedSlug = useMemo(
@@ -107,39 +129,44 @@ export function DigitalMenuSettingsPanel({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (isSaving) return;
-
-    const cleanName = storeName.trim();
-    const cleanSlug = sanitizeMenuSlug(slug || cleanName, settings.slug);
-    const parsedDeliveryFee = Number(String(deliveryFee).replace(',', '.'));
-    const parsedMinimumOrder = Number(
-      String(minimumOrderAmount).replace(',', '.'),
-    );
-
-    if (!cleanName) {
-      setError('Informe o nome público da loja para o cardápio.');
-      return;
-    }
-    if (!cleanSlug) {
-      setError('Informe um slug válido (letras e números separados por hífen).');
-      return;
-    }
-    if (!Number.isFinite(parsedDeliveryFee) || parsedDeliveryFee < 0) {
-      setError('Informe uma taxa de entrega válida (0 ou maior).');
-      return;
-    }
-    if (!Number.isFinite(parsedMinimumOrder) || parsedMinimumOrder < 0) {
-      setError('Informe um valor de pedido mínimo válido (0 ou maior).');
-      return;
-    }
-    if (!acceptsDelivery && !acceptsPickup) {
-      setError('Selecione pelo menos uma modalidade: Entrega ou Retirada.');
-      return;
-    }
+    if (isSaving || uploadingLogo || uploadingBanner) return;
 
     setError(null);
     setIsSaving(true);
+
+    const previousSavedLogoPath = settings.logoPath || '';
+    const previousSavedBannerPath = settings.bannerPath || '';
+
     try {
+      const cleanName = storeName.trim();
+      const cleanSlug = sanitizeMenuSlug(slug || cleanName, settings.slug);
+      const parsedDeliveryFee = Number(String(deliveryFee).replace(',', '.'));
+      const parsedMinimumOrder = Number(
+        String(minimumOrderAmount).replace(',', '.'),
+      );
+      const rawPixTrimmed = pixKey.trim().replace(/\s+/g, ' ');
+
+      if (!cleanName) {
+        throw new Error('Informe o nome público da loja para o cardápio.');
+      }
+      if (!cleanSlug) {
+        throw new Error('Informe um slug válido (letras e números separados por hífen).');
+      }
+      if (rawPixTrimmed.length > 140) {
+        throw new Error('A chave Pix deve ter no máximo 140 caracteres.');
+      }
+      if (!Number.isFinite(parsedDeliveryFee) || parsedDeliveryFee < 0) {
+        throw new Error('Informe uma taxa de entrega válida (0 ou maior).');
+      }
+      if (!Number.isFinite(parsedMinimumOrder) || parsedMinimumOrder < 0) {
+        throw new Error('Informe um valor de pedido mínimo válido (0 ou maior).');
+      }
+      if (!acceptsDelivery && !acceptsPickup) {
+        throw new Error('Selecione pelo menos uma modalidade: Entrega ou Retirada.');
+      }
+
+      const normalizedPix = normalizePixKeyInput(rawPixTrimmed);
+
       await onSave({
         isActive,
         isOpen,
@@ -149,20 +176,34 @@ export function DigitalMenuSettingsPanel({
         phoneWhatsapp: phoneWhatsapp.trim(),
         address: address.trim(),
         openingHours: openingHours.trim(),
+        pixKey: normalizedPix,
         deliveryFee: Math.round(parsedDeliveryFee * 100) / 100,
         minimumOrderAmount: Math.round(parsedMinimumOrder * 100) / 100,
         acceptsDelivery,
         acceptsPickup,
+        logoUrl,
+        logoPath,
+        bannerUrl,
+        bannerPath,
       });
+
+      if (previousSavedLogoPath && previousSavedLogoPath !== logoPath) {
+        void deleteTenantMenuImage(effectiveWorkspaceId, previousSavedLogoPath);
+      }
+      if (previousSavedBannerPath && previousSavedBannerPath !== bannerPath) {
+        void deleteTenantMenuImage(effectiveWorkspaceId, previousSavedBannerPath);
+      }
+
+      setPixKey(normalizedPix);
       setSlug(cleanSlug);
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 3500);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Erro ao salvar configurações do cardápio digital.',
+      console.error(
+        'Erro ao validar ou salvar Cardápio Digital (Chave Pix / configurações):',
+        err,
       );
+      setError(formatDigitalMenuSaveErrorMessage(err));
     } finally {
       setIsSaving(false);
     }
@@ -259,7 +300,7 @@ export function DigitalMenuSettingsPanel({
         {error && (
           <div
             role="alert"
-            className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5]"
+            className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5] break-words"
           >
             {error}
           </div>
@@ -373,6 +414,55 @@ export function DigitalMenuSettingsPanel({
           />
         </div>
 
+        {/* Store Branding Images (Logo & Banner) */}
+        <div className="space-y-3 pt-1">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#F5B731]">
+              Identidade visual (Logo e Banner)
+            </h3>
+            <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+              Personalize o topo do seu cardápio público. Depois de enviar ou remover, clique em Salvar Cardápio Digital.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <ImageUploadField
+              label="Logo da loja"
+              helperText="Exibida no topo do cardápio (quadrada, otimizada automaticamente)."
+              workspaceId={effectiveWorkspaceId}
+              folder="branding"
+              entityHint="logo"
+              preset="logo"
+              valueUrl={logoUrl}
+              valuePath={logoPath}
+              savedPath={settings.logoPath || ''}
+              onChange={({ url, path }) => {
+                setLogoUrl(url);
+                setLogoPath(path);
+              }}
+              onUploadingChange={setUploadingLogo}
+              disabled={isSaving}
+            />
+
+            <ImageUploadField
+              label="Banner principal do cardápio"
+              helperText="Fundo de destaque do cabeçalho (horizontal). Opcional."
+              workspaceId={effectiveWorkspaceId}
+              folder="branding"
+              entityHint="banner"
+              preset="banner"
+              valueUrl={bannerUrl}
+              valuePath={bannerPath}
+              savedPath={settings.bannerPath || ''}
+              onChange={({ url, path }) => {
+                setBannerUrl(url);
+                setBannerPath(path);
+              }}
+              onUploadingChange={setUploadingBanner}
+              disabled={isSaving}
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label
@@ -427,6 +517,27 @@ export function DigitalMenuSettingsPanel({
             placeholder="Rua Principal, 123 - Centro"
             className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
           />
+        </div>
+
+        <div>
+          <label
+            htmlFor="dm-pix-key"
+            className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+          >
+            Chave Pix da loja (opcional)
+          </label>
+          <input
+            id="dm-pix-key"
+            type="text"
+            maxLength={140}
+            value={pixKey}
+            onChange={(e) => setPixKey(e.target.value)}
+            placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
+            className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono"
+          />
+          <p className="text-[11px] text-[#9CA3AF] mt-1">
+            Quando preenchida, clientes que escolherem Pix poderão copiar a chave na tela final do pedido (ou pagar na entrega/retirada).
+          </p>
         </div>
 
         {/* Fees & Rules */}
@@ -510,11 +621,26 @@ export function DigitalMenuSettingsPanel({
         <div className="pt-2">
           <button
             type="submit"
-            disabled={isSaving}
+            disabled={isSaving || uploadingLogo || uploadingBanner}
+            aria-busy={isSaving}
             className="w-full sm:w-auto min-h-[46px] px-6 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-60"
           >
-            <Save className="w-4 h-4" />
-            {isSaving ? 'Salvando...' : 'Salvar Cardápio Digital'}
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Salvando...
+              </>
+            ) : uploadingLogo || uploadingBanner ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Aguarde o envio da imagem...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Salvar Cardápio Digital
+              </>
+            )}
           </button>
         </div>
       </form>

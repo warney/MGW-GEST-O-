@@ -8,6 +8,7 @@ import type {
   OnlineOrderStatus,
   PublicCatalogCombo,
   PublicCatalogProduct,
+  PublicOrderTrackingRecord,
   SaleInput,
   SaleLineItemSnapshot,
   SaleMode,
@@ -50,11 +51,53 @@ export const DEFAULT_DIGITAL_MENU_SETTINGS: DigitalMenuSettingsInput = {
   phoneWhatsapp: '',
   address: '',
   openingHours: 'Todos os dias · 18h às 23h30',
+  pixKey: '',
   deliveryFee: 5,
   minimumOrderAmount: 15,
   acceptsDelivery: true,
   acceptsPickup: true,
+  logoUrl: '',
+  logoPath: '',
+  bannerUrl: '',
+  bannerPath: '',
 };
+
+export function normalizePixKeyInput(raw: string): string {
+  return String(raw || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 140);
+}
+
+export function shouldShowOrderPixPaymentBox(
+  order: Pick<PublicOrderTrackingRecord, 'paymentMethod' | 'storePixKey' | 'status'>,
+): boolean {
+  if (order.paymentMethod !== 'Pix') return false;
+  if (order.status === 'rejected' || order.status === 'cancelled') return false;
+  return normalizePixKeyInput(order.storePixKey).length > 0;
+}
+
+export function formatDigitalMenuSaveErrorMessage(err: unknown): string {
+  const fallback = 'Erro ao salvar configurações do cardápio digital.';
+  const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed) as { error?: unknown };
+      const inner = typeof parsed.error === 'string' ? parsed.error : '';
+      if (inner.toLowerCase().includes('permission') || inner.toLowerCase().includes('insufficient')) {
+        return 'Permissão negada ao gravar no banco de dados. Verifique sua sessão ou tente novamente.';
+      }
+      if (inner.trim()) return inner.trim();
+    } catch {
+      // Fallback to raw error text if JSON parsing fails
+    }
+  }
+
+  return trimmed;
+}
 
 export function sanitizeMenuSlug(raw: string, fallback = 'mgw_lanches'): string {
   const cleaned = raw

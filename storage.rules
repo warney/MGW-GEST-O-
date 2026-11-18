@@ -1,0 +1,44 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAuthorizedWorkspaceWriter(workspaceId) {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && (
+          (workspaceId == 'mgw_lanches' && request.auth.token.email in [
+            'warney.fernandes22@gmail.com',
+            'fernandes38mk@gmail.com'
+          ]) ||
+          (workspaceId == 'gf_lanches' && request.auth.token.email == 'gf3163666@gmail.com')
+        );
+    }
+
+    function isValidImageUpload() {
+      return request.resource != null
+        && request.resource.size < 3 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    match /tenants/{workspaceId}/{category}/{fileName} {
+      allow read: if workspaceId in ['mgw_lanches', 'gf_lanches']
+        && category in ['branding', 'products', 'combos'];
+
+      allow create, update: if isAuthorizedWorkspaceWriter(workspaceId)
+        && category in ['branding', 'products', 'combos']
+        && fileName.matches('^[a-zA-Z0-9_.-]{3,160}$')
+        && isValidImageUpload();
+
+      allow delete: if isAuthorizedWorkspaceWriter(workspaceId)
+        && category in ['branding', 'products', 'combos'];
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

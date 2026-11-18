@@ -1,21 +1,30 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
+  Banknote,
+  Check,
   CheckCircle2,
   Clock,
+  CreditCard,
+  CupSoda,
   Layers,
   MapPin,
   MessageCircle,
   Minus,
+  Package,
   Phone,
   Plus,
+  PlusCircle,
+  QrCode,
   RefreshCw,
   Search,
+  Share2,
   ShoppingBag,
   ShoppingCart,
   Store,
   Trash2,
+  UtensilsCrossed,
   X,
 } from 'lucide-react';
 import {
@@ -26,6 +35,7 @@ import type {
   OnlineOrderCartItem,
   OnlineOrderFulfillment,
   OnlineOrderPaymentMethod,
+  ProductCategory,
   PublicCatalogCombo,
   PublicCatalogProduct,
   PublicDigitalMenuPayload,
@@ -36,6 +46,19 @@ import {
   computeCartSummary,
   validateCheckoutPayload,
 } from '../utils/onlineOrders';
+import {
+  buildCartStorageKey,
+  computeCashChangeAmount,
+  computeMenuCategoryCounts,
+  CUSTOMER_PROFILE_STORAGE_KEY,
+  formatComboComposition,
+  getStoreMonogram,
+  parseStoredCart,
+  parseStoredCustomerProfile,
+  serializeStoredCart,
+  serializeStoredCustomerProfile,
+  shouldShowComboComposition,
+} from '../utils/menuPresentation';
 
 interface PublicMenuViewProps {
   slug?: string;
@@ -52,7 +75,37 @@ type MenuCategoryFilter =
 
 type CheckoutStep = 'cart' | 'details' | 'review';
 
+type InspectItemState =
+  | { kind: 'combo'; combo: PublicCatalogCombo }
+  | { kind: 'product'; product: PublicCatalogProduct }
+  | null;
+
+function CategoryGlyph({
+  category,
+  className = 'w-6 h-6 text-[#F5B731]',
+}: {
+  category: ProductCategory | 'combo';
+  className?: string;
+}) {
+  if (category === 'combo') return <Layers className={className} />;
+  if (category === 'Bebida') return <CupSoda className={className} />;
+  if (category === 'Adicional') return <PlusCircle className={className} />;
+  if (category === 'Outro') return <Package className={className} />;
+  return <UtensilsCrossed className={className} />;
+}
+
 export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
+  const initialStoredProfile = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return parseStoredCustomerProfile(
+        window.localStorage.getItem(CUSTOMER_PROFILE_STORAGE_KEY),
+      );
+    } catch {
+      return null;
+    }
+  }, []);
+
   const [payload, setPayload] = useState<PublicDigitalMenuPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -62,34 +115,89 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     useState<MenuCategoryFilter>('all');
 
   const [cart, setCart] = useState<OnlineOrderCartItem[]>([]);
+  const restoredCartSlugRef = useRef<string | null>(null);
+
   const [fulfillmentType, setFulfillmentType] =
-    useState<OnlineOrderFulfillment>('delivery');
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [deliveryReference, setDeliveryReference] = useState('');
+    useState<OnlineOrderFulfillment>(
+      initialStoredProfile?.fulfillmentType ?? 'delivery',
+    );
+  const [customerName, setCustomerName] = useState(
+    initialStoredProfile?.customerName ?? '',
+  );
+  const [customerPhone, setCustomerPhone] = useState(
+    initialStoredProfile?.customerPhone ?? '',
+  );
+  const [deliveryAddress, setDeliveryAddress] = useState(
+    initialStoredProfile?.deliveryAddress ?? '',
+  );
+  const [deliveryReference, setDeliveryReference] = useState(
+    initialStoredProfile?.deliveryReference ?? '',
+  );
   const [paymentMethod, setPaymentMethod] =
-    useState<OnlineOrderPaymentMethod>('Pix');
+    useState<OnlineOrderPaymentMethod>(
+      initialStoredProfile?.paymentMethod ?? 'Pix',
+    );
   const [changeForInput, setChangeForInput] = useState('');
   const [customerNote, setCustomerNote] = useState('');
+  const [hasSavedProfile, setHasSavedProfile] = useState(
+    Boolean(
+      initialStoredProfile?.customerName ||
+        initialStoredProfile?.customerPhone ||
+        initialStoredProfile?.deliveryAddress,
+    ),
+  );
 
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('cart');
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const [inspectItem, setInspectItem] = useState<InspectItemState>(null);
+  const [modalQty, setModalQty] = useState(1);
+  const [modalNote, setModalNote] = useState('');
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
+
+  function markImageBroken(url?: string) {
+    if (!url) return;
+    setBrokenImages((prev) => (prev[url] ? prev : { ...prev, [url]: true }));
+  }
+
+  function hasUsableImage(url?: string): url is string {
+    return Boolean(url && !brokenImages[url]);
+  }
 
   async function loadMenu() {
     setLoading(true);
     setLoadError(null);
+    restoredCartSlugRef.current = null;
     try {
       const res = await fetchPublicDigitalMenu(slug);
       setPayload(res);
       if (res.store) {
         if (!res.store.acceptsDelivery && res.store.acceptsPickup) {
           setFulfillmentType('pickup');
-        } else if (res.store.acceptsDelivery) {
+        } else if (res.store.acceptsDelivery && !res.store.acceptsPickup) {
           setFulfillmentType('delivery');
         }
+
+        const validProductIds = new Set(res.products.map((p) => p.id));
+        const validComboIds = new Set(res.combos.map((c) => c.id));
+        const cartKey = buildCartStorageKey(res.store.slug);
+        try {
+          const savedCart = parseStoredCart(window.localStorage.getItem(cartKey));
+          const reconciledCart = savedCart.filter((entry) =>
+            entry.kind === 'combo'
+              ? validComboIds.has(entry.id)
+              : validProductIds.has(entry.id),
+          );
+          if (reconciledCart.length > 0) {
+            setCart(reconciledCart);
+          }
+        } catch {
+          // Ignora bloqueio de storage
+        }
+        restoredCartSlugRef.current = res.store.slug;
       }
     } catch (err) {
       setLoadError(
@@ -110,6 +218,29 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
   const products = payload?.products ?? [];
   const combos = payload?.combos ?? [];
 
+  useEffect(() => {
+    if (!store) return;
+    const prevTitle = document.title;
+    document.title = `${store.storeName} — Cardápio Digital`;
+    return () => {
+      document.title = prevTitle;
+    };
+  }, [store]);
+
+  useEffect(() => {
+    if (!store || restoredCartSlugRef.current !== store.slug) return;
+    try {
+      const cartKey = buildCartStorageKey(store.slug);
+      if (cart.length === 0) {
+        window.localStorage.removeItem(cartKey);
+      } else {
+        window.localStorage.setItem(cartKey, serializeStoredCart(cart));
+      }
+    } catch {
+      // Ignora erro de storage
+    }
+  }, [cart, store]);
+
   const cartSummary = useMemo(() => {
     if (!store) {
       return {
@@ -126,6 +257,11 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     }
     return computeCartSummary(cart, products, combos, store, fulfillmentType);
   }, [cart, products, combos, store, fulfillmentType]);
+
+  const categoryCounts = useMemo(
+    () => computeMenuCategoryCounts(products, combos.length),
+    [products, combos.length],
+  );
 
   function getItemQuantity(kind: 'product' | 'combo', id: string): number {
     return cart.find((item) => item.kind === kind && item.id === id)?.quantity ?? 0;
@@ -153,6 +289,32 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     });
   }
 
+  function addItemFromDetailModal(
+    kind: 'product' | 'combo',
+    id: string,
+    quantityToAdd: number,
+    note: string,
+  ) {
+    setCheckoutError(null);
+    const cleanNote = note.trim().slice(0, 200);
+    setCart((prev) => {
+      const idx = prev.findIndex((i) => i.kind === kind && i.id === id);
+      if (idx === -1) {
+        return [
+          ...prev,
+          { kind, id, quantity: Math.min(99, Math.max(1, quantityToAdd)), note: cleanNote },
+        ];
+      }
+      const nextQty = Math.min(99, prev[idx].quantity + quantityToAdd);
+      return prev.map((entry, i) =>
+        i === idx
+          ? { ...entry, quantity: nextQty, note: cleanNote || entry.note }
+          : entry,
+      );
+    });
+    setInspectItem(null);
+  }
+
   function updateItemNote(
     kind: 'product' | 'combo',
     id: string,
@@ -169,6 +331,39 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
 
   function removeItem(kind: 'product' | 'combo', id: string) {
     setCart((prev) => prev.filter((i) => !(i.kind === kind && i.id === id)));
+  }
+
+  function openItemInspector(item: InspectItemState) {
+    if (!item) return;
+    const id = item.kind === 'combo' ? item.combo.id : item.product.id;
+    const existing = cart.find((c) => c.kind === item.kind && c.id === id);
+    setModalQty(1);
+    setModalNote(existing?.note ?? '');
+    setInspectItem(item);
+  }
+
+  async function handleShareStore() {
+    if (!store || typeof window === 'undefined') return;
+    const shareUrl = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${store.storeName} — Cardápio Digital`,
+          text: store.description || `Peça online em ${store.storeName}`,
+          url: shareUrl,
+        });
+        return;
+      } catch {
+        // Fallback para copiar link se usuário cancelar ou não suportar
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2400);
+    } catch {
+      // Ignora erro de clipboard bloqueado
+    }
   }
 
   const normalizedQuery = searchTerm.trim().toLowerCase();
@@ -203,6 +398,38 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     return Number.isFinite(num) && num > 0 ? num : null;
   }
 
+  function persistCustomerProfile() {
+    try {
+      window.localStorage.setItem(
+        CUSTOMER_PROFILE_STORAGE_KEY,
+        serializeStoredCustomerProfile({
+          customerName,
+          customerPhone,
+          fulfillmentType,
+          deliveryAddress,
+          deliveryReference,
+          paymentMethod,
+        }),
+      );
+      setHasSavedProfile(true);
+    } catch {
+      // Ignora erro de storage
+    }
+  }
+
+  function clearSavedCustomerProfile() {
+    setCustomerName('');
+    setCustomerPhone('');
+    setDeliveryAddress('');
+    setDeliveryReference('');
+    setHasSavedProfile(false);
+    try {
+      window.localStorage.removeItem(CUSTOMER_PROFILE_STORAGE_KEY);
+    } catch {
+      // Ignora erro de storage
+    }
+  }
+
   function handleAdvanceToReview(e: React.FormEvent) {
     e.preventDefault();
     if (!store) return;
@@ -228,6 +455,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
       return;
     }
 
+    persistCustomerProfile();
     setCheckoutError(null);
     setCheckoutStep('review');
   }
@@ -261,10 +489,17 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
       return;
     }
 
+    persistCustomerProfile();
     setCheckoutError(null);
     setSubmitting(true);
     try {
       const response = await createPublicOnlineOrder(payloadToSend);
+      try {
+        window.localStorage.removeItem(buildCartStorageKey(store.slug));
+      } catch {
+        // Ignora erro de storage
+      }
+      setCart([]);
       onOrderCreated(response.trackingToken);
     } catch (err) {
       setCheckoutError(
@@ -279,14 +514,23 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-[#12151C] border border-[#232834] rounded-2xl p-6 text-center space-y-2">
-          <p className="text-sm font-semibold text-[#F3F4F6]">
-            Carregando cardápio digital...
-          </p>
-          <p className="text-xs text-[#9CA3AF]">
-            Preparando produtos, combos e preços atualizados.
-          </p>
+      <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] p-4 sm:p-6">
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="h-44 rounded-2xl bg-[#12151C] border border-[#232834] animate-pulse" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7 space-y-4">
+              <div className="h-24 rounded-2xl bg-[#12151C] border border-[#232834] animate-pulse" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="h-32 rounded-2xl bg-[#12151C] border border-[#232834] animate-pulse"
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="hidden lg:block lg:col-span-5 h-72 rounded-2xl bg-[#12151C] border border-[#232834] animate-pulse" />
+          </div>
         </div>
       </div>
     );
@@ -306,7 +550,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
           <button
             type="button"
             onClick={() => void loadMenu()}
-            className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 cursor-pointer"
+            className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 cursor-pointer transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Tentar novamente
@@ -342,19 +586,65 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     : null;
 
   const isClosed = !store.isOpen;
+  const parsedChangeFor = parsedChangeForValue();
+  const cashChangeReturn = computeCashChangeAmount(
+    parsedChangeFor,
+    cartSummary.totalAmount,
+  );
+  const minimumProgressPct =
+    cartSummary.minimumOrderAmount > 0
+      ? Math.min(
+          100,
+          Math.round((cartSummary.subtotal / cartSummary.minimumOrderAmount) * 100),
+        )
+      : 100;
+
+  const categoryTabs: Array<{
+    id: MenuCategoryFilter;
+    label: string;
+    count: number;
+  }> = [
+    { id: 'all', label: 'Todos', count: categoryCounts.all },
+    { id: 'combos', label: 'Combos', count: categoryCounts.combos },
+    { id: 'Lanche', label: 'Lanches', count: categoryCounts.Lanche },
+    { id: 'Bebida', label: 'Bebidas', count: categoryCounts.Bebida },
+    { id: 'Adicional', label: 'Adicionais', count: categoryCounts.Adicional },
+  ];
+  if (categoryCounts.Outro > 0) {
+    categoryTabs.push({
+      id: 'Outro',
+      label: 'Outros',
+      count: categoryCounts.Outro,
+    });
+  }
 
   const cartPanelContent = (
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b border-[#232834] pb-3">
-        <div className="flex items-center gap-2">
-          <ShoppingCart className="w-4 h-4 text-[#F5B731]" />
-          <h2 className="text-sm font-bold text-[#F3F4F6]">
-            {checkoutStep === 'cart'
-              ? 'Sua Sacola'
-              : checkoutStep === 'details'
-                ? 'Entrega e Pagamento'
-                : 'Revisar e Confirmar Pedido'}
-          </h2>
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4 text-[#F5B731]" />
+            <h2 className="text-sm font-bold text-[#F3F4F6]">
+              {checkoutStep === 'cart'
+                ? 'Sua Sacola'
+                : checkoutStep === 'details'
+                  ? 'Entrega e Pagamento'
+                  : 'Revisar e Confirmar Pedido'}
+            </h2>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-[#9CA3AF]">
+            <span className={checkoutStep === 'cart' ? 'text-[#F5B731] font-semibold' : ''}>
+              1. Sacola
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className={checkoutStep === 'details' ? 'text-[#F5B731] font-semibold' : ''}>
+              2. Dados
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className={checkoutStep === 'review' ? 'text-[#F5B731] font-semibold' : ''}>
+              3. Confirmar
+            </span>
+          </div>
         </div>
         {cartSummary.totalItemsCount > 0 && (
           <span className="text-xs font-mono tabular-nums text-[#9CA3AF]">
@@ -386,18 +676,20 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
       )}
 
       {cartSummary.lines.length === 0 ? (
-        <div className="py-8 text-center space-y-2">
-          <ShoppingBag className="w-7 h-7 text-[#6B7280] mx-auto" />
-          <p className="text-sm font-medium text-[#D1D5DB]">
+        <div className="py-8 text-center space-y-2.5">
+          <div className="w-12 h-12 rounded-2xl bg-[#181C24] border border-[#232834] flex items-center justify-center mx-auto">
+            <ShoppingBag className="w-5 h-5 text-[#F5B731]" />
+          </div>
+          <p className="text-sm font-semibold text-[#F3F4F6]">
             Sua sacola está vazia
           </p>
-          <p className="text-xs text-[#9CA3AF]">
-            Escolha combos ou produtos do cardápio para começar seu pedido.
+          <p className="text-xs text-[#9CA3AF] max-w-[240px] mx-auto">
+            Escolha combos ou lanches do cardápio para montar seu pedido em segundos.
           </p>
         </div>
       ) : checkoutStep === 'cart' ? (
         <>
-          <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+          <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-1">
             {cartSummary.lines.map((line) => (
               <div
                 key={`${line.kind}-${line.id}`}
@@ -408,7 +700,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                     <p className="text-xs font-bold text-[#F3F4F6] truncate">
                       {line.name}
                     </p>
-                    <p className="text-[11px] text-[#9CA3AF] font-mono tabular-nums">
+                    <p className="text-[11px] text-[#9CA3AF] font-mono tabular-nums mt-0.5">
                       {formatCurrencyBRL(line.unitPrice)} cada · Total{' '}
                       <span className="text-[#F5B731] font-semibold">
                         {formatCurrencyBRL(line.lineTotal)}
@@ -421,7 +713,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                       type="button"
                       onClick={() => updateItemQuantity(line.kind, line.id, -1)}
                       aria-label={`Remover 1 ${line.name}`}
-                      className="w-8 h-8 rounded-lg bg-[#181C24] border border-[#232834] flex items-center justify-center text-[#F3F4F6] hover:border-[#F5B731]/50 cursor-pointer"
+                      className="w-8 h-8 rounded-lg bg-[#181C24] border border-[#232834] flex items-center justify-center text-[#F3F4F6] hover:border-[#F5B731]/50 cursor-pointer transition-colors"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
@@ -432,7 +724,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                       type="button"
                       onClick={() => updateItemQuantity(line.kind, line.id, 1)}
                       aria-label={`Adicionar 1 ${line.name}`}
-                      className="w-8 h-8 rounded-lg bg-[#181C24] border border-[#232834] flex items-center justify-center text-[#F3F4F6] hover:border-[#F5B731]/50 cursor-pointer"
+                      className="w-8 h-8 rounded-lg bg-[#181C24] border border-[#232834] flex items-center justify-center text-[#F3F4F6] hover:border-[#F5B731]/50 cursor-pointer transition-colors"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -440,7 +732,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                       type="button"
                       onClick={() => removeItem(line.kind, line.id)}
                       aria-label={`Excluir ${line.name} do carrinho`}
-                      className="w-8 h-8 rounded-lg text-[#9CA3AF] hover:text-[#F87171] flex items-center justify-center cursor-pointer"
+                      className="w-8 h-8 rounded-lg text-[#9CA3AF] hover:text-[#F87171] flex items-center justify-center cursor-pointer transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -472,10 +764,10 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 <button
                   type="button"
                   onClick={() => setFulfillmentType('delivery')}
-                  className={`min-h-[42px] px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
+                  className={`min-h-[42px] px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap ${
                     fulfillmentType === 'delivery'
                       ? 'bg-[#F5B731] border-[#F5B731] text-[#0B0D11]'
-                      : 'bg-[#0B0D11] border-[#232834] text-[#D1D5DB]'
+                      : 'bg-[#0B0D11] border-[#232834] text-[#D1D5DB] hover:border-[#374151]'
                   }`}
                 >
                   Entrega ({store.deliveryFee <= 0 ? 'Grátis' : formatCurrencyBRL(store.deliveryFee)})
@@ -485,10 +777,10 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 <button
                   type="button"
                   onClick={() => setFulfillmentType('pickup')}
-                  className={`min-h-[42px] px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
+                  className={`min-h-[42px] px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors whitespace-nowrap ${
                     fulfillmentType === 'pickup'
                       ? 'bg-[#F5B731] border-[#F5B731] text-[#0B0D11]'
-                      : 'bg-[#0B0D11] border-[#232834] text-[#D1D5DB]'
+                      : 'bg-[#0B0D11] border-[#232834] text-[#D1D5DB] hover:border-[#374151]'
                   }`}
                 >
                   Retirada no balcão
@@ -524,10 +816,18 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
           </div>
 
           {cartSummary.belowMinimum && (
-            <p className="text-xs text-[#F5B731] font-mono tabular-nums">
-              Faltam {formatCurrencyBRL(cartSummary.missingForMinimum)} para atingir o pedido mínimo de{' '}
-              {formatCurrencyBRL(cartSummary.minimumOrderAmount)}.
-            </p>
+            <div className="p-3 rounded-xl bg-[#F5B731]/10 border border-[#F5B731]/30 space-y-1.5">
+              <p className="text-xs text-[#F5B731] font-mono tabular-nums">
+                Faltam {formatCurrencyBRL(cartSummary.missingForMinimum)} para atingir o pedido mínimo de{' '}
+                {formatCurrencyBRL(cartSummary.minimumOrderAmount)}.
+              </p>
+              <div className="h-1.5 rounded-full bg-[#0B0D11] overflow-hidden">
+                <div
+                  className="h-full bg-[#F5B731] rounded-full transition-all duration-200"
+                  style={{ width: `${minimumProgressPct}%` }}
+                />
+              </div>
+            </div>
           )}
 
           <button
@@ -546,17 +846,29 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
         </>
       ) : checkoutStep === 'details' ? (
         <form onSubmit={handleAdvanceToReview} className="space-y-3">
-          <button
-            type="button"
-            onClick={() => {
-              setCheckoutError(null);
-              setCheckoutStep('cart');
-            }}
-            className="text-xs text-[#F5B731] hover:underline inline-flex items-center gap-1 cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Voltar para sacola
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCheckoutError(null);
+                setCheckoutStep('cart');
+              }}
+              className="text-xs text-[#F5B731] hover:underline inline-flex items-center gap-1 cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Voltar para sacola
+            </button>
+
+            {hasSavedProfile && (
+              <button
+                type="button"
+                onClick={clearSavedCustomerProfile}
+                className="text-[11px] text-[#9CA3AF] hover:text-[#F3F4F6] underline cursor-pointer"
+              >
+                Limpar dados salvos
+              </button>
+            )}
+          </div>
 
           <div>
             <label
@@ -642,28 +954,38 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               Forma de pagamento *
             </span>
             <div className="grid grid-cols-3 gap-2">
-              {(['Pix', 'Dinheiro', 'Cartão'] as const).map((pm) => (
+              {([
+                { id: 'Pix', icon: QrCode },
+                { id: 'Dinheiro', icon: Banknote },
+                { id: 'Cartão', icon: CreditCard },
+              ] as const).map(({ id: pm, icon: PayIcon }) => (
                 <button
                   key={pm}
                   type="button"
                   onClick={() => setPaymentMethod(pm)}
-                  className={`min-h-[42px] px-2 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
+                  className={`min-h-[44px] px-2 rounded-xl border text-xs font-semibold cursor-pointer transition-colors inline-flex items-center justify-center gap-1.5 whitespace-nowrap ${
                     paymentMethod === pm
                       ? 'bg-[#F5B731] border-[#F5B731] text-[#0B0D11]'
-                      : 'bg-[#0B0D11] border-[#232834] text-[#D1D5DB]'
+                      : 'bg-[#0B0D11] border-[#232834] text-[#D1D5DB] hover:border-[#374151]'
                   }`}
                 >
-                  {pm}
+                  <PayIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>{pm}</span>
                 </button>
               ))}
             </div>
+            {paymentMethod === 'Pix' && store.pixKey.trim().length > 0 && (
+              <p className="text-[11px] text-[#9CA3AF] mt-1.5">
+                Após enviar o pedido, você poderá copiar a chave Pix ou pagar na entrega/retirada.
+              </p>
+            )}
           </div>
 
           {paymentMethod === 'Dinheiro' && (
-            <div>
+            <div className="space-y-1">
               <label
                 htmlFor="ck-change"
-                className="block text-xs font-medium text-[#D1D5DB] mb-1"
+                className="block text-xs font-medium text-[#D1D5DB]"
               >
                 Troco para quanto? (deixe vazio se não precisar)
               </label>
@@ -678,6 +1000,11 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 placeholder={`Ex: ${Math.ceil(cartSummary.totalAmount / 10) * 10}`}
                 className="w-full min-h-[44px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
               />
+              {cashChangeReturn !== null && (
+                <p className="text-[11px] text-[#22C55E] font-mono tabular-nums">
+                  Troco a levar: {formatCurrencyBRL(cashChangeReturn)}
+                </p>
+              )}
             </div>
           )}
 
@@ -747,14 +1074,14 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               <p className="text-[#9CA3AF]">Pagamento</p>
               <p className="font-semibold text-[#F3F4F6]">
                 {paymentMethod}
-                {paymentMethod === 'Dinheiro' && parsedChangeForValue()
-                  ? ` · Troco para ${formatCurrencyBRL(parsedChangeForValue()!)}`
+                {paymentMethod === 'Dinheiro' && parsedChangeFor
+                  ? ` · Troco para ${formatCurrencyBRL(parsedChangeFor)}`
                   : ''}
               </p>
             </div>
 
             <div className="border-t border-[#232834] pt-2 space-y-1">
-              <p className="text-[#9CA3AF] font-medium">Itens:</p>
+              <p className="text-[#9CA3AF] font-medium">Itens</p>
               {cartSummary.lines.map((line) => (
                 <div
                   key={`${line.kind}-${line.id}`}
@@ -810,93 +1137,148 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
   );
 
   return (
-    <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] pb-24 lg:pb-12">
-      {/* Storefront Header */}
-      <header className="bg-[#12151C] border-b border-[#232834]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-5 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[#F5B731]/15 border border-[#F5B731]/30 text-[#F5B731] font-display font-bold text-sm">
-                  M
-                </span>
-                <h1 className="text-xl sm:text-2xl font-bold text-[#F3F4F6]">
-                  {store.storeName}
-                </h1>
-                <span
-                  className={`inline-flex items-center gap-1.5 text-xs font-semibold ${
-                    isClosed ? 'text-[#F87171]' : 'text-[#22C55E]'
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isClosed ? 'bg-[#EF4444]' : 'bg-[#22C55E]'
-                    }`}
+    <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] pb-24 lg:pb-14">
+      {/* Editorial Dark & Gold Storefront Hero */}
+      <header className="relative overflow-hidden bg-gradient-to-b from-[#171B24] via-[#12151C] to-[#0B0D11] border-b border-[#232834]">
+        {hasUsableImage(store.bannerUrl) ? (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+            <img
+              src={store.bannerUrl}
+              alt=""
+              referrerPolicy="no-referrer"
+              onError={() => markImageBroken(store.bannerUrl)}
+              className="w-full h-full object-cover opacity-45"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0B0D11]/70 via-[#0B0D11]/85 to-[#0B0D11]" />
+          </div>
+        ) : (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(ellipse_at_top_right,rgba(245,183,49,0.14),transparent_65%)]"
+          />
+        )}
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-4 sm:pt-7 sm:pb-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-gradient-to-br from-[#F5B731]/25 via-[#181C24] to-[#0B0D11] border border-[#F5B731]/35 flex items-center justify-center text-[#F5B731] font-display font-extrabold text-xl sm:text-2xl shadow-sm shrink-0">
+                {hasUsableImage(store.logoUrl) ? (
+                  <img
+                    src={store.logoUrl}
+                    alt={`Logo de ${store.storeName}`}
+                    referrerPolicy="no-referrer"
+                    onError={() => markImageBroken(store.logoUrl)}
+                    className="w-full h-full object-cover"
                   />
-                  {isClosed ? 'Fechado no momento' : 'Aberto para pedidos'}
-                </span>
+                ) : (
+                  <span aria-hidden="true">{getStoreMonogram(store.storeName)}</span>
+                )}
               </div>
 
-              {store.description && (
-                <p className="text-xs sm:text-sm text-[#9CA3AF]">
-                  {store.description}
-                </p>
-              )}
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-[#F3F4F6] truncate">
+                    {store.storeName}
+                  </h1>
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold shrink-0 ${
+                      isClosed ? 'text-[#F87171]' : 'text-[#22C55E]'
+                    }`}
+                  >
+                    {isClosed ? (
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                    <span>
+                      {isClosed ? 'Fechado no momento' : 'Aberto para pedidos'}
+                    </span>
+                  </span>
+                </div>
+
+                {store.description && (
+                  <p className="text-xs sm:text-sm text-[#9CA3AF] line-clamp-2 max-w-2xl leading-relaxed">
+                    {store.description}
+                  </p>
+                )}
+              </div>
             </div>
 
-            {whatsappStoreUrl && (
-              <a
-                href={whatsappStoreUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-h-[40px] px-4 rounded-xl border border-[#232834] hover:border-[#22C55E]/50 bg-[#0B0D11] text-xs font-semibold text-[#F3F4F6] inline-flex items-center gap-2 self-start sm:self-center shrink-0"
+            <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+              <button
+                type="button"
+                onClick={() => void handleShareStore()}
+                aria-label="Compartilhar link do cardápio"
+                className="min-h-[40px] px-3 rounded-xl border border-[#232834] hover:border-[#374151] bg-[#12151C]/90 text-xs font-semibold text-[#D1D5DB] hover:text-[#F3F4F6] inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
               >
-                <MessageCircle className="w-4 h-4 text-[#22C55E]" />
-                Falar no WhatsApp
-              </a>
-            )}
+                {shareCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-[#22C55E]" />
+                    <span className="text-[#22C55E]">Link copiado</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5 text-[#F5B731]" />
+                    <span>Compartilhar</span>
+                  </>
+                )}
+              </button>
+
+              {whatsappStoreUrl && (
+                <a
+                  href={whatsappStoreUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Falar no WhatsApp da loja"
+                  className="min-h-[40px] px-3.5 rounded-xl border border-[#22C55E]/35 hover:border-[#22C55E] bg-[#22C55E]/10 hover:bg-[#22C55E]/15 text-xs font-semibold text-[#F3F4F6] inline-flex items-center gap-1.5 shrink-0 transition-colors whitespace-nowrap"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-[#22C55E]" />
+                  <span>Falar no WhatsApp</span>
+                </a>
+              )}
+            </div>
           </div>
 
-          {/* Unboxed Metadata Bar */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#9CA3AF] pt-1 border-t border-[#232834]">
+          {/* Unboxed Hairline Store Info Strip */}
+          <div className="pt-3 border-t border-[#232834]/90 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#9CA3AF]">
             {store.openingHours && (
               <span className="inline-flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#F5B731]" />
-                {store.openingHours}
+                <Clock className="w-3.5 h-3.5 text-[#F5B731] shrink-0" />
+                <span>{store.openingHours}</span>
               </span>
             )}
             {store.address && (
               <span className="inline-flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-[#F5B731]" />
-                {store.address}
+                <MapPin className="w-3.5 h-3.5 text-[#F5B731] shrink-0" />
+                <span>{store.address}</span>
               </span>
             )}
             {store.phoneWhatsapp && (
-              <span className="inline-flex items-center gap-1.5 font-mono">
-                <Phone className="w-3.5 h-3.5 text-[#F5B731]" />
-                {store.phoneWhatsapp}
+              <span className="inline-flex items-center gap-1.5 font-mono tabular-nums">
+                <Phone className="w-3.5 h-3.5 text-[#F5B731] shrink-0" />
+                <span>{store.phoneWhatsapp}</span>
               </span>
             )}
-            <span className="font-mono tabular-nums">
+            <span className="font-mono tabular-nums text-[#D1D5DB]">
               {store.acceptsDelivery
                 ? store.deliveryFee <= 0
                   ? 'Entrega grátis'
                   : `Entrega ${formatCurrencyBRL(store.deliveryFee)}`
                 : 'Somente retirada'}
+              {store.acceptsDelivery && store.acceptsPickup ? ' · Retirada disponível' : ''}
               {store.minimumOrderAmount > 0
-                ? ` · Mínimo ${formatCurrencyBRL(store.minimumOrderAmount)}`
+                ? ` · Pedido mín. ${formatCurrencyBRL(store.minimumOrderAmount)}`
                 : ''}
             </span>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Main Content Grid */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Catalog Column */}
-        <div className="lg:col-span-7 space-y-5">
-          {/* Search & Category Tabs */}
-          <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 space-y-3">
+        <div className="lg:col-span-7 space-y-6 min-w-0">
+          {/* Search & Single-Line Category Filter Bar */}
+          <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-3 sm:p-4 space-y-3">
             <div className="relative">
               <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
@@ -905,134 +1287,217 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 placeholder="Buscar combos, lanches ou bebidas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] placeholder:text-[#6B7280]"
+                className="w-full min-h-[44px] pl-10 pr-9 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] placeholder:text-[#6B7280]"
               />
+              {searchTerm.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  aria-label="Limpar busca"
+                  className="w-8 h-8 rounded-lg text-[#9CA3AF] hover:text-[#F3F4F6] flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             <div
               role="tablist"
               aria-label="Filtrar categoria do cardápio"
-              className="flex flex-wrap gap-1.5"
+              data-testid="menu-category-tabs"
+              className="flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
             >
-              {(
-                [
-                  { id: 'all', label: 'Todos' },
-                  { id: 'combos', label: 'Combos' },
-                  { id: 'Lanche', label: 'Lanches' },
-                  { id: 'Bebida', label: 'Bebidas' },
-                  { id: 'Adicional', label: 'Adicionais' },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={categoryFilter === tab.id}
-                  onClick={() => setCategoryFilter(tab.id)}
-                  className={`min-h-[38px] px-3.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                    categoryFilter === tab.id
-                      ? 'bg-[#F5B731] text-[#0B0D11]'
-                      : 'bg-[#0B0D11] border border-[#232834] text-[#D1D5DB] hover:border-[#374151]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              {categoryTabs.map((tab) => {
+                const isSelected = categoryFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-label={tab.label}
+                    aria-selected={isSelected}
+                    onClick={() => setCategoryFilter(tab.id)}
+                    className={`min-h-[38px] px-3 sm:px-3.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-[#F5B731] text-[#0B0D11]'
+                        : 'bg-[#0B0D11] border border-[#232834] text-[#D1D5DB] hover:border-[#374151] hover:text-[#F3F4F6]'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      aria-hidden="true"
+                      className={`text-[11px] font-mono tabular-nums ${
+                        isSelected ? 'text-[#0B0D11]/75' : 'text-[#6B7280]'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {filteredCombos.length === 0 && filteredProducts.length === 0 && (
-            <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-8 text-center space-y-2">
+            <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-8 text-center space-y-2.5">
+              <Search className="w-6 h-6 text-[#6B7280] mx-auto" />
               <p className="text-sm font-semibold text-[#F3F4F6]">
                 Nenhum item encontrado neste filtro
               </p>
               <p className="text-xs text-[#9CA3AF]">
-                Tente buscar outro nome ou selecione a aba "Todos".
+                Tente buscar outro nome ou selecione a aba &quot;Todos&quot;.
               </p>
+              {(searchTerm || categoryFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setCategoryFilter('all');
+                  }}
+                  className="min-h-[40px] px-4 rounded-xl border border-[#232834] hover:border-[#F5B731]/60 text-xs font-semibold text-[#F5B731] cursor-pointer transition-colors"
+                >
+                  Mostrar todo o cardápio
+                </button>
+              )}
             </div>
           )}
 
-          {/* Combos */}
+          {/* Featured Combos */}
           {filteredCombos.length > 0 && (
-            <section aria-labelledby="public-combos-heading" className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-[#F5B731]" />
-                <h2
-                  id="public-combos-heading"
-                  className="text-sm font-bold text-[#F3F4F6]"
-                >
-                  Combos Especiais
-                </h2>
+            <section aria-labelledby="public-combos-heading" className="space-y-3.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#F5B731]" />
+                  <h2
+                    id="public-combos-heading"
+                    className="font-display text-base sm:text-lg font-bold text-[#F3F4F6]"
+                  >
+                    Combos Especiais
+                  </h2>
+                </div>
+                <span className="text-xs font-mono tabular-nums text-[#9CA3AF]">
+                  {filteredCombos.length}{' '}
+                  {filteredCombos.length === 1 ? 'opção' : 'opções'}
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3.5">
                 {filteredCombos.map((combo) => {
                   const qty = getItemQuantity('combo', combo.id);
-                  const itemsSummary = combo.items
-                    .map((i) => `${i.quantity}x ${i.productName}`)
-                    .join(' + ');
+                  const itemsSummary = formatComboComposition(combo.items);
+                  const showComposition = shouldShowComboComposition(
+                    combo.description,
+                    combo.items,
+                  );
 
                   return (
                     <article
                       key={combo.id}
-                      className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      data-testid={`menu-combo-card-${combo.id}`}
+                      className="group bg-[#12151C] border border-[#232834] hover:border-[#F5B731]/40 rounded-2xl p-3.5 sm:p-4 transition-colors duration-150"
                     >
-                      <div className="space-y-1 min-w-0">
-                        <h3 className="text-sm sm:text-base font-bold text-[#F3F4F6]">
-                          {combo.name}
-                        </h3>
-                        {combo.description && (
-                          <p className="text-xs text-[#9CA3AF]">
-                            {combo.description}
-                          </p>
-                        )}
-                        {itemsSummary && (
-                          <p className="text-xs text-[#D1D5DB]">
-                            Inclui: {itemsSummary}
-                          </p>
-                        )}
-                        <p className="text-base font-bold text-[#F5B731] font-mono tabular-nums pt-0.5">
-                          {formatCurrencyBRL(combo.salePrice)}
-                        </p>
-                      </div>
+                      <div className="flex items-start gap-3.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openItemInspector({ kind: 'combo', combo })
+                          }
+                          aria-label={`Ver detalhes de ${combo.name}`}
+                          className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0B0D11] border border-[#262C3A] flex flex-col items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B731]/35 transition-colors"
+                        >
+                          {hasUsableImage(combo.imageUrl) ? (
+                            <img
+                              src={combo.imageUrl}
+                              alt={combo.name}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              onError={() => markImageBroken(combo.imageUrl)}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                          ) : (
+                            <>
+                              <CategoryGlyph
+                                category="combo"
+                                className="w-6 h-6 text-[#F5B731]"
+                              />
+                              <span className="text-[10px] font-medium text-[#9CA3AF] mt-1">
+                                Combo
+                              </span>
+                            </>
+                          )}
+                        </button>
 
-                      <div className="shrink-0 self-end sm:self-center">
-                        {qty === 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => updateItemQuantity('combo', combo.id, 1)}
-                            className="min-h-[44px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Adicionar
-                          </button>
-                        ) : (
-                          <div className="inline-flex items-center gap-2 bg-[#0B0D11] border border-[#F5B731]/50 rounded-xl p-1">
+                        <div className="flex-1 min-w-0 flex flex-col justify-between gap-2.5">
+                          <div className="space-y-1 min-w-0">
                             <button
                               type="button"
                               onClick={() =>
-                                updateItemQuantity('combo', combo.id, -1)
+                                openItemInspector({ kind: 'combo', combo })
                               }
-                              aria-label={`Diminuir ${combo.name}`}
-                              className="w-9 h-9 rounded-lg bg-[#181C24] flex items-center justify-center text-[#F3F4F6] cursor-pointer"
+                              className="text-left w-full cursor-pointer"
                             >
-                              <Minus className="w-4 h-4" />
+                              <h3 className="text-sm sm:text-base font-bold text-[#F3F4F6] group-hover:text-[#F5B731] transition-colors leading-snug">
+                                {combo.name}
+                              </h3>
                             </button>
-                            <span className="w-6 text-center text-sm font-mono font-bold tabular-nums text-[#F5B731]">
-                              {qty}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateItemQuantity('combo', combo.id, 1)
-                              }
-                              aria-label={`Aumentar ${combo.name}`}
-                              className="w-9 h-9 rounded-lg bg-[#F5B731] flex items-center justify-center text-[#0B0D11] cursor-pointer"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
+
+                            {combo.description && (
+                              <p className="text-xs text-[#9CA3AF] leading-relaxed line-clamp-2">
+                                {combo.description}
+                              </p>
+                            )}
+                            {showComposition && itemsSummary && (
+                              <p className="text-xs text-[#D1D5DB] line-clamp-2">
+                                Inclui: {itemsSummary}
+                              </p>
+                            )}
                           </div>
-                        )}
+
+                          <div className="flex items-center justify-between gap-3 pt-1">
+                            <span className="text-base sm:text-lg font-bold text-[#F5B731] font-mono tabular-nums">
+                              {formatCurrencyBRL(combo.salePrice)}
+                            </span>
+
+                            {qty === 0 ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateItemQuantity('combo', combo.id, 1)
+                                }
+                                className="min-h-[40px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Adicionar
+                              </button>
+                            ) : (
+                              <div className="inline-flex items-center gap-2 bg-[#0B0D11] border border-[#F5B731]/55 rounded-xl p-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateItemQuantity('combo', combo.id, -1)
+                                  }
+                                  aria-label={`Diminuir ${combo.name}`}
+                                  className="w-8 h-8 rounded-lg bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-[#F3F4F6] cursor-pointer transition-colors"
+                                >
+                                  <Minus className="w-4 h-4" />
+                                </button>
+                                <span className="w-6 text-center text-sm font-mono font-bold tabular-nums text-[#F5B731]">
+                                  {qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateItemQuantity('combo', combo.id, 1)
+                                  }
+                                  aria-label={`Aumentar ${combo.name}`}
+                                  className="w-8 h-8 rounded-lg bg-[#F5B731] hover:bg-[#FCD34D] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </article>
                   );
@@ -1041,37 +1506,78 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
             </section>
           )}
 
-          {/* Products */}
+          {/* Individual Products */}
           {filteredProducts.length > 0 && (
-            <section aria-labelledby="public-products-heading" className="space-y-3">
-              <div className="flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-[#F5B731]" />
-                <h2
-                  id="public-products-heading"
-                  className="text-sm font-bold text-[#F3F4F6]"
-                >
-                  Produtos Individuais
-                </h2>
+            <section aria-labelledby="public-products-heading" className="space-y-3.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-[#F5B731]" />
+                  <h2
+                    id="public-products-heading"
+                    className="font-display text-base sm:text-lg font-bold text-[#F3F4F6]"
+                  >
+                    Produtos Individuais
+                  </h2>
+                </div>
+                <span className="text-xs font-mono tabular-nums text-[#9CA3AF]">
+                  {filteredProducts.length}{' '}
+                  {filteredProducts.length === 1 ? 'item' : 'itens'}
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {filteredProducts.map((product) => {
                   const qty = getItemQuantity('product', product.id);
                   return (
                     <article
                       key={product.id}
-                      className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 flex flex-col justify-between gap-3"
+                      className="group bg-[#12151C] border border-[#232834] hover:border-[#F5B731]/40 rounded-2xl p-4 flex flex-col justify-between gap-3.5 transition-colors duration-150"
                     >
-                      <div className="space-y-1">
-                        <p className="text-[11px] uppercase tracking-wider text-[#9CA3AF]">
-                          {product.category}
-                        </p>
-                        <h3 className="text-sm font-bold text-[#F3F4F6]">
-                          {product.name}
-                        </h3>
+                      <div className="flex items-start gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openItemInspector({ kind: 'product', product })
+                          }
+                          aria-label={`Ver detalhes de ${product.name}`}
+                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0B0D11] border border-[#262C3A] flex items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B731]/35 transition-colors"
+                        >
+                          {hasUsableImage(product.imageUrl) ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              onError={() => markImageBroken(product.imageUrl)}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                          ) : (
+                            <CategoryGlyph
+                              category={product.category}
+                              className="w-5 h-5 text-[#F5B731]"
+                            />
+                          )}
+                        </button>
+
+                        <div className="min-w-0 space-y-1 flex-1">
+                          <p className="text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">
+                            {product.category}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openItemInspector({ kind: 'product', product })
+                            }
+                            className="text-left w-full cursor-pointer"
+                          >
+                            <h3 className="text-sm sm:text-[15px] font-bold text-[#F3F4F6] group-hover:text-[#F5B731] transition-colors leading-snug">
+                              {product.name}
+                            </h3>
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between gap-2 pt-1">
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#232834]/70">
                         <span className="text-base font-bold text-[#F5B731] font-mono tabular-nums">
                           {formatCurrencyBRL(product.unitPrice)}
                         </span>
@@ -1082,20 +1588,20 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                             onClick={() =>
                               updateItemQuantity('product', product.id, 1)
                             }
-                            className="min-h-[42px] px-3.5 rounded-xl bg-[#181C24] border border-[#232834] hover:border-[#F5B731] text-xs font-bold text-[#F3F4F6] inline-flex items-center gap-1 cursor-pointer transition-colors"
+                            className="min-h-[40px] px-3.5 rounded-xl bg-[#181C24] border border-[#232834] hover:border-[#F5B731] text-xs font-bold text-[#F3F4F6] inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
                           >
                             <Plus className="w-3.5 h-3.5 text-[#F5B731]" />
                             Adicionar
                           </button>
                         ) : (
-                          <div className="inline-flex items-center gap-1.5 bg-[#0B0D11] border border-[#F5B731]/50 rounded-xl p-1">
+                          <div className="inline-flex items-center gap-1.5 bg-[#0B0D11] border border-[#F5B731]/55 rounded-xl p-1">
                             <button
                               type="button"
                               onClick={() =>
                                 updateItemQuantity('product', product.id, -1)
                               }
                               aria-label={`Diminuir ${product.name}`}
-                              className="w-8 h-8 rounded-lg bg-[#181C24] flex items-center justify-center text-[#F3F4F6] cursor-pointer"
+                              className="w-8 h-8 rounded-lg bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-[#F3F4F6] cursor-pointer transition-colors"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
@@ -1108,7 +1614,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                                 updateItemQuantity('product', product.id, 1)
                               }
                               aria-label={`Aumentar ${product.name}`}
-                              className="w-8 h-8 rounded-lg bg-[#F5B731] flex items-center justify-center text-[#0B0D11] cursor-pointer"
+                              className="w-8 h-8 rounded-lg bg-[#F5B731] hover:bg-[#FCD34D] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
                             >
                               <Plus className="w-3.5 h-3.5" />
                             </button>
@@ -1159,13 +1665,178 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
         </aside>
       </main>
 
+      {/* Storefront Footer */}
+      <footer className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-6 border-t border-[#232834]/70 text-xs text-[#6B7280] flex flex-wrap items-center justify-between gap-2">
+        <span>{store.storeName} · Pedido online direto com a loja</span>
+        {store.address && <span>{store.address}</span>}
+      </footer>
+
+      {/* Quick Item Inspector Modal */}
+      {inspectItem && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Detalhes do item"
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+        >
+          <div className="w-full max-w-md bg-[#12151C] border-t sm:border border-[#232834] rounded-t-2xl sm:rounded-2xl p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1C212E] to-[#0B0D11] border border-[#262C3A] flex items-center justify-center shrink-0">
+                  <CategoryGlyph
+                    category={
+                      inspectItem.kind === 'combo'
+                        ? 'combo'
+                        : inspectItem.product.category
+                    }
+                    className="w-5 h-5 text-[#F5B731]"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">
+                    {inspectItem.kind === 'combo'
+                      ? 'Combo especial'
+                      : inspectItem.product.category}
+                  </p>
+                  <h3 className="font-display text-base font-bold text-[#F3F4F6] leading-snug">
+                    {inspectItem.kind === 'combo'
+                      ? inspectItem.combo.name
+                      : inspectItem.product.name}
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setInspectItem(null)}
+                aria-label="Fechar detalhes do item"
+                className="w-9 h-9 rounded-lg border border-[#232834] flex items-center justify-center text-[#9CA3AF] hover:text-[#F3F4F6] cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {hasUsableImage(
+              inspectItem.kind === 'combo'
+                ? inspectItem.combo.imageUrl
+                : inspectItem.product.imageUrl,
+            ) && (
+              <div className="w-full h-44 sm:h-52 rounded-xl overflow-hidden border border-[#232834] bg-[#0B0D11]">
+                <img
+                  src={
+                    inspectItem.kind === 'combo'
+                      ? inspectItem.combo.imageUrl
+                      : inspectItem.product.imageUrl
+                  }
+                  alt={
+                    inspectItem.kind === 'combo'
+                      ? inspectItem.combo.name
+                      : inspectItem.product.name
+                  }
+                  referrerPolicy="no-referrer"
+                  onError={() =>
+                    markImageBroken(
+                      inspectItem.kind === 'combo'
+                        ? inspectItem.combo.imageUrl
+                        : inspectItem.product.imageUrl,
+                    )
+                  }
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+
+            {inspectItem.kind === 'combo' && (
+              <div className="p-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] space-y-1.5 text-xs">
+                {inspectItem.combo.description && (
+                  <p className="text-[#D1D5DB] leading-relaxed">
+                    {inspectItem.combo.description}
+                  </p>
+                )}
+                {inspectItem.combo.items.length > 0 && (
+                  <p className="text-[#9CA3AF]">
+                    Composição: {formatComboComposition(inspectItem.combo.items)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="modal-item-note"
+                className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+              >
+                Observação (opcional)
+              </label>
+              <input
+                id="modal-item-note"
+                type="text"
+                maxLength={200}
+                value={modalNote}
+                onChange={(e) => setModalNote(e.target.value)}
+                placeholder="Ex: sem cebola, maionese à parte..."
+                className="w-full min-h-[42px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="inline-flex items-center gap-2 bg-[#0B0D11] border border-[#232834] rounded-xl p-1">
+                <button
+                  type="button"
+                  onClick={() => setModalQty((q) => Math.max(1, q - 1))}
+                  aria-label="Diminuir quantidade"
+                  className="w-9 h-9 rounded-lg bg-[#181C24] flex items-center justify-center text-[#F3F4F6] cursor-pointer"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="w-6 text-center text-sm font-mono font-bold tabular-nums text-[#F3F4F6]">
+                  {modalQty}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setModalQty((q) => Math.min(99, q + 1))}
+                  aria-label="Aumentar quantidade"
+                  className="w-9 h-9 rounded-lg bg-[#181C24] flex items-center justify-center text-[#F3F4F6] cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  addItemFromDetailModal(
+                    inspectItem.kind,
+                    inspectItem.kind === 'combo'
+                      ? inspectItem.combo.id
+                      : inspectItem.product.id,
+                    modalQty,
+                    modalNote,
+                  )
+                }
+                className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs sm:text-sm font-bold inline-flex items-center justify-between gap-2 cursor-pointer transition-colors"
+              >
+                <span>Adicionar à sacola</span>
+                <span className="font-mono tabular-nums">
+                  {formatCurrencyBRL(
+                    (inspectItem.kind === 'combo'
+                      ? inspectItem.combo.salePrice
+                      : inspectItem.product.unitPrice) * modalQty,
+                  )}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Bottom Sacola Bar */}
-      {cartSummary.totalItemsCount > 0 && !mobileCartOpen && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 p-3 bg-[#0B0D11]/95 backdrop-blur-md border-t border-[#232834]">
+      {cartSummary.totalItemsCount > 0 && !mobileCartOpen && !inspectItem && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-4 py-2.5 bg-[#0B0D11]/95 backdrop-blur-md border-t border-[#232834]">
           <button
             type="button"
             onClick={() => setMobileCartOpen(true)}
-            className="w-full min-h-[48px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold flex items-center justify-between cursor-pointer"
+            className="w-full min-h-[46px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold flex items-center justify-between cursor-pointer transition-colors"
           >
             <span className="inline-flex items-center gap-2">
               <ShoppingCart className="w-4 h-4" />

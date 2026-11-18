@@ -11,10 +11,13 @@ import {
   buildSaleInputFromCompletedOrder,
   computeCartSummary,
   computeOnlineOrdersDashboardStats,
+  formatDigitalMenuSaveErrorMessage,
   formatOrderNumber,
   getNextStatusActions,
   getTrackingFlowSteps,
+  normalizePixKeyInput,
   sanitizeMenuSlug,
+  shouldShowOrderPixPaymentBox,
   validateCheckoutPayload,
   validateOrderStatusTransition,
 } from './onlineOrders';
@@ -28,6 +31,7 @@ const menuSettings: DigitalMenuSettingsInput = {
   phoneWhatsapp: '11999999999',
   address: 'Rua Principal, 100',
   openingHours: '18h às 23h',
+  pixKey: '',
   deliveryFee: 5,
   minimumOrderAmount: 20,
   acceptsDelivery: true,
@@ -466,3 +470,78 @@ test('computeOnlineOrdersDashboardStats keeps unaccepted/rejected orders out of 
   assert.equal(stats.onlineRevenueMonth, 52);
   assert.equal(stats.onlineUnitsSoldToday, 3); // 1 X-Salada + 1 Refri in combo + 1 X-Salada individual
 });
+
+test('normalizePixKeyInput and shouldShowOrderPixPaymentBox control Pix copy card visibility cleanly', () => {
+  assert.equal(normalizePixKeyInput('  pix@mgwlanches.com.br \n '), 'pix@mgwlanches.com.br');
+  assert.equal(normalizePixKeyInput('   '), '');
+  assert.equal(normalizePixKeyInput('a'.repeat(180)).length, 140);
+
+  assert.equal(
+    shouldShowOrderPixPaymentBox({
+      paymentMethod: 'Pix',
+      storePixKey: '12.345.678/0001-99',
+      status: 'received',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowOrderPixPaymentBox({
+      paymentMethod: 'Pix',
+      storePixKey: '12.345.678/0001-99',
+      status: 'completed',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowOrderPixPaymentBox({
+      paymentMethod: 'Pix',
+      storePixKey: '   ',
+      status: 'received',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowOrderPixPaymentBox({
+      paymentMethod: 'Dinheiro',
+      storePixKey: '12.345.678/0001-99',
+      status: 'received',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowOrderPixPaymentBox({
+      paymentMethod: 'Cartão',
+      storePixKey: '12.345.678/0001-99',
+      status: 'accepted',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowOrderPixPaymentBox({
+      paymentMethod: 'Pix',
+      storePixKey: '12.345.678/0001-99',
+      status: 'rejected',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowOrderPixPaymentBox({
+      paymentMethod: 'Pix',
+      storePixKey: '12.345.678/0001-99',
+      status: 'cancelled',
+    }),
+    false,
+  );
+
+  assert.equal(
+    formatDigitalMenuSaveErrorMessage(
+      new Error('{"error":"Missing or insufficient permissions.","authInfo":{"userId":"123"}}'),
+    ),
+    'Permissão negada ao gravar no banco de dados. Verifique sua sessão ou tente novamente.',
+  );
+  assert.equal(
+    formatDigitalMenuSaveErrorMessage(new Error('Chave Pix excede 140 caracteres.')),
+    'Chave Pix excede 140 caracteres.',
+  );
+});
+

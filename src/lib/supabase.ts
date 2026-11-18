@@ -113,3 +113,30 @@ export function getSupabaseClient(): SupabaseClient {
 
   return supabaseInstance;
 }
+
+export const SUPABASE_MENU_IMAGES_BUCKET = 'mgw-cardapios';
+
+export interface SupabaseStorageConfig {
+  configured: boolean;
+  url: string | null;
+  anonKey: string | null;
+  edgeFunctionUrl: string | null;
+  bucket: string;
+  missing: string[];
+}
+
+export function getSupabaseStorageConfig(): SupabaseStorageConfig {
+  const { url, anonKey } = readSupabasePublicEnv();
+  const status = getSupabaseConfigStatus();
+  const cleanUrl = status.configured && url ? url.replace(/\/+$/, '') : null;
+
+  return {
+    configured: status.configured && Boolean(cleanUrl && anonKey),
+    url: cleanUrl,
+    anonKey: status.configured ? anonKey : null,
+    edgeFunctionUrl: cleanUrl ? `${cleanUrl}/functions/v1/menu-storage` : null,
+    bucket: SUPABASE_MENU_IMAGES_BUCKET,
+    missing: status.missing,
+  };
+}
+

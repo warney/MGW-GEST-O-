@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
   Bell,
+  BellOff,
+  BellRing,
   Check,
   ChevronDown,
   ChevronUp,
@@ -8,6 +10,7 @@ import {
   Eye,
   MapPin,
   MessageCircle,
+  Printer,
   Settings,
   Volume2,
   VolumeX,
@@ -28,12 +31,24 @@ import {
   isUnreadNewOrder,
   ORDER_STATUS_LABELS,
 } from '../utils/onlineOrders';
+import {
+  fromOnlineOrderRecord,
+  type PrintableOrderSource,
+} from '../utils/orderPrint';
+import type { BrowserNotificationPermissionState } from '../utils/orderNotifications';
+import { OrderPrintModal } from './OrderPrintModal';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface OrdersCenterViewProps {
   orders: OnlineOrderRecord[];
   digitalMenuSettings: DigitalMenuSettings;
   soundEnabled: boolean;
+  pushEnabled: boolean;
+  notificationPermission: BrowserNotificationPermissionState;
   onToggleSound: () => void;
+  onTogglePush: () => void;
+  onEnableMobileNotifications: () => void;
+  onTestAlert: () => void;
   onMarkViewed: (order: OnlineOrderRecord) => Promise<void>;
   onTransitionStatus: (
     order: OnlineOrderRecord,
@@ -64,7 +79,12 @@ export function OrdersCenterView({
   orders,
   digitalMenuSettings,
   soundEnabled,
+  pushEnabled,
+  notificationPermission,
   onToggleSound,
+  onTogglePush,
+  onEnableMobileNotifications,
+  onTestAlert,
   onMarkViewed,
   onTransitionStatus,
   onOpenDigitalMenuSettings,
@@ -83,6 +103,8 @@ export function OrdersCenterView({
   const [reasonText, setReasonText] = useState('');
   const [reasonError, setReasonError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [printingOrder, setPrintingOrder] =
+    useState<PrintableOrderSource | null>(null);
 
   const counts = useMemo(() => {
     const res = {
@@ -282,6 +304,53 @@ export function OrdersCenterView({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {notificationPermission === 'granted' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onTogglePush}
+                  aria-pressed={pushEnabled}
+                  className={`min-h-[40px] px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-2 cursor-pointer transition-colors ${
+                    pushEnabled
+                      ? 'bg-[#0B0D11] border-[#22C55E]/40 text-[#86EFAC]'
+                      : 'bg-[#0B0D11] border-[#232834] text-[#9CA3AF]'
+                  }`}
+                >
+                  {pushEnabled ? (
+                    <>
+                      <BellRing className="w-4 h-4" />
+                      Notificações no celular ativas
+                    </>
+                  ) : (
+                    <>
+                      <BellOff className="w-4 h-4" />
+                      Notificações pausadas
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onTestAlert}
+                  className="min-h-[40px] px-3 rounded-xl border border-[#232834] hover:border-[#F5B731]/50 bg-[#0B0D11] text-xs font-semibold text-[#D1D5DB] hover:text-[#F5B731] inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Bell className="w-3.5 h-3.5 text-[#F5B731]" />
+                  Testar alerta
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onEnableMobileNotifications}
+                className="min-h-[40px] px-3.5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <BellRing className="w-4 h-4" />
+                Ativar notificações no celular
+              </button>
+            )}
+
+            <PWAInstallButton />
+
             <button
               type="button"
               onClick={onToggleSound}
@@ -315,6 +384,12 @@ export function OrdersCenterView({
             </button>
           </div>
         </div>
+
+        {notificationPermission === 'denied' && (
+          <p className="text-xs text-[#FCA5A5] bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-xl px-3.5 py-2.5">
+            As notificações estão bloqueadas nas permissões do navegador. Toque no ícone de cadeado ao lado do endereço do site para permitir notificações e receber os alertas no celular.
+          </p>
+        )}
 
         {/* Status Filter Tabs */}
         <div
@@ -603,25 +678,45 @@ export function OrdersCenterView({
                     ))}
                   </div>
 
-                  {order.statusHistory.length > 0 && (
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() =>
-                        setExpandedTimelineIds((prev) => ({
-                          ...prev,
-                          [order.id]: !prev[order.id],
-                        }))
+                        setPrintingOrder(
+                          fromOnlineOrderRecord(order, {
+                            storeName: digitalMenuSettings.storeName,
+                            storePhone: digitalMenuSettings.phoneWhatsapp,
+                            storeAddress: digitalMenuSettings.address,
+                          }),
+                        )
                       }
-                      className="min-h-[38px] px-3 rounded-lg text-xs text-[#9CA3AF] hover:text-[#F3F4F6] inline-flex items-center gap-1 cursor-pointer"
+                      aria-label={`Imprimir pedido ${formatOrderNumber(order.orderNumber)}`}
+                      className="min-h-[38px] px-3 rounded-xl border border-[#232834] hover:border-[#F5B731]/60 bg-[#0B0D11] text-xs font-semibold text-[#D1D5DB] hover:text-[#F5B731] inline-flex items-center gap-1.5 cursor-pointer"
                     >
-                      <span>Histórico ({order.statusHistory.length})</span>
-                      {timelineOpen ? (
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      )}
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Imprimir</span>
                     </button>
-                  )}
+
+                    {order.statusHistory.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedTimelineIds((prev) => ({
+                            ...prev,
+                            [order.id]: !prev[order.id],
+                          }))
+                        }
+                        className="min-h-[38px] px-3 rounded-lg text-xs text-[#9CA3AF] hover:text-[#F3F4F6] inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Histórico ({order.statusHistory.length})</span>
+                        {timelineOpen ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Expandable Timeline */}
@@ -743,6 +838,12 @@ export function OrdersCenterView({
           </form>
         </div>
       )}
+
+      <OrderPrintModal
+        order={printingOrder}
+        allowKitchenToggle
+        onClose={() => setPrintingOrder(null)}
+      />
     </div>
   );
 }

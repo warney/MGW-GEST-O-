@@ -27,6 +27,7 @@ import {
   DEFAULT_DIGITAL_MENU_SETTINGS,
   formatOrderNumber,
   generateTrackingSecretToken,
+  normalizePixKeyInput,
   ORDER_STATUS_LABELS,
   sanitizeMenuSlug,
   sha256Hex,
@@ -266,7 +267,15 @@ function readDemoState(): DemoState {
       window.localStorage.setItem(DEMO_STORE_KEY, JSON.stringify(init));
       return init;
     }
-    return JSON.parse(raw) as DemoState;
+    const parsed = JSON.parse(raw) as DemoState;
+    return {
+      ...parsed,
+      digitalMenu: {
+        ...DEFAULT_DIGITAL_MENU_SETTINGS,
+        ...parsed.digitalMenu,
+        pixKey: normalizePixKeyInput(parsed.digitalMenu?.pixKey || ''),
+      },
+    };
   } catch {
     return createInitialDemoState();
   }
@@ -339,6 +348,7 @@ export const demoMutations = {
       digitalMenu: {
         ...st.digitalMenu,
         ...input,
+        pixKey: normalizePixKeyInput(input.pixKey || ''),
         slug: sanitizeMenuSlug(input.slug, 'mgw_lanches'),
         updatedAtMs: Date.now(),
       },
@@ -346,45 +356,49 @@ export const demoMutations = {
   },
   addProduct(input: ProductInput): string {
     const st = readDemoState();
-    const id = `demo_prod_${Date.now()}`;
+    const { preferredId, ...rest } = input;
+    const id = preferredId && preferredId.trim() ? preferredId.trim() : `demo_prod_${Date.now()}`;
     const now = Date.now();
     writeDemoState({
       ...st,
       products: [
         ...st.products,
-        { id, ownerId: 'demo-owner', ...input, createdAtMs: now, updatedAtMs: now },
+        { id, ownerId: 'demo-owner', ...rest, createdAtMs: now, updatedAtMs: now },
       ],
     });
     return id;
   },
   updateProduct(id: string, input: ProductInput) {
     const st = readDemoState();
+    const { preferredId: _ignored, ...rest } = input;
     writeDemoState({
       ...st,
       products: st.products.map((p) =>
-        p.id === id ? { ...p, ...input, updatedAtMs: Date.now() } : p,
+        p.id === id ? { ...p, ...rest, updatedAtMs: Date.now() } : p,
       ),
     });
   },
   addCombo(input: ComboInput): string {
     const st = readDemoState();
-    const id = `demo_combo_${Date.now()}`;
+    const { preferredId, ...rest } = input;
+    const id = preferredId && preferredId.trim() ? preferredId.trim() : `demo_combo_${Date.now()}`;
     const now = Date.now();
     writeDemoState({
       ...st,
       combos: [
         ...st.combos,
-        { id, ownerId: 'demo-owner', ...input, createdAtMs: now, updatedAtMs: now },
+        { id, ownerId: 'demo-owner', ...rest, createdAtMs: now, updatedAtMs: now },
       ],
     });
     return id;
   },
   updateCombo(id: string, input: ComboInput) {
     const st = readDemoState();
+    const { preferredId: _ignored, ...rest } = input;
     writeDemoState({
       ...st,
       combos: st.combos.map((c) =>
-        c.id === id ? { ...c, ...input, updatedAtMs: Date.now() } : c,
+        c.id === id ? { ...c, ...rest, updatedAtMs: Date.now() } : c,
       ),
     });
   },
@@ -463,6 +477,7 @@ export const demoMutations = {
           category: p.category,
           unitPrice: p.unitPrice,
           countsAsXSalada: p.countsAsXSalada,
+          imageUrl: p.imageUrl,
         }))
       : [];
     const combos: PublicCatalogCombo[] = st.digitalMenu.isActive
@@ -472,6 +487,7 @@ export const demoMutations = {
           description: c.description,
           items: c.items,
           salePrice: c.salePrice,
+          imageUrl: c.imageUrl,
         }))
       : [];
     return { found: true, store: st.digitalMenu, products, combos };
@@ -635,6 +651,7 @@ export const demoMutations = {
       storeSlug: st.digitalMenu.slug,
       storeWhatsapp: st.digitalMenu.phoneWhatsapp,
       storeAddress: st.digitalMenu.address,
+      storePixKey: normalizePixKeyInput(st.digitalMenu.pixKey || ''),
       createdAtMs: order.createdAtMs,
       updatedAtMs: order.updatedAtMs,
       items: order.items.map((it) => ({

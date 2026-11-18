@@ -51,11 +51,17 @@ import {
 } from '../types/finance';
 import { calculateSaleTotal, roundCurrency } from '../utils/finance';
 import {
+  isValidEntityId,
+  sanitizeOptionalImagePath,
+  sanitizeOptionalImageUrl,
+} from '../utils/imageUpload';
+import {
   buildSaleInputFromCompletedOrder,
   computeCartSummary,
   DEFAULT_DIGITAL_MENU_SETTINGS,
   formatOrderNumber,
   generateTrackingSecretToken,
+  normalizePixKeyInput,
   ORDER_STATUS_LABELS,
   sanitizeMenuSlug,
   sha256Hex,
@@ -325,6 +331,13 @@ export function subscribeProducts(
           unitPrice: Number(data.unitPrice) || 0,
           countsAsXSalada: Boolean(data.countsAsXSalada),
           active: data.active !== false,
+          imageUrl: sanitizeOptionalImageUrl(
+            typeof data.imageUrl === 'string' ? data.imageUrl : '',
+          ),
+          imagePath: sanitizeOptionalImagePath(
+            typeof data.imagePath === 'string' ? data.imagePath : '',
+            workspace.id,
+          ),
           createdAtMs: timestampToMs(data.createdAt),
           updatedAtMs: timestampToMs(data.updatedAt),
         };
@@ -345,6 +358,24 @@ export function subscribeProducts(
   );
 }
 
+function validateAndSanitizeItemImage(
+  imageUrlRaw: string | undefined,
+  imagePathRaw: string | undefined,
+  workspaceId: string,
+): { imageUrl: string; imagePath: string } {
+  const rawUrl = String(imageUrlRaw || '').trim();
+  const imageUrl = sanitizeOptionalImageUrl(rawUrl);
+  if (rawUrl && !imageUrl) {
+    throw new Error('URL de imagem inválida. Envie uma foto válida.');
+  }
+  const rawPath = String(imagePathRaw || '').trim();
+  const imagePath = sanitizeOptionalImagePath(rawPath, workspaceId);
+  if (rawPath && !imagePath) {
+    throw new Error('Caminho de imagem inválido para este estabelecimento.');
+  }
+  return { imageUrl, imagePath };
+}
+
 export async function createProductInFirestore(
   ownerId: string,
   input: ProductInput,
@@ -358,21 +389,41 @@ export async function createProductInFirestore(
   if (!Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 10000) {
     throw new Error('Informe um preço válido para o produto.');
   }
+  const { imageUrl, imagePath } = validateAndSanitizeItemImage(
+    input.imageUrl,
+    input.imagePath,
+    workspace.id,
+  );
 
   const { ref, path } = getCollectionTarget(workspace, 'products');
+  const preferredId =
+    input.preferredId && isValidEntityId(input.preferredId.trim())
+      ? input.preferredId.trim()
+      : '';
   try {
-    const docRef = await addDoc(ref, {
+    const docData = {
       ownerId,
       name,
       category: input.category,
       unitPrice,
       countsAsXSalada: Boolean(input.countsAsXSalada),
       active: Boolean(input.active),
+      imageUrl,
+      imagePath,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+    let createdId = '';
+    if (preferredId) {
+      const targetDocRef = doc(ref, preferredId);
+      await setDoc(targetDocRef, docData);
+      createdId = preferredId;
+    } else {
+      const docRef = await addDoc(ref, docData);
+      createdId = docRef.id;
+    }
     void syncPublicMenuProjectionInFirestore(workspace).catch(() => {});
-    return docRef.id;
+    return createdId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
     return '';
@@ -392,6 +443,11 @@ export async function updateProductInFirestore(
   if (!Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 10000) {
     throw new Error('Informe um preço válido para o produto.');
   }
+  const { imageUrl, imagePath } = validateAndSanitizeItemImage(
+    input.imageUrl,
+    input.imagePath,
+    workspace.id,
+  );
 
   const { ref, path } = getDocTarget(workspace, 'products', productId);
   try {
@@ -401,6 +457,8 @@ export async function updateProductInFirestore(
       unitPrice,
       countsAsXSalada: Boolean(input.countsAsXSalada),
       active: Boolean(input.active),
+      imageUrl,
+      imagePath,
       updatedAt: serverTimestamp(),
     });
     void syncPublicMenuProjectionInFirestore(workspace).catch(() => {});
@@ -444,6 +502,13 @@ export function subscribeCombos(
           salePrice: Number(data.salePrice) || 0,
           estimatedCost: Number(data.estimatedCost) || 0,
           active: data.active !== false,
+          imageUrl: sanitizeOptionalImageUrl(
+            typeof data.imageUrl === 'string' ? data.imageUrl : '',
+          ),
+          imagePath: sanitizeOptionalImagePath(
+            typeof data.imagePath === 'string' ? data.imagePath : '',
+            workspace.id,
+          ),
           createdAtMs: timestampToMs(data.createdAt),
           updatedAtMs: timestampToMs(data.updatedAt),
         };
@@ -492,10 +557,19 @@ export async function createComboInFirestore(
   if (!Number.isFinite(salePrice) || salePrice <= 0 || salePrice > 100000) {
     throw new Error('Informe um preço de venda válido para o combo.');
   }
+  const { imageUrl, imagePath } = validateAndSanitizeItemImage(
+    input.imageUrl,
+    input.imagePath,
+    workspace.id,
+  );
 
   const { ref, path } = getCollectionTarget(workspace, 'combos');
+  const preferredId =
+    input.preferredId && isValidEntityId(input.preferredId.trim())
+      ? input.preferredId.trim()
+      : '';
   try {
-    const docRef = await addDoc(ref, {
+    const docData = {
       ownerId,
       name,
       description,
@@ -503,11 +577,22 @@ export async function createComboInFirestore(
       salePrice,
       estimatedCost,
       active: Boolean(input.active),
+      imageUrl,
+      imagePath,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+    let createdId = '';
+    if (preferredId) {
+      const targetDocRef = doc(ref, preferredId);
+      await setDoc(targetDocRef, docData);
+      createdId = preferredId;
+    } else {
+      const docRef = await addDoc(ref, docData);
+      createdId = docRef.id;
+    }
     void syncPublicMenuProjectionInFirestore(workspace).catch(() => {});
-    return docRef.id;
+    return createdId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
     return '';
@@ -542,6 +627,11 @@ export async function updateComboInFirestore(
   if (!Number.isFinite(salePrice) || salePrice <= 0 || salePrice > 100000) {
     throw new Error('Informe um preço de venda válido para o combo.');
   }
+  const { imageUrl, imagePath } = validateAndSanitizeItemImage(
+    input.imageUrl,
+    input.imagePath,
+    workspace.id,
+  );
 
   const { ref, path } = getDocTarget(workspace, 'combos', comboId);
   try {
@@ -552,6 +642,8 @@ export async function updateComboInFirestore(
       salePrice,
       estimatedCost,
       active: Boolean(input.active),
+      imageUrl,
+      imagePath,
       updatedAt: serverTimestamp(),
     });
     void syncPublicMenuProjectionInFirestore(workspace).catch(() => {});
@@ -1143,10 +1235,21 @@ export async function syncPublicMenuProjectionInFirestore(
       phoneWhatsapp: String(d.phoneWhatsapp || ''),
       address: String(d.address || ''),
       openingHours: String(d.openingHours || ''),
+      pixKey: normalizePixKeyInput(String(d.pixKey || '')),
       deliveryFee: roundCurrency(Math.max(0, Number(d.deliveryFee) || 0)),
       minimumOrderAmount: roundCurrency(Math.max(0, Number(d.minimumOrderAmount) || 0)),
       acceptsDelivery: d.acceptsDelivery !== false,
       acceptsPickup: d.acceptsPickup !== false,
+      logoUrl: sanitizeOptionalImageUrl(typeof d.logoUrl === 'string' ? d.logoUrl : ''),
+      logoPath: sanitizeOptionalImagePath(
+        typeof d.logoPath === 'string' ? d.logoPath : '',
+        workspace.id,
+      ),
+      bannerUrl: sanitizeOptionalImageUrl(typeof d.bannerUrl === 'string' ? d.bannerUrl : ''),
+      bannerPath: sanitizeOptionalImagePath(
+        typeof d.bannerPath === 'string' ? d.bannerPath : '',
+        workspace.id,
+      ),
     };
   }
 
@@ -1164,6 +1267,7 @@ export async function syncPublicMenuProjectionInFirestore(
         category: PRODUCT_CATEGORIES.includes(p.category) ? p.category : 'Outro',
         unitPrice: roundCurrency(Math.max(0, Number(p.unitPrice) || 0)),
         countsAsXSalada: Boolean(p.countsAsXSalada),
+        imageUrl: sanitizeOptionalImageUrl(typeof p.imageUrl === 'string' ? p.imageUrl : ''),
         active: p.active !== false,
       };
     })
@@ -1179,6 +1283,7 @@ export async function syncPublicMenuProjectionInFirestore(
         description: String(c.description || ''),
         items: parseComboItems(c.items),
         salePrice: roundCurrency(Math.max(0, Number(c.salePrice) || 0)),
+        imageUrl: sanitizeOptionalImageUrl(typeof c.imageUrl === 'string' ? c.imageUrl : ''),
         active: c.active !== false,
       };
     })
@@ -1197,10 +1302,13 @@ export async function syncPublicMenuProjectionInFirestore(
     phoneWhatsapp: menuConfig.phoneWhatsapp.trim().slice(0, 32),
     address: menuConfig.address.trim().slice(0, 240),
     openingHours: menuConfig.openingHours.trim().slice(0, 160),
+    pixKey: normalizePixKeyInput(menuConfig.pixKey || ''),
     deliveryFee: roundCurrency(Math.max(0, Math.min(1000, Number(menuConfig.deliveryFee) || 0))),
     minimumOrderAmount: roundCurrency(Math.max(0, Math.min(10000, Number(menuConfig.minimumOrderAmount) || 0))),
     acceptsDelivery: Boolean(menuConfig.acceptsDelivery),
     acceptsPickup: Boolean(menuConfig.acceptsPickup),
+    logoUrl: sanitizeOptionalImageUrl(menuConfig.logoUrl),
+    bannerUrl: sanitizeOptionalImageUrl(menuConfig.bannerUrl),
     products: activeProducts.slice(0, 150),
     combos: activeCombos.slice(0, 100),
     updatedAt: serverTimestamp(),
@@ -1231,10 +1339,21 @@ export function subscribeDigitalMenuSettingsFirestore(
           phoneWhatsapp: String(d.phoneWhatsapp || ''),
           address: String(d.address || ''),
           openingHours: String(d.openingHours || ''),
+          pixKey: normalizePixKeyInput(String(d.pixKey || '')),
           deliveryFee: roundCurrency(Math.max(0, Number(d.deliveryFee) || 0)),
           minimumOrderAmount: roundCurrency(Math.max(0, Number(d.minimumOrderAmount) || 0)),
           acceptsDelivery: d.acceptsDelivery !== false,
           acceptsPickup: d.acceptsPickup !== false,
+          logoUrl: sanitizeOptionalImageUrl(typeof d.logoUrl === 'string' ? d.logoUrl : ''),
+          logoPath: sanitizeOptionalImagePath(
+            typeof d.logoPath === 'string' ? d.logoPath : '',
+            workspace.id,
+          ),
+          bannerUrl: sanitizeOptionalImageUrl(typeof d.bannerUrl === 'string' ? d.bannerUrl : ''),
+          bannerPath: sanitizeOptionalImagePath(
+            typeof d.bannerPath === 'string' ? d.bannerPath : '',
+            workspace.id,
+          ),
           updatedAtMs: parseTimestampMs(d.updatedAt) ?? Date.now(),
         });
       } else {
@@ -1272,6 +1391,9 @@ export async function saveDigitalMenuSettingsFirestore(
     throw new Error('Selecione ao menos Entrega ou Retirada.');
   }
 
+  const logo = validateAndSanitizeItemImage(input.logoUrl, input.logoPath, workspace.id);
+  const banner = validateAndSanitizeItemImage(input.bannerUrl, input.bannerPath, workspace.id);
+
   try {
     const snap = await getDoc(ref);
     const payload = {
@@ -1283,12 +1405,17 @@ export async function saveDigitalMenuSettingsFirestore(
       phoneWhatsapp: input.phoneWhatsapp.trim().slice(0, 32),
       address: input.address.trim().slice(0, 240),
       openingHours: input.openingHours.trim().slice(0, 160),
+      pixKey: normalizePixKeyInput(input.pixKey || ''),
       deliveryFee: roundCurrency(Math.max(0, Math.min(1000, Number(input.deliveryFee) || 0))),
       minimumOrderAmount: roundCurrency(
         Math.max(0, Math.min(10000, Number(input.minimumOrderAmount) || 0)),
       ),
       acceptsDelivery: Boolean(input.acceptsDelivery),
       acceptsPickup: Boolean(input.acceptsPickup),
+      logoUrl: logo.imageUrl,
+      logoPath: logo.imagePath,
+      bannerUrl: banner.imageUrl,
+      bannerPath: banner.imagePath,
     };
 
     if (snap.exists()) {
@@ -1365,13 +1492,28 @@ export async function fetchPublicDigitalMenuFirestore(
       phoneWhatsapp: String(d.phoneWhatsapp || ''),
       address: String(d.address || ''),
       openingHours: String(d.openingHours || ''),
+      pixKey: normalizePixKeyInput(String(d.pixKey || '')),
       deliveryFee: roundCurrency(Math.max(0, Number(d.deliveryFee) || 0)),
       minimumOrderAmount: roundCurrency(Math.max(0, Number(d.minimumOrderAmount) || 0)),
       acceptsDelivery: d.acceptsDelivery !== false,
       acceptsPickup: d.acceptsPickup !== false,
+      logoUrl: sanitizeOptionalImageUrl(typeof d.logoUrl === 'string' ? d.logoUrl : ''),
+      bannerUrl: sanitizeOptionalImageUrl(typeof d.bannerUrl === 'string' ? d.bannerUrl : ''),
     },
-    products: isActive && Array.isArray(d.products) ? (d.products as PublicCatalogProduct[]) : [],
-    combos: isActive && Array.isArray(d.combos) ? (d.combos as PublicCatalogCombo[]) : [],
+    products:
+      isActive && Array.isArray(d.products)
+        ? (d.products as PublicCatalogProduct[]).map((p) => ({
+            ...p,
+            imageUrl: sanitizeOptionalImageUrl(p.imageUrl),
+          }))
+        : [],
+    combos:
+      isActive && Array.isArray(d.combos)
+        ? (d.combos as PublicCatalogCombo[]).map((c) => ({
+            ...c,
+            imageUrl: sanitizeOptionalImageUrl(c.imageUrl),
+          }))
+        : [],
   };
 }
 
@@ -1395,6 +1537,7 @@ export async function createPublicOnlineOrderFirestore(
     phoneWhatsapp: String(menuData.phoneWhatsapp || ''),
     address: String(menuData.address || ''),
     openingHours: String(menuData.openingHours || ''),
+    pixKey: normalizePixKeyInput(String(menuData.pixKey || '')),
     deliveryFee: roundCurrency(Math.max(0, Number(menuData.deliveryFee) || 0)),
     minimumOrderAmount: roundCurrency(Math.max(0, Number(menuData.minimumOrderAmount) || 0)),
     acceptsDelivery: menuData.acceptsDelivery !== false,
@@ -1565,6 +1708,7 @@ export async function createPublicOnlineOrderFirestore(
     storeSlug: targetSlug,
     storeWhatsapp: menuSettings.phoneWhatsapp,
     storeAddress: menuSettings.address,
+    storePixKey: normalizePixKeyInput(menuSettings.pixKey || ''),
     items: orderItems.map((it) => ({
       id: it.id,
       itemKind: it.itemKind,
@@ -1620,6 +1764,7 @@ function mapTrackingSnap(d: Record<string, unknown>): PublicOrderTrackingRecord 
     storeSlug: String(d.storeSlug || 'mgw_lanches'),
     storeWhatsapp: String(d.storeWhatsapp || ''),
     storeAddress: String(d.storeAddress || ''),
+    storePixKey: normalizePixKeyInput(String(d.storePixKey || '')),
     createdAtMs: parseTimestampMs(d.createdAt) ?? Date.now(),
     updatedAtMs: parseTimestampMs(d.updatedAt) ?? Date.now(),
     items: Array.isArray(d.items)

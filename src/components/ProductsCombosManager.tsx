@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Check,
+  Image as ImageIcon,
   Minus,
   PackagePlus,
   Pencil,
@@ -10,6 +11,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { deleteTenantMenuImage } from '../services/storageService';
 import {
   type ComboInput,
   type ComboProductItem,
@@ -20,8 +22,11 @@ import {
   type ProductRecord,
 } from '../types/finance';
 import { formatCurrencyBRL } from '../utils/finance';
+import { generateDraftEntityId } from '../utils/imageUpload';
+import { ImageUploadField } from './ImageUploadField';
 
 interface ProductsCombosManagerProps {
+  workspaceId: string;
   products: ProductRecord[];
   combos: ComboRecord[];
   defaultXSaladaPrice: number;
@@ -33,6 +38,7 @@ interface ProductsCombosManagerProps {
 }
 
 export function ProductsCombosManager({
+  workspaceId,
   products,
   combos,
   defaultXSaladaPrice,
@@ -42,6 +48,7 @@ export function ProductsCombosManager({
   onUpdateCombo,
   onSeedCatalog,
 }: ProductsCombosManagerProps) {
+  const effectiveWorkspaceId = workspaceId || 'mgw_lanches';
   const [sectionTab, setSectionTab] = useState<'combos' | 'products'>('combos');
   const [feedback, setFeedback] = useState<{ text: string; type: 'ok' | 'err' } | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -49,21 +56,29 @@ export function ProductsCombosManager({
   // Product form state
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductRecord | null>(null);
+  const [draftProductId, setDraftProductId] = useState('');
   const [prodName, setProdName] = useState('');
   const [prodCategory, setProdCategory] = useState<ProductCategory>('Lanche');
   const [prodPrice, setProdPrice] = useState(String(defaultXSaladaPrice));
   const [prodCountsXSalada, setProdCountsXSalada] = useState(false);
   const [prodActive, setProdActive] = useState(true);
+  const [prodImageUrl, setProdImageUrl] = useState('');
+  const [prodImagePath, setProdImagePath] = useState('');
+  const [uploadingProdImage, setUploadingProdImage] = useState(false);
   const [savingProduct, setSavingProduct] = useState(false);
 
   // Combo form state
   const [comboFormOpen, setComboFormOpen] = useState(false);
   const [editingCombo, setEditingCombo] = useState<ComboRecord | null>(null);
+  const [draftComboId, setDraftComboId] = useState('');
   const [comboName, setComboName] = useState('');
   const [comboDescription, setComboDescription] = useState('');
   const [comboPrice, setComboPrice] = useState('');
   const [comboCost, setComboCost] = useState('');
   const [comboActive, setComboActive] = useState(true);
+  const [comboImageUrl, setComboImageUrl] = useState('');
+  const [comboImagePath, setComboImagePath] = useState('');
+  const [uploadingComboImage, setUploadingComboImage] = useState(false);
   const [comboItems, setComboItems] = useState<ComboProductItem[]>([]);
   const [selectedProdToAdd, setSelectedProdToAdd] = useState('');
   const [savingCombo, setSavingCombo] = useState(false);
@@ -75,27 +90,33 @@ export function ProductsCombosManager({
 
   function openNewProduct() {
     setEditingProduct(null);
+    setDraftProductId(generateDraftEntityId('prod'));
     setProdName('');
     setProdCategory('Bebida');
     setProdPrice('');
     setProdCountsXSalada(false);
     setProdActive(true);
+    setProdImageUrl('');
+    setProdImagePath('');
     setProductFormOpen(true);
   }
 
   function openEditProduct(p: ProductRecord) {
     setEditingProduct(p);
+    setDraftProductId(p.id);
     setProdName(p.name);
     setProdCategory(p.category);
     setProdPrice(String(p.unitPrice));
     setProdCountsXSalada(p.countsAsXSalada);
     setProdActive(p.active);
+    setProdImageUrl(p.imageUrl || '');
+    setProdImagePath(p.imagePath || '');
     setProductFormOpen(true);
   }
 
   async function handleSaveProduct(e: React.FormEvent) {
     e.preventDefault();
-    if (savingProduct) return;
+    if (savingProduct || uploadingProdImage) return;
 
     const cleanName = prodName.trim();
     const parsedPrice = Number(String(prodPrice).replace(',', '.'));
@@ -108,6 +129,7 @@ export function ProductsCombosManager({
       return;
     }
 
+    const previousSavedPath = editingProduct?.imagePath || '';
     setSavingProduct(true);
     try {
       const payload: ProductInput = {
@@ -116,12 +138,20 @@ export function ProductsCombosManager({
         unitPrice: parsedPrice,
         countsAsXSalada: prodCountsXSalada,
         active: prodActive,
+        imageUrl: prodImageUrl,
+        imagePath: prodImagePath,
       };
       if (editingProduct) {
         await onUpdateProduct(editingProduct.id, payload);
+        if (previousSavedPath && previousSavedPath !== prodImagePath) {
+          void deleteTenantMenuImage(effectiveWorkspaceId, previousSavedPath);
+        }
         showNotice('Produto atualizado.');
       } else {
-        await onCreateProduct(payload);
+        await onCreateProduct({
+          ...payload,
+          preferredId: draftProductId || undefined,
+        });
         showNotice('Produto cadastrado.');
       }
       setProductFormOpen(false);
@@ -141,6 +171,8 @@ export function ProductsCombosManager({
         unitPrice: p.unitPrice,
         countsAsXSalada: p.countsAsXSalada,
         active: !p.active,
+        imageUrl: p.imageUrl || '',
+        imagePath: p.imagePath || '',
       });
       showNotice(p.active ? `Produto "${p.name}" desativado.` : `Produto "${p.name}" reativado.`);
     } catch (err) {
@@ -150,11 +182,14 @@ export function ProductsCombosManager({
 
   function openNewCombo() {
     setEditingCombo(null);
+    setDraftComboId(generateDraftEntityId('combo'));
     setComboName('');
     setComboDescription('');
     setComboPrice('');
     setComboCost('');
     setComboActive(true);
+    setComboImageUrl('');
+    setComboImagePath('');
     const activeProducts = products.filter((p) => p.active);
     const firstX = activeProducts.find((p) => p.countsAsXSalada);
     setComboItems(
@@ -175,11 +210,14 @@ export function ProductsCombosManager({
 
   function openEditCombo(c: ComboRecord) {
     setEditingCombo(c);
+    setDraftComboId(c.id);
     setComboName(c.name);
     setComboDescription(c.description);
     setComboPrice(String(c.salePrice));
     setComboCost(c.estimatedCost > 0 ? String(c.estimatedCost) : '');
     setComboActive(c.active);
+    setComboImageUrl(c.imageUrl || '');
+    setComboImagePath(c.imagePath || '');
     setComboItems(c.items.map((item) => ({ ...item })));
     const firstAvail = products.find((p) => p.active)?.id ?? products[0]?.id ?? '';
     setSelectedProdToAdd(firstAvail);
@@ -224,7 +262,7 @@ export function ProductsCombosManager({
 
   async function handleSaveCombo(e: React.FormEvent) {
     e.preventDefault();
-    if (savingCombo) return;
+    if (savingCombo || uploadingComboImage) return;
 
     const cleanName = comboName.trim();
     const parsedPrice = Number(String(comboPrice).replace(',', '.'));
@@ -253,6 +291,7 @@ export function ProductsCombosManager({
       comboDescription.trim() ||
       comboItems.map((i) => `${i.quantity} ${i.productName}`).join(' + ');
 
+    const previousSavedPath = editingCombo?.imagePath || '';
     setSavingCombo(true);
     try {
       const payload: ComboInput = {
@@ -262,12 +301,20 @@ export function ProductsCombosManager({
         salePrice: parsedPrice,
         estimatedCost: parsedCost,
         active: comboActive,
+        imageUrl: comboImageUrl,
+        imagePath: comboImagePath,
       };
       if (editingCombo) {
         await onUpdateCombo(editingCombo.id, payload);
+        if (previousSavedPath && previousSavedPath !== comboImagePath) {
+          void deleteTenantMenuImage(effectiveWorkspaceId, previousSavedPath);
+        }
         showNotice('Combo atualizado (vendas antigas permanecem preservadas).');
       } else {
-        await onCreateCombo(payload);
+        await onCreateCombo({
+          ...payload,
+          preferredId: draftComboId || undefined,
+        });
         showNotice('Combo cadastrado com sucesso.');
       }
       setComboFormOpen(false);
@@ -288,6 +335,8 @@ export function ProductsCombosManager({
         salePrice: c.salePrice,
         estimatedCost: c.estimatedCost,
         active: !c.active,
+        imageUrl: c.imageUrl || '',
+        imagePath: c.imagePath || '',
       });
       showNotice(c.active ? `Combo "${c.name}" desativado.` : `Combo "${c.name}" reativado.`);
     } catch (err) {
@@ -509,6 +558,25 @@ export function ProductsCombosManager({
                 />
               </div>
 
+              <ImageUploadField
+                label="Foto do combo (opcional)"
+                helperText="Exibida no cardápio digital para destacar este combo."
+                workspaceId={effectiveWorkspaceId}
+                folder="combos"
+                entityHint={comboName || editingCombo?.id || 'combo'}
+                entityId={editingCombo?.id || draftComboId}
+                preset="catalog"
+                valueUrl={comboImageUrl}
+                valuePath={comboImagePath}
+                savedPath={editingCombo?.imagePath || ''}
+                onChange={({ url, path }) => {
+                  setComboImageUrl(url);
+                  setComboImagePath(path);
+                }}
+                onUploadingChange={setUploadingComboImage}
+                disabled={savingCombo}
+              />
+
               {/* Products Composition */}
               <div className="space-y-3 pt-2 border-t border-[#232834]">
                 <p className="text-xs font-semibold text-[#D1D5DB]">
@@ -607,10 +675,16 @@ export function ProductsCombosManager({
               <div className="flex flex-wrap gap-2 pt-2">
                 <button
                   type="submit"
-                  disabled={savingCombo}
+                  disabled={savingCombo || uploadingComboImage}
                   className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold cursor-pointer disabled:opacity-60"
                 >
-                  {savingCombo ? 'Salvando...' : editingCombo ? 'Salvar Alterações' : 'Cadastrar Combo'}
+                  {savingCombo
+                    ? 'Salvando...'
+                    : uploadingComboImage
+                      ? 'Enviando foto...'
+                      : editingCombo
+                        ? 'Salvar Alterações'
+                        : 'Cadastrar Combo'}
                 </button>
                 <button
                   type="button"
@@ -647,22 +721,37 @@ export function ProductsCombosManager({
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-[#F3F4F6] truncate">
-                            {c.name}
-                          </h4>
-                          <span
-                            className={`text-[11px] font-semibold ${
-                              c.active ? 'text-[#22C55E]' : 'text-[#9CA3AF]'
-                            }`}
-                          >
-                            · {c.active ? 'Ativo' : 'Inativo'}
-                          </span>
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="w-12 h-12 rounded-xl border border-[#232834] bg-[#0B0D11] overflow-hidden flex items-center justify-center shrink-0">
+                          {c.imageUrl ? (
+                            <img
+                              src={c.imageUrl}
+                              alt={c.name}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="w-4 h-4 text-[#6B7280]" />
+                          )}
                         </div>
-                        <p className="text-xs text-[#9CA3AF] mt-0.5">
-                          {c.description || c.items.map((i) => `${i.quantity}x ${i.productName}`).join(' + ')}
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-[#F3F4F6] truncate">
+                              {c.name}
+                            </h4>
+                            <span
+                              className={`text-[11px] font-semibold ${
+                                c.active ? 'text-[#22C55E]' : 'text-[#9CA3AF]'
+                              }`}
+                            >
+                              · {c.active ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[#9CA3AF] mt-0.5">
+                            {c.description || c.items.map((i) => `${i.quantity}x ${i.productName}`).join(' + ')}
+                          </p>
+                        </div>
                       </div>
                       <span className="text-base font-bold text-[#F5B731] font-mono tabular-nums shrink-0">
                         {formatCurrencyBRL(c.salePrice)}
@@ -807,13 +896,38 @@ export function ProductsCombosManager({
                 </div>
               </div>
 
+              <ImageUploadField
+                label="Foto do produto (opcional)"
+                helperText="Exibida nos cards e detalhes do cardápio digital."
+                workspaceId={effectiveWorkspaceId}
+                folder="products"
+                entityHint={prodName || editingProduct?.id || 'produto'}
+                entityId={editingProduct?.id || draftProductId}
+                preset="catalog"
+                valueUrl={prodImageUrl}
+                valuePath={prodImagePath}
+                savedPath={editingProduct?.imagePath || ''}
+                onChange={({ url, path }) => {
+                  setProdImageUrl(url);
+                  setProdImagePath(path);
+                }}
+                onUploadingChange={setUploadingProdImage}
+                disabled={savingProduct}
+              />
+
               <div className="flex flex-wrap gap-2 pt-2">
                 <button
                   type="submit"
-                  disabled={savingProduct}
+                  disabled={savingProduct || uploadingProdImage}
                   className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold cursor-pointer disabled:opacity-60"
                 >
-                  {savingProduct ? 'Salvando...' : editingProduct ? 'Salvar Produto' : 'Cadastrar Produto'}
+                  {savingProduct
+                    ? 'Salvando...'
+                    : uploadingProdImage
+                      ? 'Enviando foto...'
+                      : editingProduct
+                        ? 'Salvar Produto'
+                        : 'Cadastrar Produto'}
                 </button>
                 <button
                   type="button"
@@ -844,23 +958,38 @@ export function ProductsCombosManager({
                     p.active ? '' : 'opacity-65'
                   }`}
                 >
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-[#F3F4F6] truncate">
-                        {p.name}
-                      </span>
-                      <span
-                        className={`text-[11px] font-semibold ${
-                          p.active ? 'text-[#22C55E]' : 'text-[#9CA3AF]'
-                        }`}
-                      >
-                        · {p.active ? 'Ativo' : 'Inativo'}
-                      </span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-xl border border-[#232834] bg-[#0B0D11] overflow-hidden flex items-center justify-center shrink-0">
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={p.name}
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <ImageIcon className="w-4 h-4 text-[#6B7280]" />
+                      )}
                     </div>
-                    <p className="text-xs text-[#9CA3AF] font-mono tabular-nums">
-                      {p.category} · {formatCurrencyBRL(p.unitPrice)}
-                      {p.countsAsXSalada ? ' · Conta como X-Salada' : ''}
-                    </p>
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-[#F3F4F6] truncate">
+                          {p.name}
+                        </span>
+                        <span
+                          className={`text-[11px] font-semibold ${
+                            p.active ? 'text-[#22C55E]' : 'text-[#9CA3AF]'
+                          }`}
+                        >
+                          · {p.active ? 'Ativo' : 'Inativo'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#9CA3AF] font-mono tabular-nums">
+                        {p.category} · {formatCurrencyBRL(p.unitPrice)}
+                        {p.countsAsXSalada ? ' · Conta como X-Salada' : ''}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">

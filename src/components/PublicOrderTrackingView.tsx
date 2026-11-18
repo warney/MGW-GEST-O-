@@ -4,9 +4,11 @@ import {
   ArrowLeft,
   Check,
   Clock,
+  Copy,
   MapPin,
   MessageCircle,
   Package,
+  Printer,
   RefreshCw,
   ShoppingBag,
 } from 'lucide-react';
@@ -22,8 +24,12 @@ import {
   formatOrderNumber,
   formatTimeBR,
   getTrackingFlowSteps,
+  normalizePixKeyInput,
   ORDER_STATUS_LABELS,
+  shouldShowOrderPixPaymentBox,
 } from '../utils/onlineOrders';
+import { fromPublicTrackingRecord } from '../utils/orderPrint';
+import { OrderPrintModal } from './OrderPrintModal';
 
 interface PublicOrderTrackingViewProps {
   token: string;
@@ -52,6 +58,49 @@ export function PublicOrderTrackingView({
   const [order, setOrder] = useState<PublicOrderTrackingRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [printingOpen, setPrintingOpen] = useState(false);
+  const [copiedPix, setCopiedPix] = useState(false);
+
+  async function handleCopyPixKey(rawKey: string) {
+    const cleanKey = normalizePixKeyInput(rawKey);
+    if (!cleanKey) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(cleanKey);
+      } else {
+        const input = document.createElement('input');
+        input.value = cleanKey;
+        input.setAttribute('readonly', '');
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        document.body.appendChild(input);
+        input.select();
+        input.setSelectionRange(0, cleanKey.length);
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+      setCopiedPix(true);
+      setTimeout(() => setCopiedPix(false), 3500);
+    } catch {
+      // Fall back to execCommand when Clipboard API permission is denied (e.g. iframe)
+      try {
+        const input = document.createElement('input');
+        input.value = cleanKey;
+        input.setAttribute('readonly', '');
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        document.body.appendChild(input);
+        input.select();
+        input.setSelectionRange(0, cleanKey.length);
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        setCopiedPix(true);
+        setTimeout(() => setCopiedPix(false), 3500);
+      } catch {
+        setCopiedPix(false);
+      }
+    }
+  }
 
   async function loadInitial() {
     setLoading(true);
@@ -169,14 +218,25 @@ export function PublicOrderTrackingView({
               Voltar ao cardápio
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => void loadInitial()}
-            className="min-h-[40px] px-3 rounded-xl border border-[#232834] bg-[#12151C] text-xs font-medium text-[#9CA3AF] hover:text-[#F3F4F6] inline-flex items-center gap-1.5 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Atualizar
-          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => setPrintingOpen(true)}
+              aria-label={`Imprimir pedido ${formatOrderNumber(order.orderNumber)}`}
+              className="min-h-[40px] px-3 rounded-xl border border-[#232834] hover:border-[#F5B731]/50 bg-[#12151C] text-xs font-semibold text-[#D1D5DB] hover:text-[#F5B731] inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Imprimir
+            </button>
+            <button
+              type="button"
+              onClick={() => void loadInitial()}
+              className="min-h-[40px] px-3 rounded-xl border border-[#232834] bg-[#12151C] text-xs font-medium text-[#9CA3AF] hover:text-[#F3F4F6] inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Atualizar
+            </button>
+          </div>
         </div>
 
         {/* Status Callout Card */}
@@ -257,6 +317,67 @@ export function PublicOrderTrackingView({
             </div>
           )}
         </section>
+
+        {/* Optional Pix Copy-and-Paste Card */}
+        {shouldShowOrderPixPaymentBox(order) && (
+          <section
+            data-testid="tracking-pix-card"
+            className="bg-[#12151C] border border-[#F5B731]/40 rounded-2xl p-5 sm:p-6 space-y-3.5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="space-y-0.5">
+                <h2 className="text-sm font-bold text-[#F3F4F6]">
+                  Pagar com Pix (opcional antecipar)
+                </h2>
+                <p className="text-xs text-[#9CA3AF]">
+                  Se preferir, você também pode pagar na{' '}
+                  {order.fulfillmentType === 'delivery'
+                    ? 'entrega'
+                    : 'retirada no balcão'}
+                  .
+                </p>
+              </div>
+              <span className="font-mono tabular-nums text-sm font-bold text-[#F5B731] bg-[#F5B731]/10 border border-[#F5B731]/30 px-2.5 py-1 rounded-lg">
+                {formatCurrencyBRL(order.totalAmount)}
+              </span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-[#0B0D11] border border-[#232834] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] text-[#9CA3AF]">Chave Pix da loja</p>
+                <p
+                  data-testid="tracking-pix-key-value"
+                  className="text-sm font-mono text-[#F3F4F6] break-all select-all mt-0.5"
+                >
+                  {order.storePixKey}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                data-testid="copy-pix-key-btn"
+                onClick={() => void handleCopyPixKey(order.storePixKey)}
+                className={`min-h-[42px] px-4 rounded-xl text-xs font-bold inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer transition-colors ${
+                  copiedPix
+                    ? 'bg-[#22C55E] text-[#0B0D11]'
+                    : 'bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11]'
+                }`}
+              >
+                {copiedPix ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Chave Pix copiada!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Copiar chave Pix
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Order Details & Summary */}
         <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 sm:p-6 space-y-4">
@@ -397,6 +518,12 @@ export function PublicOrderTrackingView({
           </section>
         )}
       </div>
+
+      <OrderPrintModal
+        order={printingOpen ? fromPublicTrackingRecord(order) : null}
+        allowKitchenToggle={false}
+        onClose={() => setPrintingOpen(false)}
+      />
     </div>
   );
 }

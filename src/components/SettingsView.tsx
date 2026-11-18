@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Globe, Layers, Save, Store } from 'lucide-react';
+import { Check, Globe, Layers, Loader2, Save, Store } from 'lucide-react';
 import type {
   ComboInput,
   ComboRecord,
@@ -13,6 +13,7 @@ import { DigitalMenuSettingsPanel } from './DigitalMenuSettingsPanel';
 import { ProductsCombosManager } from './ProductsCombosManager';
 
 interface SettingsViewProps {
+  workspaceId: string;
   settings: ShopSettings;
   products: ProductRecord[];
   combos: ComboRecord[];
@@ -29,6 +30,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({
+  workspaceId,
   settings,
   products,
   combos,
@@ -76,35 +78,30 @@ export function SettingsView({
     e.preventDefault();
     if (isSaving) return;
 
-    const cleanName = establishmentName.trim();
-    const parsedPrice = Number(String(xSaladaPrice).replace(',', '.'));
-    const parsedDaily = Number(String(dailyGoal).replace(',', '.'));
-    const parsedMonthly = Number(String(monthlyGoal).replace(',', '.'));
-
-    if (!cleanName) {
-      setError('Informe o nome do estabelecimento.');
-      return;
-    }
-    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
-      setError('O preço do X-Salada deve ser maior que zero.');
-      return;
-    }
-    if (!Number.isFinite(parsedDaily) || parsedDaily < 0) {
-      setError('Informe uma meta diária válida.');
-      return;
-    }
-    if (!Number.isFinite(parsedMonthly) || parsedMonthly < 0) {
-      setError('Informe uma meta mensal válida.');
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-      setError('Informe uma data de início válida.');
-      return;
-    }
-
     setError(null);
     setIsSaving(true);
     try {
+      const cleanName = establishmentName.trim();
+      const parsedPrice = Number(String(xSaladaPrice).replace(',', '.'));
+      const parsedDaily = Number(String(dailyGoal).replace(',', '.'));
+      const parsedMonthly = Number(String(monthlyGoal).replace(',', '.'));
+
+      if (!cleanName) {
+        throw new Error('Informe o nome do estabelecimento.');
+      }
+      if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+        throw new Error('O preço do X-Salada deve ser maior que zero.');
+      }
+      if (!Number.isFinite(parsedDaily) || parsedDaily < 0) {
+        throw new Error('Informe uma meta diária válida.');
+      }
+      if (!Number.isFinite(parsedMonthly) || parsedMonthly < 0) {
+        throw new Error('Informe uma meta mensal válida.');
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        throw new Error('Informe uma data de início válida.');
+      }
+
       await onSaveSettings({
         establishmentName: cleanName,
         xSaladaPrice: parsedPrice,
@@ -115,6 +112,7 @@ export function SettingsView({
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 3500);
     } catch (err) {
+      console.error('Erro ao validar ou salvar Configurações da Lanchonete:', err);
       setError(
         err instanceof Error ? err.message : 'Erro ao salvar configurações.',
       );
@@ -179,6 +177,7 @@ export function SettingsView({
 
       {activeTab === 'catalog' ? (
         <ProductsCombosManager
+          workspaceId={workspaceId}
           products={products}
           combos={combos}
           defaultXSaladaPrice={settings.xSaladaPrice}
@@ -190,6 +189,7 @@ export function SettingsView({
         />
       ) : activeTab === 'digital_menu' ? (
         <DigitalMenuSettingsPanel
+          workspaceId={workspaceId}
           settings={digitalMenuSettings}
           activeProductsCount={products.filter((p) => p.active).length}
           activeCombosCount={combos.filter((c) => c.active).length}
@@ -211,7 +211,7 @@ export function SettingsView({
             {error && (
               <div
                 role="alert"
-                className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5]"
+                className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5] break-words"
               >
                 {error}
               </div>
@@ -333,10 +333,20 @@ export function SettingsView({
               <button
                 type="submit"
                 disabled={isSaving}
+                aria-busy={isSaving}
                 className="w-full sm:w-auto min-h-[46px] px-6 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-60"
               >
-                <Save className="w-4 h-4" />
-                {isSaving ? 'Salvando...' : 'Salvar Configurações'}
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Salvar Configurações
+                  </>
+                )}
               </button>
             </div>
           </form>
