@@ -43,3 +43,25 @@ A migration inclui uma verificacao defensiva e aborta a transacao se a role `aut
 ## Validacao pendente
 
 Esta branch ainda nao deve ser considerada pronta para merge ou producao. A migration 004 foi revisada estaticamente, mas ainda precisa ser executada e testada em QA com as migrations anteriores.
+
+
+## Implementação adicional — taxas por bairro (branch de revisão)
+
+Implementado na branch, ainda sem aplicar ao Supabase:
+- Tabela tenant-scoped `delivery_zones`, com RLS e permissões para owner/admin/manager.
+- Cadastro e ativação/desativação de bairros e taxas no painel Cardápio Digital.
+- Cardápio público lista somente bairros ativos e suas taxas.
+- Checkout exige bairro para entrega; retirada não exige bairro e permanece com taxa zero.
+- A RPC `create_public_online_order` valida o bairro ativo e calcula a taxa no servidor; não confia no valor enviado pelo navegador.
+- Pedido guarda o bairro separadamente, e o painel administrativo e rastreamento exibem essa informação.
+- Migração adicional para expor o bairro na consulta pública de rastreamento.
+- Taxa global antiga permanece no esquema por compatibilidade, mas a interface a identifica como legado e ela não é aplicada aos novos pedidos.
+
+Pendências obrigatórias antes de produção:
+1. Aplicar todas as migrações somente em projeto Supabase de teste e validar as funções/RLS.
+2. Executar `npm run lint` e `npm run build` via CI e corrigir qualquer falha.
+3. Testar cadastro/edição/ativação de bairro, pedido por entrega, bairro inativo/inexistente, retirada, cálculo do total, criação de venda idempotente e rastreamento.
+4. Confirmar estratégia de migração Firebase → Supabase e quais tenants/dados devem ser migrados.
+5. Revisar a função `rls_auto_enable()` e os alertas do Security Advisor sem desativar o event trigger às cegas.
+
+Nenhuma migração foi executada no projeto Supabase oficial. Nenhuma variável de produção foi alterada. Não houve merge para `main`.
