@@ -10,12 +10,16 @@ import {
 import type {
   DigitalMenuSettings,
   DigitalMenuSettingsInput,
+  DeliveryZone,
+  DeliveryZoneInput,
 } from '../types/finance';
 import { formatCurrencyBRL } from '../utils/finance';
 import { sanitizeMenuSlug } from '../utils/onlineOrders';
 
 interface DigitalMenuSettingsPanelProps {
   settings: DigitalMenuSettings;
+  deliveryZones: DeliveryZone[];
+  onSaveDeliveryZone: (input: DeliveryZoneInput, id?: string) => Promise<void>;
   activeProductsCount: number;
   activeCombosCount: number;
   onSave: (input: DigitalMenuSettingsInput) => Promise<void>;
@@ -24,6 +28,8 @@ interface DigitalMenuSettingsPanelProps {
 
 export function DigitalMenuSettingsPanel({
   settings,
+  deliveryZones,
+  onSaveDeliveryZone,
   activeProductsCount,
   activeCombosCount,
   onSave,
@@ -43,6 +49,9 @@ export function DigitalMenuSettingsPanel({
   );
   const [acceptsDelivery, setAcceptsDelivery] = useState(settings.acceptsDelivery);
   const [acceptsPickup, setAcceptsPickup] = useState(settings.acceptsPickup);
+  const [zoneName, setZoneName] = useState('');
+  const [zoneFee, setZoneFee] = useState('');
+  const [zoneSaving, setZoneSaving] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
@@ -477,6 +486,34 @@ export function DigitalMenuSettingsPanel({
             </p>
           </div>
         </div>
+
+        {/* Delivery zones */}
+        <section className="rounded-xl border border-[#232834] bg-[#0B0D11] p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-[#F3F4F6]">Taxas por bairro</h3>
+            <p className="text-xs text-[#9CA3AF] mt-1">Cadastre cada bairro e sua taxa. O valor será validado no servidor no momento do pedido.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px_auto] gap-2">
+            <input value={zoneName} onChange={(e) => setZoneName(e.target.value)} maxLength={100} placeholder="Nome do bairro" className="min-h-[42px] px-3 rounded-lg bg-[#12151C] border border-[#232834] text-sm text-[#F3F4F6]" />
+            <input value={zoneFee} onChange={(e) => setZoneFee(e.target.value)} type="number" min="0" max="1000" step="0.5" inputMode="decimal" placeholder="Taxa R$" className="min-h-[42px] px-3 rounded-lg bg-[#12151C] border border-[#232834] text-sm text-[#F3F4F6]" />
+            <button type="button" disabled={zoneSaving || !zoneName.trim() || zoneFee === ''} onClick={async () => {
+              const fee = Number(zoneFee.replace(',', '.'));
+              if (!Number.isFinite(fee) || fee < 0 || fee > 1000) { setError('Informe uma taxa válida entre R$ 0,00 e R$ 1.000,00.'); return; }
+              setZoneSaving(true); setError(null);
+              try { await onSaveDeliveryZone({ name: zoneName.trim(), deliveryFee: fee, active: true, sortOrder: deliveryZones.length }); setZoneName(''); setZoneFee(''); }
+              catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar o bairro.'); }
+              finally { setZoneSaving(false); }
+            }} className="min-h-[42px] px-4 rounded-lg bg-[#F5B731] text-[#0B0D11] text-xs font-bold disabled:opacity-50">{zoneSaving ? 'Salvando...' : 'Adicionar'}</button>
+          </div>
+          {deliveryZones.length === 0 ? <p className="text-xs text-[#9CA3AF]">Nenhum bairro cadastrado. Cadastre os bairros atendidos para liberar pedidos por entrega.</p> : (
+            <div className="divide-y divide-[#232834]">
+              {deliveryZones.map((zone) => <div key={zone.id} className="py-2 flex items-center justify-between gap-3">
+                <div className="min-w-0"><p className="text-sm text-[#F3F4F6] font-medium truncate">{zone.name}</p><p className="text-xs text-[#9CA3AF]">{formatCurrencyBRL(zone.deliveryFee)}</p></div>
+                <button type="button" disabled={zoneSaving} onClick={async () => { setZoneSaving(true); try { await onSaveDeliveryZone({ name: zone.name, deliveryFee: zone.deliveryFee, active: !zone.active, sortOrder: zone.sortOrder }, zone.id); } catch (err) { setError(err instanceof Error ? err.message : 'Falha ao atualizar bairro.'); } finally { setZoneSaving(false); } }} className={zone.active ? 'text-xs font-semibold px-3 py-2 rounded-lg border border-[#22C55E]/40 text-[#86EFAC]' : 'text-xs font-semibold px-3 py-2 rounded-lg border border-[#6B7280]/40 text-[#9CA3AF]'}>{zone.active ? 'Ativo' : 'Inativo'}</button>
+              </div>)}
+            </div>
+          )}
+        </section>
 
         {/* Fulfillment Options */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
