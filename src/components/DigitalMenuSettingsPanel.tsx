@@ -316,7 +316,10 @@ export function DigitalMenuSettingsPanel({
           </div>
         )}
 
-        {/* Quick Toggles */}
+        <div className="pt-1">
+          <h3 className="text-sm font-semibold text-[#F3F4F6]">Status de funcionamento</h3>
+          <p className="text-xs text-[#9CA3AF] mt-1">Controle a disponibilidade do cardápio e o recebimento de pedidos.</p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="flex items-start gap-3 p-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] cursor-pointer">
             <input
@@ -353,7 +356,10 @@ export function DigitalMenuSettingsPanel({
           </label>
         </div>
 
-        {/* Store Identity & Slug */}
+        <div className="pt-4 border-t border-[#232834]">
+          <h3 className="text-sm font-semibold text-[#F3F4F6]">Dados do estabelecimento</h3>
+          <p className="text-xs text-[#9CA3AF] mt-1">Nome público, endereço do cardápio e apresentação da lanchonete para os clientes.</p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label
@@ -414,7 +420,10 @@ export function DigitalMenuSettingsPanel({
           />
         </div>
 
-        {/* Store Branding Images (Logo & Banner) */}
+        <div className="pt-4 border-t border-[#232834]">
+          <h3 className="text-sm font-semibold text-[#F3F4F6]">Identidade visual</h3>
+          <p className="text-xs text-[#9CA3AF] mt-1">Logo e banner exibidos no cabeçalho do cardápio público.</p>
+        </div>
         <div className="space-y-3 pt-1">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#F5B731]">
@@ -463,6 +472,10 @@ export function DigitalMenuSettingsPanel({
           </div>
         </div>
 
+        <div className="pt-4 border-t border-[#232834]">
+          <h3 className="text-sm font-semibold text-[#F3F4F6]">Contato e funcionamento</h3>
+          <p className="text-xs text-[#9CA3AF] mt-1">Informações que ajudam o cliente a entrar em contato e saber quando a loja atende.</p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label
@@ -489,15 +502,16 @@ export function DigitalMenuSettingsPanel({
             >
               Horário de funcionamento
             </label>
-            <input
+            <textarea
               id="dm-hours"
-              type="text"
-              maxLength={160}
+              rows={2}
+              maxLength={500}
               value={openingHours}
               onChange={(e) => setOpeningHours(e.target.value)}
-              placeholder="Terça a Domingo · 18h às 23h30"
-              className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+              placeholder="Segunda a sexta: 18h às 23h\nSábado e domingo: 18h às 00h"
+              className="w-full min-h-[76px] px-3.5 py-2.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] resize-y"
             />
+            <p className="text-[11px] text-[#9CA3AF] mt-1">Você pode informar os dias e horários em linhas separadas. Esse texto será exibido no cardápio público.</p>
           </div>
         </div>
 
@@ -519,6 +533,10 @@ export function DigitalMenuSettingsPanel({
           />
         </div>
 
+        <div className="pt-4 border-t border-[#232834]">
+          <h3 className="text-sm font-semibold text-[#F3F4F6]">Entrega, retirada e pagamento</h3>
+          <p className="text-xs text-[#9CA3AF] mt-1">Configure taxas, pedido mínimo, modalidades disponíveis e a chave Pix exibida ao cliente.</p>
+        </div>
         <div>
           <label
             htmlFor="dm-pix-key"
