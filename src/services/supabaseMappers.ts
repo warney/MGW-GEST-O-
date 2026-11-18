@@ -186,6 +186,7 @@ export interface SupabaseOnlineOrderRow {
   customer_name: string;
   customer_phone: string;
   delivery_address: string;
+  delivery_neighborhood?: string;
   delivery_reference: string;
   payment_method: string;
   change_for: number | string | null;
@@ -810,6 +811,7 @@ export function mapOnlineOrderRow(
     customerName: String(row.customer_name || ''),
     customerPhone: String(row.customer_phone || ''),
     deliveryAddress: String(row.delivery_address || ''),
+    deliveryNeighborhood: String(row.delivery_neighborhood || ''),
     deliveryReference: String(row.delivery_reference || ''),
     paymentMethod: normalizeOnlinePaymentMethod(row.payment_method),
     changeFor:
