@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Download, Share, Smartphone, X } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
-export function PWAInstallButton() {
+export function PWAInstallButton({ appName = 'MGW Gestão', installLabel = 'Instalar no celular' }: PWAInstallButtonProps) {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIOSGuide, setShowIOSGuide] = useState(false);
 
@@ -18,7 +18,7 @@ export function PWAInstallButton() {
         className="min-h-[40px] px-3.5 rounded-xl border border-[#F5B731]/50 bg-[#F5B731]/12 hover:bg-[#F5B731]/20 text-[#F5B731] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
       >
         <Download className="w-3.5 h-3.5" />
-        <span>Instalar no celular</span>
+        <span>{installLabel}</span>
       </button>
     );
   }
@@ -48,7 +48,7 @@ export function PWAInstallButton() {
                   id="ios-pwa-guide-title"
                   className="text-sm font-bold text-[#F3F4F6]"
                 >
-                  Instalar MGW GESTÃO no iPhone
+                  Instalar {appName} no iPhone
                 </h3>
                 <button
                   type="button"
