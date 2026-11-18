@@ -67,6 +67,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryNeighborhood, setDeliveryNeighborhood] = useState('');
   const [deliveryReference, setDeliveryReference] = useState('');
   const [paymentMethod, setPaymentMethod] =
     useState<OnlineOrderPaymentMethod>('Pix');
@@ -109,9 +110,12 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
   const store = payload?.store ?? null;
   const products = payload?.products ?? [];
   const combos = payload?.combos ?? [];
+  const deliveryZones = payload?.deliveryZones ?? [];
+  const selectedDeliveryZone = deliveryZones.find((zone) => zone.name === deliveryNeighborhood && zone.active);
+  const pricedStore = store ? { ...store, deliveryFee: fulfillmentType === 'delivery' ? (selectedDeliveryZone?.deliveryFee ?? 0) : 0 } : null;
 
   const cartSummary = useMemo(() => {
-    if (!store) {
+    if (!store || !pricedStore) {
       return {
         lines: [],
         missingItems: [],
@@ -124,8 +128,8 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
         missingForMinimum: 0,
       };
     }
-    return computeCartSummary(cart, products, combos, store, fulfillmentType);
-  }, [cart, products, combos, store, fulfillmentType]);
+    return computeCartSummary(cart, products, combos, pricedStore, fulfillmentType);
+  }, [cart, products, combos, store, pricedStore, fulfillmentType]);
 
   function getItemQuantity(kind: 'product' | 'combo', id: string): number {
     return cart.find((item) => item.kind === kind && item.id === id)?.quantity ?? 0;
@@ -206,6 +210,10 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
   function handleAdvanceToReview(e: React.FormEvent) {
     e.preventDefault();
     if (!store) return;
+    if (fulfillmentType === 'delivery' && (!selectedDeliveryZone || deliveryZones.length === 0)) {
+      setCheckoutError('Selecione um bairro disponível para calcular a taxa de entrega.');
+      return;
+    }
 
     const validation = validateCheckoutPayload(
       {
@@ -215,6 +223,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
         fulfillmentType,
         deliveryAddress,
         deliveryReference,
+        deliveryNeighborhood,
         paymentMethod,
         changeFor: parsedChangeForValue(),
         customerNote,
@@ -244,6 +253,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
         fulfillmentType === 'delivery' ? deliveryAddress.trim() : '',
       deliveryReference:
         fulfillmentType === 'delivery' ? deliveryReference.trim() : '',
+      deliveryNeighborhood: fulfillmentType === 'delivery' ? deliveryNeighborhood : '',
       paymentMethod,
       changeFor: parsedChangeForValue(),
       customerNote: customerNote.trim(),
@@ -599,6 +609,22 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
           {fulfillmentType === 'delivery' && (
             <>
               <div>
+                <label htmlFor="ck-neighborhood" className="block text-xs font-medium text-[#D1D5DB] mb-1">Bairro *</label>
+                <select
+                  id="ck-neighborhood"
+                  required
+                  value={deliveryNeighborhood}
+                  onChange={(e) => setDeliveryNeighborhood(e.target.value)}
+                  className="w-full min-h-[44px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                >
+                  <option value="">Selecione seu bairro</option>
+                  {deliveryZones.filter((zone) => zone.active).map((zone) => (
+                    <option key={zone.id} value={zone.name}>{zone.name} — {formatCurrencyBRL(zone.deliveryFee)}</option>
+                  ))}
+                </select>
+                {deliveryZones.length === 0 && <p className="mt-1 text-xs text-[#FCA5A5]">A loja ainda não cadastrou bairros para entrega. Entre em contato ou escolha retirada.</p>}
+              </div>
+              <div>
                 <label
                   htmlFor="ck-address"
                   className="block text-xs font-medium text-[#D1D5DB] mb-1"
@@ -734,7 +760,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               <p className="text-[#9CA3AF]">Recebimento</p>
               <p className="font-semibold text-[#F3F4F6]">
                 {fulfillmentType === 'delivery'
-                  ? `Entrega: ${deliveryAddress.trim()}${
+                  ? `Entrega em ${deliveryNeighborhood}: ${deliveryAddress.trim()}${
                       deliveryReference.trim()
                         ? ` (${deliveryReference.trim()})`
                         : ''
