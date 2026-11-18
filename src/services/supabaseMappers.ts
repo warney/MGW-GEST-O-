@@ -494,6 +494,8 @@ export function buildProductPayloadForSupabase(input: ProductInput): {
   unit_price: number;
   counts_as_x_salada: boolean;
   active: boolean;
+  image_url: string;
+  image_path: string;
 } {
   const name = input.name.trim().slice(0, 80);
   const unitPrice = roundCurrency(Math.max(0, Number(input.unitPrice)));
@@ -511,6 +513,8 @@ export function buildProductPayloadForSupabase(input: ProductInput): {
     unit_price: unitPrice,
     counts_as_x_salada: Boolean(input.countsAsXSalada),
     active: Boolean(input.active),
+    image_url: String(input.imageUrl || '').trim(),
+    image_path: String(input.imagePath || '').trim(),
   };
 }
 
@@ -521,6 +525,8 @@ export function buildComboPayloadForSupabase(input: ComboInput): {
   sale_price: number;
   estimated_cost: number;
   active: boolean;
+  image_url: string;
+  image_path: string;
 } {
   const name = input.name.trim().slice(0, 80);
   const description = input.description.trim().slice(0, 240);
@@ -553,6 +559,8 @@ export function buildComboPayloadForSupabase(input: ComboInput): {
     sale_price: salePrice,
     estimated_cost: estimatedCost,
     active: Boolean(input.active),
+    image_url: String(input.imageUrl || '').trim(),
+    image_path: String(input.imagePath || '').trim(),
   };
 }
 
