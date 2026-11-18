@@ -52,6 +52,7 @@ export function DigitalMenuSettingsPanel({
   const [zoneName, setZoneName] = useState('');
   const [zoneFee, setZoneFee] = useState('');
   const [zoneSaving, setZoneSaving] = useState(false);
+  const [zoneEditingId, setZoneEditingId] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
@@ -501,16 +502,20 @@ export function DigitalMenuSettingsPanel({
               const fee = Number(zoneFee.replace(',', '.'));
               if (!Number.isFinite(fee) || fee < 0 || fee > 1000) { setError('Informe uma taxa válida entre R$ 0,00 e R$ 1.000,00.'); return; }
               setZoneSaving(true); setError(null);
-              try { await onSaveDeliveryZone({ name: zoneName.trim(), deliveryFee: fee, active: true, sortOrder: deliveryZones.length }); setZoneName(''); setZoneFee(''); }
+              try { await onSaveDeliveryZone({ name: zoneName.trim(), deliveryFee: fee, active: zoneEditingId ? deliveryZones.find((zone) => zone.id === zoneEditingId)?.active ?? true : true, sortOrder: zoneEditingId ? deliveryZones.find((zone) => zone.id === zoneEditingId)?.sortOrder ?? 0 : deliveryZones.length }, zoneEditingId ?? undefined); setZoneName(''); setZoneFee(''); setZoneEditingId(null); }
               catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar o bairro.'); }
               finally { setZoneSaving(false); }
-            }} className="min-h-[42px] px-4 rounded-lg bg-[#F5B731] text-[#0B0D11] text-xs font-bold disabled:opacity-50">{zoneSaving ? 'Salvando...' : 'Adicionar'}</button>
+            }} className="min-h-[42px] px-4 rounded-lg bg-[#F5B731] text-[#0B0D11] text-xs font-bold disabled:opacity-50">{zoneSaving ? 'Salvando...' : zoneEditingId ? 'Salvar edição' : 'Adicionar'}</button>
+            {zoneEditingId && <button type="button" onClick={() => { setZoneEditingId(null); setZoneName(''); setZoneFee(''); }} className="min-h-[42px] px-3 rounded-lg border border-[#232834] text-xs text-[#D1D5DB]">Cancelar</button>}
           </div>
           {deliveryZones.length === 0 ? <p className="text-xs text-[#9CA3AF]">Nenhum bairro cadastrado. Cadastre os bairros atendidos para liberar pedidos por entrega.</p> : (
             <div className="divide-y divide-[#232834]">
               {deliveryZones.map((zone) => <div key={zone.id} className="py-2 flex items-center justify-between gap-3">
                 <div className="min-w-0"><p className="text-sm text-[#F3F4F6] font-medium truncate">{zone.name}</p><p className="text-xs text-[#9CA3AF]">{formatCurrencyBRL(zone.deliveryFee)}</p></div>
-                <button type="button" disabled={zoneSaving} onClick={async () => { setZoneSaving(true); try { await onSaveDeliveryZone({ name: zone.name, deliveryFee: zone.deliveryFee, active: !zone.active, sortOrder: zone.sortOrder }, zone.id); } catch (err) { setError(err instanceof Error ? err.message : 'Falha ao atualizar bairro.'); } finally { setZoneSaving(false); } }} className={zone.active ? 'text-xs font-semibold px-3 py-2 rounded-lg border border-[#22C55E]/40 text-[#86EFAC]' : 'text-xs font-semibold px-3 py-2 rounded-lg border border-[#6B7280]/40 text-[#9CA3AF]'}>{zone.active ? 'Ativo' : 'Inativo'}</button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button type="button" onClick={() => { setZoneEditingId(zone.id); setZoneName(zone.name); setZoneFee(String(zone.deliveryFee)); }} className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#232834] text-[#D1D5DB]">Editar</button>
+                  <button type="button" disabled={zoneSaving} onClick={async () => { setZoneSaving(true); try { await onSaveDeliveryZone({ name: zone.name, deliveryFee: zone.deliveryFee, active: !zone.active, sortOrder: zone.sortOrder }, zone.id); } catch (err) { setError(err instanceof Error ? err.message : 'Falha ao atualizar bairro.'); } finally { setZoneSaving(false); } }} className={zone.active ? 'text-xs font-semibold px-3 py-2 rounded-lg border border-[#22C55E]/40 text-[#86EFAC]' : 'text-xs font-semibold px-3 py-2 rounded-lg border border-[#6B7280]/40 text-[#9CA3AF]'}>{zone.active ? 'Ativo' : 'Inativo'}</button>
+                </div>
               </div>)}
             </div>
           )}
