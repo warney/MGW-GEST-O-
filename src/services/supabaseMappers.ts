@@ -601,7 +601,7 @@ export function hasActiveTenantBillingAccess(
     return true;
   }
   if (subscription.status === 'trialing') {
-    if (!subscription.trial_ends_at) return true;
+    if (!subscription.trial_ends_at) return false;
     const trialEndMs = Date.parse(subscription.trial_ends_at);
     return Number.isFinite(trialEndMs) && trialEndMs > nowMs;
   }
