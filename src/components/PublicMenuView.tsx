@@ -27,6 +27,7 @@ import {
   UtensilsCrossed,
   X,
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 import {
   createPublicOnlineOrder,
   fetchPublicDigitalMenu,
@@ -175,6 +176,12 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
       const res = await fetchPublicDigitalMenu(slug);
       setPayload(res);
       if (res.store) {
+        // A instalação pública abre o último cardápio visitado, sem expor o painel de gestão.
+        try {
+          window.localStorage.setItem('mgw_public_menu_last_slug', res.store.slug);
+        } catch {
+          // O cardápio continua funcionando mesmo com storage bloqueado.
+        }
         if (!res.store.acceptsDelivery && res.store.acceptsPickup) {
           setFulfillmentType('pickup');
         } else if (res.store.acceptsDelivery && !res.store.acceptsPickup) {
@@ -1203,7 +1210,11 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+            <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center">
+              <PWAInstallButton
+                appName="MGW Cardápio Digital"
+                installLabel="Instalar cardápio"
+              />
               <button
                 type="button"
                 onClick={() => void handleShareStore()}
