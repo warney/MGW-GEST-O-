@@ -18,6 +18,8 @@ import {
   addSale,
   type DataExecutionContext,
   deleteExpense,
+  fetchDeliveryZones,
+  saveDeliveryZone,
   deleteSale,
   loginWithEmailPassword,
   loginWithGoogle,
@@ -42,6 +44,8 @@ import {
   type ComboRecord,
   DEFAULT_SHOP_SETTINGS,
   type DigitalMenuSettings,
+  type DeliveryZone,
+  type DeliveryZoneInput,
   type DigitalMenuSettingsInput,
   type ExpenseInput,
   type ExpenseRecord,
@@ -163,6 +167,7 @@ export default function App() {
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [combos, setCombos] = useState<ComboRecord[]>([]);
   const [onlineOrders, setOnlineOrders] = useState<OnlineOrderRecord[]>([]);
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [settings, setSettings] = useState<ShopSettings>({
     ownerId: '',
     ...DEFAULT_SHOP_SETTINGS,
@@ -288,6 +293,7 @@ export default function App() {
       setProducts([]);
       setCombos([]);
       setOnlineOrders([]);
+      setDeliveryZones([]);
       setSettings({ ownerId: '', ...DEFAULT_SHOP_SETTINGS });
       setDigitalMenuSettings({
         tenantId: '',
@@ -337,6 +343,26 @@ export default function App() {
 
     return unsub;
   }, [dataContext]);
+
+  useEffect(() => {
+    let active = true;
+    if (!dataContext || activeProvider !== 'supabase') {
+      setDeliveryZones([]);
+      return () => { active = false; };
+    }
+    void fetchDeliveryZones(dataContext)
+      .then((zones) => { if (active) setDeliveryZones(zones); })
+      .catch((err) => { if (active) setDataError(err instanceof Error ? err.message : 'Falha ao carregar bairros.'); });
+    return () => { active = false; };
+  }, [dataContext, activeProvider]);
+
+  async function handleSaveDeliveryZone(input: DeliveryZoneInput, id?: string) {
+    if (!dataContext) return;
+    await saveDeliveryZone(dataContext, input, id);
+    const zones = await fetchDeliveryZones(dataContext);
+    setDeliveryZones(zones);
+    showToast('Bairro e taxa de entrega salvos.');
+  }
 
   const unviewedOrdersCount = useMemo(
     () => onlineOrders.filter(isUnreadNewOrder).length,
@@ -776,6 +802,8 @@ export default function App() {
                 <OrdersCenterView
                   orders={onlineOrders}
                   digitalMenuSettings={digitalMenuSettings}
+                  deliveryZones={deliveryZones}
+                  onSaveDeliveryZone={handleSaveDeliveryZone}
                   soundEnabled={soundEnabled}
                   onToggleSound={handleToggleSound}
                   onMarkViewed={handleMarkOnlineOrderViewed}
