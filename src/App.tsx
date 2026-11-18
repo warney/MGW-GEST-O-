@@ -26,6 +26,7 @@ import {
   logoutSession,
   markOnlineOrderViewed,
   requestPasswordReset,
+  registerWithEmailPassword,
   saveDigitalMenuSettings,
   saveSettings,
   seedDefaultCatalog,
@@ -611,6 +612,11 @@ export default function App() {
     await loginWithEmailPassword(email, password);
   }
 
+  async function handleRegister(name: string, storeName: string, email: string, password: string) {
+    setAuthError(null);
+    await registerWithEmailPassword(name, storeName, email, password);
+  }
+
   async function handlePasswordReset(email: string) {
     setAuthError(null);
     await requestPasswordReset(email);
@@ -766,6 +772,7 @@ export default function App() {
       <LoginScreen
         onGoogleLogin={handleGoogleLogin}
         onEmailLogin={handleEmailLogin}
+        onRegister={handleRegister}
         onPasswordReset={handlePasswordReset}
         supportsEmailAuth={activeProvider === 'supabase'}
         isSigningIn={isSigningIn}
