@@ -1396,6 +1396,60 @@ export async function createPublicOnlineOrder(
   return data as CreatePublicOrderResponse;
 }
 
+export async function fetchDeliveryZones(ctx: DataExecutionContext): Promise<import('../types/finance').DeliveryZone[]> {
+  if (getActiveDataProvider() !== 'supabase' || isDemoSandboxActive()) return [];
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('delivery_zones')
+    .select('id,name,delivery_fee,active,sort_order')
+    .eq('tenant_id', ctx.tenant.tenantId)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    id: String(row.id), name: String(row.name),
+    deliveryFee: Math.max(0, Number(row.delivery_fee) || 0),
+    active: Boolean(row.active), sortOrder: Number(row.sort_order) || 0,
+  }));
+}
+
+export async function saveDeliveryZone(
+  ctx: DataExecutionContext,
+  input: import('../types/finance').DeliveryZoneInput,
+  id?: string,
+): Promise<void> {
+  if (getActiveDataProvider() !== 'supabase' || isDemoSandboxActive()) {
+    throw new Error('O cadastro de taxas por bairro exige o provedor Supabase.');
+  }
+  const name = input.name.trim().slice(0, 100);
+  const fee = Math.round(Number(input.deliveryFee) * 100) / 100;
+  if (name.length < 2 || !Number.isFinite(fee) || fee < 0 || fee > 1000) {
+    throw new Error('Informe um bairro válido e uma taxa entre R$ 0,00 e R$ 1.000,00.');
+  }
+  const supabase = getSupabaseClient();
+  const payload = {
+    tenant_id: ctx.tenant.tenantId, name, delivery_fee: fee,
+    active: input.active ?? true, sort_order: input.sortOrder ?? 0,
+  };
+  const query = id
+    ? supabase.from('delivery_zones').update(payload).eq('id', id).eq('tenant_id', ctx.tenant.tenantId)
+    : supabase.from('delivery_zones').insert(payload);
+  const { error } = await query;
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function deleteDeliveryZone(ctx: DataExecutionContext, id: string): Promise<void> {
+  if (getActiveDataProvider() !== 'supabase' || isDemoSandboxActive()) {
+    throw new Error('O cadastro de taxas por bairro exige o provedor Supabase.');
+  }
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('delivery_zones')
+    .delete().eq('id', id).eq('tenant_id', ctx.tenant.tenantId);
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
 export async function fetchPublicOrderByToken(
   token: string,
 ): Promise<PublicOrderTrackingRecord | null> {
