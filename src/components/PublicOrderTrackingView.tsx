@@ -326,7 +326,7 @@ export function PublicOrderTrackingView({
                 </p>
                 <p className="font-semibold text-[#F3F4F6]">
                   {order.fulfillmentType === 'delivery'
-                    ? `${order.deliveryAddress}${
+                    ? `${order.deliveryNeighborhood ? `${order.deliveryNeighborhood} · ` : ''}${order.deliveryAddress}${
                         order.deliveryReference
                           ? ` · Ref: ${order.deliveryReference}`
                           : ''
