@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/services/etapa3Migration.test.ts src/services/rbacPolicy.test.ts supabase/functions/menu-storage/auth.test.ts"
+    "test": "tsx --test src/services/etapa3Migration.test.ts src/services/rbacPolicy.test.ts src/utils/finance.test.ts src/utils/imageUpload.test.ts src/utils/menuPresentation.test.ts src/utils/onlineOrders.test.ts src/utils/orderNotifications.test.ts src/utils/orderPrint.test.ts src/utils/storageErrors.test.ts supabase/functions/menu-storage/auth.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
