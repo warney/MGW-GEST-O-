@@ -121,6 +121,10 @@ function parsePublicUrlRoute(pathname: string): PublicUrlRoute {
     }
     return { kind: 'menu', slug: lastPublicMenuSlug || undefined };
   }
+  if (normalized.startsWith('/cardapio/pedido/')) {
+    const token = decodeURIComponent(normalized.slice('/cardapio/pedido/'.length));
+    if (token) return { kind: 'tracking', token };
+  }
   if (normalized.startsWith('/cardapio/')) {
     const slug = decodeURIComponent(normalized.slice('/cardapio/'.length));
     return slug ? { kind: 'menu', slug } : { kind: 'menu' };
@@ -784,7 +788,7 @@ export default function App() {
     return (
       <PublicMenuView
         slug={publicRoute.slug}
-        onOrderCreated={(token) => navigatePublicPath(`/pedido/${token}`)}
+        onOrderCreated={(token) => navigatePublicPath(`/cardapio/pedido/${token}`)}
       />
     );
   }
