@@ -737,6 +737,10 @@ export function buildDigitalMenuSettingsPayloadForSupabase(
   minimum_order_amount: number;
   accepts_delivery: boolean;
   accepts_pickup: boolean;
+  logo_url: string;
+  logo_path: string;
+  banner_url: string;
+  banner_path: string;
 } {
   const storeName = input.storeName.trim().slice(0, 80);
   if (!storeName) {
