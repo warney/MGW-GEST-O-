@@ -764,6 +764,11 @@ export function buildDigitalMenuSettingsPayloadForSupabase(
     ),
     accepts_delivery: acceptsDelivery,
     accepts_pickup: acceptsPickup,
+    // Persistir URLs e caminhos dos arquivos enviados ao Supabase Storage.
+    logo_url: (input.logoUrl || '').trim(),
+    logo_path: (input.logoPath || '').trim(),
+    banner_url: (input.bannerUrl || '').trim(),
+    banner_path: (input.bannerPath || '').trim(),
   };
 }
 
