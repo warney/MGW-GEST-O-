@@ -5,6 +5,7 @@ import {
   DEFAULT_SHOP_SETTINGS,
   type DigitalMenuSettings,
   type DigitalMenuSettingsInput,
+  type DeliveryZone,
   EXPENSE_CATEGORIES,
   type ExpenseCategory,
   type ExpenseInput,
@@ -837,7 +838,7 @@ export function mapOnlineOrderRow(
 
 export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenuPayload {
   if (!raw || typeof raw !== 'object') {
-    return { found: false, store: null, products: [], combos: [] };
+    return { found: false, store: null, products: [], combos: [], deliveryZones: [] };
   }
   const obj = raw as Record<string, unknown>;
   if (!obj.found || !obj.store || typeof obj.store !== 'object') {
@@ -888,7 +889,20 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
         }))
     : [];
 
-  return { found: true, store, products, combos };
+  const deliveryZones: DeliveryZone[] = Array.isArray(obj.deliveryZones)
+    ? obj.deliveryZones
+        .filter((z): z is Record<string, unknown> => Boolean(z && typeof z === 'object'))
+        .map((z, index) => ({
+          id: String(z.id || ''),
+          name: String(z.name || ''),
+          deliveryFee: roundCurrency(Math.max(0, Number(z.fee) || 0)),
+          active: true,
+          sortOrder: index,
+        }))
+        .filter((z) => z.id && z.name)
+    : [];
+
+  return { found: true, store, products, combos, deliveryZones };
 }
 
 export function mapPublicOrderTrackingRpcResponse(
