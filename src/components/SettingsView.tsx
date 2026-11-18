@@ -5,6 +5,8 @@ import type {
   ComboRecord,
   DigitalMenuSettings,
   DigitalMenuSettingsInput,
+  DeliveryZone,
+  DeliveryZoneInput,
   ProductInput,
   ProductRecord,
   ShopSettings,
@@ -17,6 +19,8 @@ interface SettingsViewProps {
   products: ProductRecord[];
   combos: ComboRecord[];
   digitalMenuSettings: DigitalMenuSettings;
+  deliveryZones: DeliveryZone[];
+  onSaveDeliveryZone: (input: DeliveryZoneInput, id?: string) => Promise<void>;
   onSaveSettings: (next: Omit<ShopSettings, 'ownerId'>) => Promise<void>;
   onSaveDigitalMenuSettings: (next: DigitalMenuSettingsInput) => Promise<void>;
   onCreateProduct: (input: ProductInput) => Promise<string>;
@@ -33,6 +37,8 @@ export function SettingsView({
   products,
   combos,
   digitalMenuSettings,
+  deliveryZones,
+  onSaveDeliveryZone,
   onSaveSettings,
   onSaveDigitalMenuSettings,
   onCreateProduct,
@@ -191,6 +197,8 @@ export function SettingsView({
       ) : activeTab === 'digital_menu' ? (
         <DigitalMenuSettingsPanel
           settings={digitalMenuSettings}
+          deliveryZones={deliveryZones}
+          onSaveDeliveryZone={onSaveDeliveryZone}
           activeProductsCount={products.filter((p) => p.active).length}
           activeCombosCount={combos.filter((c) => c.active).length}
           onSave={onSaveDigitalMenuSettings}
