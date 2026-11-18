@@ -1,5 +1,35 @@
 export type MenuImageKind = 'logo' | 'banner' | 'product' | 'combo';
 
+export type TenantStorageRole = 'owner' | 'admin' | 'manager' | 'staff';
+
+export function assertMenuImagePermission(role: unknown, kind: unknown): asserts kind is MenuImageKind {
+  if (kind !== 'logo' && kind !== 'banner' && kind !== 'product' && kind !== 'combo') {
+    throw new MenuStorageAuthError(400, 'invalid_image_kind', 'Tipo de imagem inválido.');
+  }
+
+  const allowedRoles = kind === 'logo' || kind === 'banner'
+    ? ['owner', 'admin']
+    : ['owner', 'admin', 'manager'];
+
+  if (typeof role !== 'string' || !allowedRoles.includes(role)) {
+    throw new MenuStorageAuthError(
+      403,
+      'insufficient_role',
+      kind === 'logo' || kind === 'banner'
+        ? 'Somente o proprietário ou administrador pode alterar a identidade visual.'
+        : 'Somente proprietário, administrador ou gerente pode alterar imagens do catálogo.',
+    );
+  }
+}
+
+export function inferMenuImageKindFromPath(path: string): MenuImageKind {
+  if (path.includes('/branding/logo/') || /\/branding\/[^/]+$/.test(path)) return 'logo';
+  if (path.includes('/branding/banner/')) return 'banner';
+  if (path.includes('/products/')) return 'product';
+  if (path.includes('/combos/')) return 'combo';
+  throw new MenuStorageAuthError(403, 'unknown_image_path', 'Não foi possível identificar o tipo da imagem.');
+}
+
 export class MenuStorageAuthError extends Error {
   readonly status: number;
   readonly code: string;
