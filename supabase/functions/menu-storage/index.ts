@@ -64,7 +64,7 @@ async function authorizeTenant(admin: ReturnType<typeof createClient>, token: st
     .select('status,trial_ends_at,grace_until')
     .eq('tenant_id', tenantId)
     .maybeSingle();
-  const trialActive = sub?.status === 'trialing' && (!sub.trial_ends_at || Date.parse(sub.trial_ends_at) > Date.now());
+  const trialActive = sub?.status === 'trialing' && Boolean(sub.trial_ends_at) && Date.parse(sub.trial_ends_at as string) > Date.now();
   const graceActive = sub?.status === 'paused' && sub.grace_until && Date.parse(sub.grace_until) > Date.now();
   const billingActive = Boolean(tenant.billing_exempt || ['authorized', 'exempt', 'free'].includes(sub?.status) || trialActive || graceActive);
   if (!billingActive) throw new MenuStorageAuthError(403, 'billing_inactive', 'O acesso deste estabelecimento está suspenso ou aguardando ativação.');
