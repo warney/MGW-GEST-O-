@@ -363,6 +363,10 @@ export function validateCheckoutPayload(
     };
   }
 
+  if (payload.fulfillmentType === 'delivery' && !payload.deliveryNeighborhood?.trim()) {
+    return { valid: false, error: 'Selecione o bairro para calcular a taxa de entrega.' };
+  }
+
   if (payload.fulfillmentType === 'delivery' && !menuSettings.acceptsDelivery) {
     return { valid: false, error: 'Este estabelecimento não aceita entrega no momento.' };
   }
