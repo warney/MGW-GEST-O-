@@ -99,6 +99,7 @@ import { ReportsView } from './components/ReportsView';
 import { SaleModal } from './components/SaleModal';
 import { SalesView } from './components/SalesView';
 import { SettingsView } from './components/SettingsView';
+import { PWAInstallButton } from './components/PWAInstallButton';
 
 const TENANT_PREF_KEY = 'mgw_active_tenant_id';
 const SOUND_PREF_KEY = 'mgw_order_sound_enabled';
@@ -112,7 +113,13 @@ type PublicUrlRoute =
 function parsePublicUrlRoute(pathname: string): PublicUrlRoute {
   const normalized = pathname.replace(/\/+$/, '') || '/';
   if (normalized === '/cardapio') {
-    return { kind: 'menu' };
+    let lastPublicMenuSlug = '';
+    try {
+      lastPublicMenuSlug = window.localStorage.getItem('mgw_public_menu_last_slug') || '';
+    } catch {
+      lastPublicMenuSlug = '';
+    }
+    return { kind: 'menu', slug: lastPublicMenuSlug || undefined };
   }
   if (normalized.startsWith('/cardapio/')) {
     const slug = decodeURIComponent(normalized.slice('/cardapio/'.length));
@@ -155,6 +162,31 @@ export default function App() {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
+
+  // Cada experiência pública usa seu próprio manifesto instalável.
+  // O painel administrativo mantém o manifesto principal do MGW Gestão.
+  useEffect(() => {
+    const isPublicMenuApp =
+      publicRoute.kind === 'menu' || publicRoute.kind === 'tracking';
+    const manifestHref = isPublicMenuApp
+      ? '/manifest-cardapio.webmanifest'
+      : '/manifest.webmanifest';
+
+    let manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (!manifestLink) {
+      manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      document.head.appendChild(manifestLink);
+    }
+    manifestLink.href = manifestHref;
+
+    const appleTitle = document.querySelector<HTMLMetaElement>(
+      'meta[name="apple-mobile-web-app-title"]',
+    );
+    if (appleTitle) {
+      appleTitle.content = isPublicMenuApp ? 'MGW Cardápio' : 'MGW Gestão';
+    }
+  }, [publicRoute.kind]);
 
   function navigatePublicPath(path: string) {
     if (typeof window === 'undefined') return;
@@ -919,6 +951,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <PWAInstallButton appName="MGW Gestão" installLabel="Instalar gestão" />
             <button
               type="button"
               onClick={() => {
