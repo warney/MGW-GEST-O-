@@ -189,7 +189,9 @@ DECLARE
   v_unit_price numeric(12,2);
   v_unit_cost numeric(12,2) := 0;
   v_xsaladas integer;
+  v_product_counts boolean;
   v_components jsonb;
+  v_pending_items jsonb := '[]'::jsonb;
   v_subtotal numeric(12,2) := 0;
   v_delivery_fee numeric(12,2) := 0;
   v_total numeric(12,2);
@@ -216,11 +218,11 @@ BEGIN
   IF p_fulfillment_type NOT IN ('delivery','pickup') THEN RAISE EXCEPTION 'Escolha entrega ou retirada.'; END IF;
   IF p_fulfillment_type = 'delivery' AND NOT v_menu.accepts_delivery THEN RAISE EXCEPTION 'Esta loja nao aceita pedidos para entrega.'; END IF;
   IF p_fulfillment_type = 'pickup' AND NOT v_menu.accepts_pickup THEN RAISE EXCEPTION 'Esta loja nao aceita retirada.'; END IF;
-  IF p_payment_method NOT IN ('Pix','Dinheiro','Cartao') THEN RAISE EXCEPTION 'Forma de pagamento invalida.'; END IF;
-  IF length(btrim(coalesce(p_customer_name,''))) < 2 OR length(p_customer_name) > 120 THEN RAISE EXCEPTION 'Informe seu nome.'; END IF;
+  IF p_payment_method NOT IN ('Pix','Dinheiro','Cartão') THEN RAISE EXCEPTION 'Forma de pagamento invalida.'; END IF;
+  IF length(btrim(coalesce(p_customer_name,''))) < 2 OR length(coalesce(p_customer_name,'')) > 120 THEN RAISE EXCEPTION 'Informe seu nome.'; END IF;
   IF length(regexp_replace(coalesce(p_customer_phone,''),'[^0-9]','','g')) < 10 THEN RAISE EXCEPTION 'Informe um telefone valido.'; END IF;
   IF p_fulfillment_type = 'delivery' AND length(btrim(coalesce(p_delivery_address,''))) < 5 THEN RAISE EXCEPTION 'Informe o endereco de entrega.'; END IF;
-  IF jsonb_typeof(p_items) <> 'array' OR jsonb_array_length(p_items) < 1 OR jsonb_array_length(p_items) > 40 THEN
+  IF p_items IS NULL OR jsonb_typeof(p_items) IS DISTINCT FROM 'array' OR jsonb_array_length(p_items) < 1 OR jsonb_array_length(p_items) > 40 THEN
     RAISE EXCEPTION 'O carrinho esta vazio ou possui itens demais.';
   END IF;
 
@@ -234,11 +236,11 @@ BEGIN
 
     IF v_kind = 'product' THEN
       SELECT name, unit_price, counts_as_x_salada
-      INTO v_name, v_unit_price, v_xsaladas
+      INTO v_name, v_unit_price, v_product_counts
       FROM public.products
       WHERE id = v_ref AND tenant_id = v_menu.tenant_id AND active = true;
       IF NOT FOUND THEN RAISE EXCEPTION 'Um produto do carrinho nao esta mais disponivel.'; END IF;
-      v_xsaladas := CASE WHEN v_xsaladas::boolean THEN 1 ELSE 0 END;
+      v_xsaladas := CASE WHEN v_product_counts THEN 1 ELSE 0 END;
       v_components := jsonb_build_array(jsonb_build_object(
         'productId',v_ref::text,'productName',v_name,'quantityPerUnit',1,
         'totalQuantity',v_qty,'countsAsXSalada',(v_xsaladas > 0)
@@ -271,13 +273,12 @@ BEGIN
     v_subtotal := v_subtotal + (v_unit_price * v_qty);
     v_item_count := v_item_count + v_qty;
     v_order_item_id := gen_random_uuid();
-    INSERT INTO public.online_order_items (
-      id, order_id, tenant_id, item_kind, ref_id, item_name, quantity,
-      unit_price, line_total, estimated_unit_cost, x_saladas_per_unit, components, item_note
-    ) VALUES (
-      v_order_item_id, v_order_id, v_menu.tenant_id, v_kind, v_ref, v_name, v_qty,
-      v_unit_price, v_unit_price*v_qty, v_unit_cost, v_xsaladas, v_components, v_note
-    );
+    v_pending_items := v_pending_items || jsonb_build_array(jsonb_build_object(
+      'id',v_order_item_id,'kind',v_kind,'refId',v_ref,'name',v_name,
+      'quantity',v_qty,'unitPrice',v_unit_price,'lineTotal',v_unit_price*v_qty,
+      'estimatedUnitCost',v_unit_cost,'xSaladasPerUnit',v_xsaladas,
+      'components',v_components,'note',v_note
+    ));
   END LOOP;
 
   v_delivery_fee := CASE WHEN p_fulfillment_type = 'delivery' THEN v_menu.delivery_fee ELSE 0 END;
@@ -309,6 +310,19 @@ BEGIN
     p_payment_method,v_change_for,left(btrim(coalesce(p_customer_note,'')),300),
     v_subtotal,v_delivery_fee,v_total
   );
+
+  FOR v_item IN SELECT value FROM jsonb_array_elements(v_pending_items) LOOP
+    INSERT INTO public.online_order_items (
+      id,order_id,tenant_id,item_kind,ref_id,item_name,quantity,unit_price,
+      line_total,estimated_unit_cost,x_saladas_per_unit,components,item_note
+    ) VALUES (
+      (v_item->>'id')::uuid,v_order_id,v_menu.tenant_id,v_item->>'kind',
+      (v_item->>'refId')::uuid,v_item->>'name',(v_item->>'quantity')::integer,
+      (v_item->>'unitPrice')::numeric,(v_item->>'lineTotal')::numeric,
+      (v_item->>'estimatedUnitCost')::numeric,(v_item->>'xSaladasPerUnit')::integer,
+      v_item->'components',v_item->>'note'
+    );
+  END LOOP;
 
   INSERT INTO public.online_order_status_history(order_id,tenant_id,from_status,to_status,reason,actor_type)
   VALUES (v_order_id,v_menu.tenant_id,NULL,'received','Pedido enviado pelo cardapio digital.','customer');
@@ -348,7 +362,7 @@ AS $$
         'quantity',i.quantity,'unitPrice',i.unit_price,'lineTotal',i.line_total,'itemNote',i.item_note
       ) ORDER BY i.created_at) FROM public.online_order_items i WHERE i.order_id=o.id),'[]'::jsonb),
       'statusHistory',coalesce((SELECT jsonb_agg(jsonb_build_object(
-        'id',h.id,'fromStatus',h.from_status,'toStatus',h.to_status,'reason',h.reason,'createdAt',h.created_at
+        'id',h.id,'fromStatus',h.from_status,'toStatus',h.to_status,'reason',h.reason,'actorType',h.actor_type,'createdAt',h.created_at
       ) ORDER BY h.created_at) FROM public.online_order_status_history h WHERE h.order_id=o.id),'[]'::jsonb)
     )
   )
@@ -450,7 +464,7 @@ BEGIN
     v_quantity := greatest(1,CASE WHEN v_xsalada_count>0 THEN v_xsalada_count ELSE v_total_units END);
     v_sale_mode := CASE WHEN coalesce(v_has_combo,false) AND coalesce(v_has_product,false) THEN 'mixed'
                         WHEN coalesce(v_has_combo,false) THEN 'combo' ELSE 'individual' END;
-    v_payment := CASE WHEN v_order.payment_method='Cartao' THEN 'Cartão de crédito' ELSE v_order.payment_method END;
+    v_payment := CASE WHEN v_order.payment_method='Cartão' THEN 'Cartão de crédito' ELSE v_order.payment_method END;
     v_note := left(v_order.order_code || ' · ' || v_order.customer_name || CASE WHEN v_order.customer_note<>'' THEN ' · '||v_order.customer_note ELSE '' END,240);
     INSERT INTO public.sales(
       tenant_id,owner_email,date,quantity,unit_price,total_amount,payment_method,note,
@@ -460,8 +474,8 @@ BEGIN
       (SELECT email FROM public.tenant_members WHERE tenant_id=v_order.tenant_id AND user_id=auth.uid() AND active=true LIMIT 1),
       (v_now AT TIME ZONE 'America/Manaus')::date,
       v_quantity,
-      round(v_order.total_amount/nullif(v_quantity,0),2),
-      v_order.total_amount,v_payment,v_note,v_sale_mode,v_xsalada_count,
+      round(v_order.subtotal_amount/nullif(v_quantity,0),2),
+      v_order.subtotal_amount,v_payment,v_note,v_sale_mode,v_xsalada_count,
       (SELECT coalesce(sum(quantity),0)::integer FROM public.online_order_items WHERE order_id=p_order_id AND item_kind='combo'),
       v_sale_items,'online',p_order_id,v_order.delivery_fee
     ) RETURNING id INTO v_sale_id;
