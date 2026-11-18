@@ -343,7 +343,7 @@ STABLE
 SET search_path = pg_catalog, public
 AS $$
   SELECT
-    coalesce(auth.role(), '') = 'service_role'
+    coalesce(current_setting('request.jwt.claim.role', true), '') = 'service_role'
     OR current_user IN ('postgres', 'supabase_admin', 'service_role');
 $$;
 
