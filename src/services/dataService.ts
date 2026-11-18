@@ -215,7 +215,7 @@ async function resolveSupabaseAuthenticatedContext(
   if (tenantIds.length > 0) {
     const { data: subRows, error: subError } = await supabase
       .from('subscriptions')
-      .select('tenant_id, status, grace_until')
+      .select('tenant_id, status, grace_until, trial_ends_at')
       .in('tenant_id', tenantIds);
 
     if (!subError && Array.isArray(subRows)) {
@@ -448,6 +448,50 @@ export async function loginWithEmailPassword(
   });
   if (error) {
     throw new Error(mapSupabaseAuthErrorMessage(error));
+  }
+}
+
+export async function registerWithEmailPassword(
+  name: string,
+  storeName: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  if (getActiveDataProvider() !== 'supabase') {
+    throw new Error('O cadastro de novas lojas será habilitado quando o ambiente Supabase estiver ativo.');
+  }
+
+  const cleanName = name.trim().slice(0, 80);
+  const cleanStoreName = storeName.trim().slice(0, 80);
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanName || !cleanStoreName || !cleanEmail || !cleanEmail.includes('@')) {
+    throw new Error('Preencha seu nome, o nome do estabelecimento e um e-mail válido.');
+  }
+  if (password.length < 8) {
+    throw new Error('A senha precisa ter pelo menos 8 caracteres.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: {
+        full_name: cleanName,
+        shop_name: cleanStoreName,
+      },
+      emailRedirectTo: window.location.origin,
+    },
+  });
+  if (error) {
+    throw new Error(mapSupabaseAuthErrorMessage(error));
+  }
+  if (!data.user) {
+    throw new Error('Não foi possível concluir o cadastro. Tente novamente.');
+  }
+  if (data.session) {
+    // O trigger do banco cria o tenant e o vínculo atomicamente ao inserir auth.users.
+    return;
   }
 }
 
