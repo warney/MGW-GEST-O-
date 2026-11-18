@@ -1,0 +1,21 @@
+{
+  "id": "/cardapio/",
+  "name": "MGW Cardápio Digital",
+  "short_name": "MGW Cardápio",
+  "description": "Cardápios e pedidos online dos estabelecimentos MGW.",
+  "lang": "pt-BR",
+  "start_url": "/cardapio/",
+  "scope": "/cardapio/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0B0D11",
+  "background_color": "#0B0D11",
+  "icons": [
+    {
+      "src": "/icon-cardapio.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
