@@ -445,7 +445,7 @@ export function DigitalMenuSettingsPanel({
               htmlFor="dm-delivery-fee"
               className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
             >
-              Taxa de entrega (R$)
+              Taxa geral antiga (substituída por bairro)
             </label>
             <input
               id="dm-delivery-fee"
@@ -454,13 +454,14 @@ export function DigitalMenuSettingsPanel({
               step="0.50"
               inputMode="decimal"
               value={deliveryFee}
+              disabled
               onChange={(e) => setDeliveryFee(e.target.value)}
               className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
             />
             <p className="text-[11px] text-[#9CA3AF] mt-1 font-mono tabular-nums">
               {Number(deliveryFee || 0) <= 0
-                ? 'Entrega grátis'
-                : `Cobrado apenas em pedidos para Entrega (${formatCurrencyBRL(Number(deliveryFee) || 0)})`}
+                ? 'As taxas agora são definidas por bairro abaixo.'
+                : 'Valor legado; não é aplicado aos novos pedidos.'}
             </p>
           </div>
 
