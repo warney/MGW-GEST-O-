@@ -15,14 +15,14 @@ BEGIN;
 
 -- A migration 003 concedeu UPDATE direto em online_orders a authenticated.
 -- Isso permite contornar a maquina de estados e o historico da RPC.
-REVOKE UPDATE ON TABLE public.online_orders FROM authenticated;
+REVOKE UPDATE ON TABLE public.online_orders FROM PUBLIC, anon, authenticated;
 
 -- Remover a policy de UPDATE direto. A RPC SECURITY DEFINER continua sendo
 -- o unico caminho de escrita para os status; SELECT continua protegido por RLS.
 DROP POLICY IF EXISTS online_orders_update_member ON public.online_orders;
 
 -- Garantir que clientes anonimos nao recebam privilegios de escrita.
-REVOKE INSERT, UPDATE, DELETE ON TABLE public.online_orders FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.online_orders FROM PUBLIC, anon;
 
 -- Verificacao defensiva: falhar a transacao se authenticated ainda puder
 -- atualizar diretamente a tabela.
