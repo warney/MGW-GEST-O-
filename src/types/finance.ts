@@ -171,8 +171,24 @@ export interface PublicCatalogCombo {
   salePrice: number;
 }
 
+export interface DeliveryZone {
+  id: string;
+  name: string;
+  deliveryFee: number;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface DeliveryZoneInput {
+  name: string;
+  deliveryFee: number;
+  active?: boolean;
+  sortOrder?: number;
+}
+
 export interface PublicDigitalMenuPayload {
   found: boolean;
+  deliveryZones: DeliveryZone[];
   store: DigitalMenuSettingsInput | null;
   products: PublicCatalogProduct[];
   combos: PublicCatalogCombo[];
@@ -192,6 +208,7 @@ export interface CreatePublicOrderPayload {
   fulfillmentType: OnlineOrderFulfillment;
   deliveryAddress: string;
   deliveryReference: string;
+  deliveryNeighborhood: string;
   paymentMethod: OnlineOrderPaymentMethod;
   changeFor: number | null;
   customerNote: string;
