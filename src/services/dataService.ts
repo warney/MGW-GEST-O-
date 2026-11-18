@@ -1391,6 +1391,7 @@ export async function createPublicOnlineOrder(
     p_change_for: payload.changeFor,
     p_customer_note: payload.customerNote,
     p_items: payload.items,
+    p_delivery_neighborhood: payload.deliveryNeighborhood ?? null,
   });
   if (error) throw new Error(error.message);
   return data as CreatePublicOrderResponse;
