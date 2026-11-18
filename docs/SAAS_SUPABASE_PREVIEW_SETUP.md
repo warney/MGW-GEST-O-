@@ -27,7 +27,7 @@ Depois que as migrations forem aplicadas ao projeto de validação:
 A ordem prevista de migrations é:
 
 1. `20261114000001_initial_saas_schema.sql`
-2. `20261118000001_supabase_storage_mgw_cardapios.sql` (o bucket já existe no projeto atual; não recriar manualmente)
+2. `20261118181604_supabase_storage_mgw_cardapios.sql` (o bucket já existe no projeto atual; não recriar manualmente)
 3. `20261119000001_saas_signup_and_digital_menu.sql`
 4. `20261120000001_online_orders_and_trial_access.sql`
 
