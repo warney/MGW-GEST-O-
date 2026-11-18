@@ -188,7 +188,7 @@ export interface DeliveryZoneInput {
 
 export interface PublicDigitalMenuPayload {
   found: boolean;
-  deliveryZones: DeliveryZone[];
+  deliveryZones?: DeliveryZone[];
   store: DigitalMenuSettingsInput | null;
   products: PublicCatalogProduct[];
   combos: PublicCatalogCombo[];
