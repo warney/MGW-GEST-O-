@@ -19,13 +19,15 @@ export default defineConfig(() => {
           'pwa-512x512.png',
           'pwa-maskable-512x512.png',
           'sw-notifications.js',
+          'icon-cardapio.svg',
+          'manifest-cardapio.webmanifest',
         ],
         manifest: {
           id: '/',
-          name: 'MGW GESTÃO — Painel e Pedidos',
+          name: 'MGW Gestão — Painel Administrativo',
           short_name: 'MGW Gestão',
           description:
-            'Gestão financeira, cardápio digital e notificações em tempo real de pedidos da MGW Lanches.',
+            'Aplicativo administrativo para gerenciar estabelecimentos, vendas, despesas, produtos e pedidos.',
           theme_color: '#0B0D11',
           background_color: '#0B0D11',
           display: 'standalone',
