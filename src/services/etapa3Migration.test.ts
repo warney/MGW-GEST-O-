@@ -175,6 +175,32 @@ test('hasActiveTenantBillingAccess and buildTenantContextFromRows enforce founde
     false,
   );
 
+  const fixedNow = 1_800_000_000_000;
+  assert.equal(
+    hasActiveTenantBillingAccess(
+      { billing_exempt: false, status: 'active' },
+      { status: 'trialing', grace_until: null, trial_ends_at: new Date(fixedNow + 86_400_000).toISOString() },
+      fixedNow,
+    ),
+    true,
+  );
+  assert.equal(
+    hasActiveTenantBillingAccess(
+      { billing_exempt: false, status: 'active' },
+      { status: 'trialing', grace_until: null, trial_ends_at: new Date(fixedNow - 1).toISOString() },
+      fixedNow,
+    ),
+    false,
+  );
+  assert.equal(
+    hasActiveTenantBillingAccess(
+      { billing_exempt: false, status: 'active' },
+      { status: 'trialing', grace_until: null, trial_ends_at: null },
+      fixedNow,
+    ),
+    false,
+  );
+
   const ctx = buildTenantContextFromRows(
     {
       id: 'm1',
