@@ -244,7 +244,16 @@ export function SettingsView({
             </p>
           </div>
 
-          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
+            <div className="flex items-start gap-3 rounded-xl border border-[#232834] bg-[#0B0D11] p-3.5">
+              <span className="w-9 h-9 rounded-lg bg-[#F5B731]/10 text-[#F5B731] flex items-center justify-center shrink-0">
+                <Store className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-[#F3F4F6]">Identificação do estabelecimento</h3>
+                <p className="text-xs text-[#9CA3AF] mt-1">Defina o nome interno usado nos relatórios e a data de início das operações.</p>
+              </div>
+            </div>
             {error && (
               <div
                 role="alert"
@@ -282,6 +291,10 @@ export function SettingsView({
               />
             </div>
 
+            <div className="pt-2 border-t border-[#232834]">
+              <h3 className="text-sm font-semibold text-[#F3F4F6]">Parâmetros operacionais</h3>
+              <p className="text-xs text-[#9CA3AF] mt-1">Valores padrão usados nos próximos lançamentos. Alterar aqui não modifica o histórico.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label
@@ -324,6 +337,10 @@ export function SettingsView({
               </div>
             </div>
 
+            <div className="pt-2 border-t border-[#232834]">
+              <h3 className="text-sm font-semibold text-[#F3F4F6]">Metas financeiras</h3>
+              <p className="text-xs text-[#9CA3AF] mt-1">Acompanhe o desempenho diário e mensal no painel inicial e nos relatórios.</p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label
