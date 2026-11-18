@@ -632,7 +632,14 @@ export default function App() {
   }
 
   async function handleLogout() {
-    await logoutSession();
+    try {
+      await logoutSession();
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : 'Não foi possível encerrar a sessão.',
+        'err',
+      );
+    }
   }
 
   async function handleSaveSale(input: SaleInput, editingId?: string) {
@@ -1129,6 +1136,8 @@ export default function App() {
                   combos={combos}
                   digitalMenuSettings={digitalMenuSettings}
                   initialTab={settingsInitialTab}
+                  accountEmail={user.email}
+                  onLogout={handleLogout}
                   onSaveSettings={handleSaveSettings}
                   onSaveDigitalMenuSettings={handleSaveDigitalMenuSettings}
                   onCreateProduct={handleCreateProduct}
