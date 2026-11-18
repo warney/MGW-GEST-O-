@@ -1432,11 +1432,14 @@ export async function saveDeliveryZone(
     tenant_id: ctx.tenant.tenantId, name, delivery_fee: fee,
     active: input.active ?? true, sort_order: input.sortOrder ?? 0,
   };
-  const query = id
-    ? supabase.from('delivery_zones').update(payload).eq('id', id).eq('tenant_id', ctx.tenant.tenantId)
-    : supabase.from('delivery_zones').insert(payload);
-  const { error } = await query;
-  if (error) throw new Error(error.message);
+  if (id) {
+    const { error } = await supabase.from('delivery_zones')
+      .update(payload).eq('id', id).eq('tenant_id', ctx.tenant.tenantId);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from('delivery_zones').insert(payload);
+    if (error) throw new Error(error.message);
+  }
   notifyTenantRefresh(ctx.tenant.tenantId);
 }
 
