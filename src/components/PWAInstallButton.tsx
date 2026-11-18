@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { Download, Share, Smartphone, X } from 'lucide-react';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
+interface PWAInstallButtonProps {
+  appName?: string;
+  installLabel?: string;
+}
+
 export function PWAInstallButton({ appName = 'MGW Gestão', installLabel = 'Instalar no celular' }: PWAInstallButtonProps) {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIOSGuide, setShowIOSGuide] = useState(false);
@@ -32,7 +37,7 @@ export function PWAInstallButton({ appName = 'MGW Gestão', installLabel = 'Inst
           className="min-h-[40px] px-3.5 rounded-xl border border-[#F5B731]/50 bg-[#F5B731]/12 hover:bg-[#F5B731]/20 text-[#F5B731] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
         >
           <Smartphone className="w-3.5 h-3.5" />
-          <span>Instalar no iPhone</span>
+          <span>{installLabel}</span>
         </button>
 
         {showIOSGuide && (
