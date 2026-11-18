@@ -114,24 +114,40 @@ export interface TenantParitySummary {
   maxSaleDate: string | null;
 }
 
-export function normalizeLegacyDateOnly(raw: unknown, fallback = '2026-01-01'): string {
-  const s = typeof raw === 'string' ? raw.trim() : '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0, 10);
-  return fallback;
+export function normalizeLegacyDateOnly(raw: unknown, fieldLabel = 'data'): string {
+  let value = raw;
+  if (value instanceof Timestamp) value = value.toDate();
+  if (value instanceof Date) {
+    if (!Number.isFinite(value.getTime())) throw new Error(`Campo ${fieldLabel} contém uma data inválida.`);
+    return value.toISOString().slice(0, 10);
+  }
+  const s = typeof value === 'string' ? value.trim() : '';
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : /^\d{4}-\d{2}-\d{2}T/.test(s) ? s.slice(0, 10) : '';
+  if (!dateOnly) throw new Error(`Campo ${fieldLabel} ausente ou inválido; migração interrompida para evitar inventar datas.`);
+  const parsed = new Date(`${dateOnly}T00:00:00.000Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== dateOnly) {
+    throw new Error(`Campo ${fieldLabel} contém uma data inexistente: ${dateOnly}.`);
+  }
+  return dateOnly;
 }
 
-export function timestampValueToIso(raw: unknown): string {
-  if (raw instanceof Timestamp) {
-    return raw.toDate().toISOString();
+export function timestampValueToIso(raw: unknown, fieldLabel = 'timestamp'): string {
+  let value = raw;
+  if (value instanceof Timestamp) value = value.toDate();
+  if (value && typeof value === 'object' && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    value = (value as { toDate: () => Date }).toDate();
   }
-  if (raw && typeof raw === 'object' && typeof (raw as { toDate?: () => Date }).toDate === 'function') {
-    return (raw as { toDate: () => Date }).toDate().toISOString();
+  const parsed = value instanceof Date ? value : typeof value === 'string' ? new Date(value) : null;
+  if (!parsed || !Number.isFinite(parsed.getTime())) {
+    throw new Error(`Campo ${fieldLabel} ausente ou inválido; migração interrompida para não criar timestamps artificiais.`);
   }
-  if (typeof raw === 'string' && Number.isFinite(Date.parse(raw))) {
-    return new Date(raw).toISOString();
-  }
-  return new Date().toISOString();
+  return parsed.toISOString();
+}
+
+function requireMappedId(map: Map<string, string>, legacyId: string, context: string): string {
+  const mapped = map.get(legacyId);
+  if (!mapped) throw new Error(`Referência legada sem UUID no Supabase (${context}: ${legacyId}). Corrija o registro dependente antes de continuar.`);
+  return mapped;
 }
 
 function round2(n: number): number {
@@ -144,7 +160,7 @@ export function transformComboForSupabase(
   productIdMap: Map<string, string>,
 ) {
   const mappedItems = combo.items.map((item) => ({
-    productId: productIdMap.get(item.productId) ?? item.productId,
+    productId: requireMappedId(productIdMap, item.productId, `combo ${combo.id} / produto`),
     productName: item.productName,
     quantity: item.quantity,
     countsAsXSalada: item.countsAsXSalada,
@@ -174,10 +190,9 @@ export function transformSaleForSupabase(
   const mappedItems = sale.items
     ? sale.items.map((line) => ({
         kind: line.kind,
-        refId:
-          line.kind === 'combo'
-            ? comboIdMap.get(line.refId) ?? line.refId
-            : productIdMap.get(line.refId) ?? line.refId,
+        refId: line.kind === 'combo'
+          ? requireMappedId(comboIdMap, line.refId, `venda ${sale.id} / combo`)
+          : requireMappedId(productIdMap, line.refId, `venda ${sale.id} / produto`),
         name: line.name,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
@@ -185,7 +200,7 @@ export function transformSaleForSupabase(
         estimatedUnitCost: line.estimatedUnitCost,
         xSaladasPerUnit: line.xSaladasPerUnit,
         components: line.components.map((comp) => ({
-          productId: productIdMap.get(comp.productId) ?? comp.productId,
+          productId: requireMappedId(productIdMap, comp.productId, `venda ${sale.id} / componente`),
           productName: comp.productName,
           quantityPerUnit: comp.quantityPerUnit,
           totalQuantity: comp.totalQuantity,
@@ -428,11 +443,7 @@ async function readFirestoreTenantData(
       };
     }
   } else {
-    let snap = await db.doc('settings/mgw_lanches').get();
-    if (!snap.exists) {
-      const allSettings = await db.collection('settings').limit(1).get();
-      if (!allSettings.empty) snap = allSettings.docs[0];
-    }
+    const snap = await db.doc('settings/mgw_lanches').get();
     if (snap.exists) {
       const d = snap.data()!;
       settings = {
@@ -446,6 +457,10 @@ async function readFirestoreTenantData(
         updatedAtIso: timestampValueToIso(d.updatedAt),
       };
     }
+  }
+
+  if (!settings) {
+    throw new Error(`Configuração legada ausente para ${spec.slug}; migração interrompida para evitar criar tenant sem as configurações originais.`);
   }
 
   const productsSnap = await db.collection(`${basePath}products`).get();
@@ -615,37 +630,55 @@ async function ensureFoundingTenantInSupabase(
   return tenantId;
 }
 
+async function fetchAllTenantRows(
+  supabase: SupabaseClient,
+  table: 'sales' | 'expenses',
+  columns: string,
+  tenantId: string,
+): Promise<Array<Record<string, unknown>>> {
+  const pageSize = 1000;
+  const rows: Array<Record<string, unknown>> = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .eq('tenant_id', tenantId)
+      .order('id', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Falha ao verificar paridade em ${table}: ${error.message}`);
+    const page = (data ?? []) as Array<Record<string, unknown>>;
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+  return rows;
+}
+
 async function readSupabaseTenantParity(
   supabase: SupabaseClient,
   tenantId: string,
 ): Promise<TenantParitySummary> {
-  const [{ count: productsCount }, { count: combosCount }, { data: sales }, { data: expenses }] =
-    await Promise.all([
-      supabase.from('products').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-      supabase.from('combos').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-      supabase
-        .from('sales')
-        .select('date, quantity, total_amount, payment_method, x_salada_count, combos_count, items')
-        .eq('tenant_id', tenantId),
-      supabase.from('expenses').select('amount').eq('tenant_id', tenantId),
-    ]);
+  const [productsResult, combosResult, sales, expenses] = await Promise.all([
+    supabase.from('products').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    supabase.from('combos').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    fetchAllTenantRows(supabase, 'sales', 'date, quantity, total_amount, payment_method, x_salada_count, combos_count, items', tenantId),
+    fetchAllTenantRows(supabase, 'expenses', 'amount', tenantId),
+  ]);
+  if (productsResult.error) throw new Error(`Falha ao contar products: ${productsResult.error.message}`);
+  if (combosResult.error) throw new Error(`Falha ao contar combos: ${combosResult.error.message}`);
 
   return computeDatasetParitySummary({
-    productsCount: productsCount ?? 0,
-    combosCount: combosCount ?? 0,
-    sales: ((sales ?? []) as Array<Record<string, unknown>>).map((s) => ({
+    productsCount: productsResult.count ?? 0,
+    combosCount: combosResult.count ?? 0,
+    sales: sales.map((s) => ({
       date: String(s.date).slice(0, 10),
       quantity: Number(s.quantity) || 0,
       totalAmount: Number(s.total_amount) || 0,
       paymentMethod: String(s.payment_method || 'Dinheiro'),
-      xSaladaCount:
-        typeof s.x_salada_count === 'number' ? s.x_salada_count : null,
+      xSaladaCount: typeof s.x_salada_count === 'number' ? s.x_salada_count : null,
       combosCount: typeof s.combos_count === 'number' ? s.combos_count : null,
       items: Array.isArray(s.items) ? (s.items as LegacySaleItem[]) : null,
     })),
-    expenses: ((expenses ?? []) as Array<{ amount: number | string }>).map((e) => ({
-      amount: Number(e.amount) || 0,
-    })),
+    expenses: expenses.map((e) => ({ amount: Number(e.amount) || 0 })),
   });
 }
 
@@ -673,7 +706,7 @@ async function runCli() {
       expenses: sourceData.expenses,
     });
 
-    console.log('Resumo Firebase:', sourceParity);
+    console.log('Resumo agregado Firebase (não é comparação registro a registro):', sourceParity);
 
     if (dryRun) {
       console.log('[DRY-RUN] Nenhuma alteracao aplicada no Supabase.');
@@ -837,8 +870,8 @@ async function runCli() {
     console.log('Resumo Supabase:', targetParity);
     console.log(
       parityCheck.equal
-        ? `PARIDADE OK para ${spec.slug}`
-        : `DIVERGENCIA DE PARIDADE em ${spec.slug}: ${parityCheck.diffs.join('; ')}`,
+        ? `PARIDADE AGREGADA OK para ${spec.slug} (contagens e totais; não certifica igualdade de cada registro)`
+        : `DIVERGENCIA DE PARIDADE AGREGADA em ${spec.slug}: ${parityCheck.diffs.join('; ')}`,
     );
     if (!parityCheck.equal) {
       errors.push(...parityCheck.diffs.map((d) => `${spec.slug}: ${d}`));

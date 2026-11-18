@@ -342,9 +342,7 @@ LANGUAGE sql
 STABLE
 SET search_path = pg_catalog, public
 AS $$
-  SELECT
-    coalesce(auth.role(), '') = 'service_role'
-    OR current_user IN ('postgres', 'supabase_admin', 'service_role');
+  SELECT current_user IN ('postgres', 'supabase_admin', 'service_role');
 $$;
 
 CREATE OR REPLACE FUNCTION public.guard_tenant_protected_fields()

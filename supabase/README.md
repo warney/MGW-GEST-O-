@@ -26,7 +26,7 @@ Documentadas em `.env.example` (nenhum segredo real deve ser commitado no Git):
 
 ## Configurações Manuais Necessárias no Painel Supabase
 
-1. **Criar Projeto Supabase:** Selecionar região `sa-east-1` (São Paulo) para menor latência no Brasil.
+1. **Região do projeto:** este repositório recomenda `sa-east-1` (São Paulo) para menor latência no Brasil. Atenção: o projeto Supabase atualmente conectado foi identificado na região `us-west-2`. A região de um projeto existente não deve ser presumida como alterável; não recrie o projeto nem aplique a migração em outro projeto sem decisão explícita e plano de backup/restauração.
 2. **Authentication → Providers:**
    - Habilitar **Email/Password** com confirmação de e-mail obrigatória (`Confirm email = ON`) — essencial para garantir que `auth.users.email_confirmed_at` seja válido antes de `claim_pending_memberships()`.
    - Habilitar **Google OAuth** (configurando Client ID e Client Secret no Google Cloud Console com o callback `https://<PROJECT_REF>.supabase.co/auth/v1/callback`) para manter a mesma fluidez de login das contas existentes.
@@ -37,3 +37,13 @@ Documentadas em `.env.example` (nenhum segredo real deve ser commitado no Git):
 5. **Execução das Migrations:**
    - Aplicar `migrations/20261114000001_initial_saas_schema.sql`, `migrations/20261116000001_etapa4_multi_tenant_rbac_and_plans.sql`, `migrations/20261117000001_digital_menu_and_online_orders.sql` e `migrations/20261117000002_digital_menu_pix_key.sql` via `supabase db push` ou SQL Editor após revisão.
    - Aplicar `seeds/001_founding_tenants.sql` apenas na etapa autorizada de migração/provisionamento.
+
+
+## Pendências obrigatórias antes da migração de produção
+
+- O script ETL interrompe a execução se encontrar datas/timestamps ausentes ou inválidos e não escolhe mais um documento aleatório em `settings` como configuração da MGW.
+- A verificação agregada de totais não prova igualdade de cada registro; ela deve ser complementada por comparação registro a registro antes de liberar a troca definitiva.
+- A política atual permite leitura dos dados do tenant a membros ativos mesmo quando a assinatura não está autorizada, enquanto escrita exige acesso de cobrança ativo. Decidir explicitamente se contas canceladas devem manter acesso de leitura (modo consulta) ou perder todo acesso aos dados; não alterar essa regra sem decisão de produto.
+- O ETL exige credenciais administrativas Firebase e Supabase em ambiente seguro. Não colocar service account, `SUPABASE_SERVICE_ROLE_KEY` ou connection string em código, frontend, commits ou mensagens.
+- O arquivo de backup do código não substitui exportação de dados do Firestore nem exportação dos usuários do Firebase Authentication.
+- O banco Supabase conectado foi auditado sem alterações: não havia tabelas da aplicação nem migrations aplicadas no momento da auditoria.
