@@ -1210,7 +1210,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+            <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center">
               <PWAInstallButton
                 appName="MGW Cardápio Digital"
                 installLabel="Instalar cardápio"
