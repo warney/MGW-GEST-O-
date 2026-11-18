@@ -1,7 +1,9 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 import {
+  assertMenuImagePermission,
   buildCanonicalMenuStoragePath,
+  inferMenuImageKindFromPath,
   MenuStorageAuthError,
   validateTenantDeletePath,
 } from './auth.ts';
@@ -26,7 +28,7 @@ function extractBearerToken(req: Request): string {
   return value.toLowerCase().startsWith('bearer ') ? value.slice(7).trim() : '';
 }
 
-async function authorizeTenant(admin: ReturnType<typeof createClient>, token: string, requestedTenantId: unknown): Promise<string> {
+async function authorizeTenant(admin: ReturnType<typeof createClient>, token: string, requestedTenantId: unknown): Promise<{ tenantId: string; role: string }> {
   if (!token) throw new MenuStorageAuthError(401, 'missing_token', 'Sessão Supabase ausente. Entre novamente.');
   const { data: userData, error: userError } = await admin.auth.getUser(token);
   const user = userData?.user;
@@ -41,7 +43,7 @@ async function authorizeTenant(admin: ReturnType<typeof createClient>, token: st
 
   const { data: member, error: memberError } = await admin
     .from('tenant_members')
-    .select('tenant_id')
+    .select('tenant_id,role')
     .eq('tenant_id', tenantId)
     .eq('user_id', user.id)
     .eq('active', true)
@@ -69,7 +71,7 @@ async function authorizeTenant(admin: ReturnType<typeof createClient>, token: st
   const billingActive = Boolean(tenant.billing_exempt || ['authorized', 'exempt', 'free'].includes(sub?.status) || trialActive || graceActive);
   if (!billingActive) throw new MenuStorageAuthError(403, 'billing_inactive', 'O acesso deste estabelecimento está suspenso ou aguardando ativação.');
 
-  return tenantId;
+  return { tenantId, role: String(member.role || '') };
 }
 
 Deno.serve(async (req: Request) => {
@@ -90,9 +92,11 @@ Deno.serve(async (req: Request) => {
     if (!body || typeof body !== 'object') return jsonResponse({ error: 'Corpo JSON inválido.' }, 400);
 
     const action = typeof body.action === 'string' ? body.action.trim() : '';
-    const tenantId = await authorizeTenant(admin, token, body.tenantId);
+    const authorization = await authorizeTenant(admin, token, body.tenantId);
+    const tenantId = authorization.tenantId;
 
     if (action === 'create-upload-url') {
+      assertMenuImagePermission(authorization.role, body.kind);
       const target = buildCanonicalMenuStoragePath({
         authorizedTenantId: tenantId,
         kind: body.kind,
@@ -111,6 +115,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'delete') {
       const path = validateTenantDeletePath({ authorizedTenantId: tenantId, rawPath: body.path });
+      assertMenuImagePermission(authorization.role, inferMenuImageKindFromPath(path));
       const { error } = await admin.storage.from(BUCKET_NAME).remove([path]);
       if (error) {
         console.error('[menu-storage] Erro ao excluir arquivo:', error);
