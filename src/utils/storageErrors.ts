@@ -51,7 +51,7 @@ export function formatSupabaseEdgeErrorMessage(
   const lower = `${serverCode || ''} ${serverMessage || ''}`.toLowerCase();
 
   if (httpStatus === 401 || lower.includes('token_expired') || lower.includes('invalid_jwt')) {
-    return 'Sessão Firebase expirada ou inválida para autenticar o upload (401). Atualize a página ou faça login novamente.';
+    return 'Sessão Supabase expirada ou inválida para autorizar o upload (401). Entre novamente na sua conta.';
   }
   if (httpStatus === 403 || lower.includes('tenant_mismatch') || lower.includes('no_tenant_membership')) {
     return 'Acesso negado (403): sua conta não tem permissão para enviar ou excluir imagens deste estabelecimento.';
@@ -110,7 +110,7 @@ export function formatStorageErrorMessage(
     code === 'storage/unauthenticated' ||
     lower.includes('storage/unauthenticated')
   ) {
-    return 'Sessão não autenticada no Firebase (storage/unauthenticated). Saia e entre novamente antes de enviar imagens.';
+    return 'Sessão Supabase não autenticada (storage/unauthenticated). Saia e entre novamente antes de enviar imagens.';
   }
 
   if (

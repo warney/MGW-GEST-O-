@@ -26,6 +26,8 @@ import {
   logoutSession,
   markOnlineOrderViewed,
   requestPasswordReset,
+  updateAccountPassword,
+  registerWithEmailPassword,
   saveDigitalMenuSettings,
   saveSettings,
   seedDefaultCatalog,
@@ -92,6 +94,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { OrdersCenterView } from './components/OrdersCenterView';
 import { PublicMenuView } from './components/PublicMenuView';
 import { PublicOrderTrackingView } from './components/PublicOrderTrackingView';
+import { PasswordRecoveryScreen } from './components/PasswordRecoveryScreen';
 import { ReportsView } from './components/ReportsView';
 import { SaleModal } from './components/SaleModal';
 import { SalesView } from './components/SalesView';
@@ -169,6 +172,7 @@ export default function App() {
     undefined,
   );
   const [authReady, setAuthReady] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -409,6 +413,7 @@ export default function App() {
       setTenants(state.tenants);
       setLegacyWorkspace(state.legacyWorkspace);
       setAuthError(state.errorMessage);
+      setPasswordRecovery(Boolean(state.passwordRecovery));
 
       if (state.tenants.length > 0) {
         let preferred = '';
@@ -611,9 +616,19 @@ export default function App() {
     await loginWithEmailPassword(email, password);
   }
 
+  async function handleRegister(name: string, storeName: string, email: string, password: string) {
+    setAuthError(null);
+    await registerWithEmailPassword(name, storeName, email, password);
+  }
+
   async function handlePasswordReset(email: string) {
     setAuthError(null);
     await requestPasswordReset(email);
+  }
+
+  async function handleUpdatePassword(password: string) {
+    setAuthError(null);
+    await updateAccountPassword(password);
   }
 
   async function handleLogout() {
@@ -761,11 +776,21 @@ export default function App() {
     );
   }
 
+  if (passwordRecovery) {
+    return (
+      <PasswordRecoveryScreen
+        onSave={handleUpdatePassword}
+        errorMessage={authError}
+      />
+    );
+  }
+
   if (!user || !dataContext) {
     return (
       <LoginScreen
         onGoogleLogin={handleGoogleLogin}
         onEmailLogin={handleEmailLogin}
+        onRegister={handleRegister}
         onPasswordReset={handlePasswordReset}
         supportsEmailAuth={activeProvider === 'supabase'}
         isSigningIn={isSigningIn}

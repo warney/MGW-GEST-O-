@@ -122,6 +122,7 @@ export interface AuthResolutionState {
   tenants: TenantContext[];
   errorMessage: string | null;
   legacyWorkspace?: WorkspaceAccess;
+  passwordRecovery?: boolean;
 }
 
 // Registro leve de listeners locais para re-sincronizar imediatamente apos mutacoes no modo Supabase
@@ -215,7 +216,7 @@ async function resolveSupabaseAuthenticatedContext(
   if (tenantIds.length > 0) {
     const { data: subRows, error: subError } = await supabase
       .from('subscriptions')
-      .select('tenant_id, status, grace_until')
+      .select('tenant_id, status, grace_until, trial_ends_at')
       .in('tenant_id', tenantIds);
 
     if (!subError && Array.isArray(subRows)) {
@@ -386,18 +387,23 @@ export function subscribeAuthSession(
   const { data: subscription } = supabase.auth.onAuthStateChange(
     (event, session) => {
       if (!active) return;
-      if (event === 'SIGNED_OUT' || !session?.user) {
+      if (event === 'PASSWORD_RECOVERY') {
         onChange({
           user: null,
           tenants: [],
-          errorMessage:
-            event === 'TOKEN_REFRESHED'
-              ? null
-              : null,
+          errorMessage: null,
+          passwordRecovery: true,
         });
         return;
       }
-      void handleSessionUser(session.user);
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        onChange({ user: null, tenants: [], errorMessage: null, passwordRecovery: false });
+        return;
+      }
+      // Evita chamadas de rede dentro do callback síncrono do Supabase Auth.
+      window.setTimeout(() => {
+        if (active) void handleSessionUser(session.user);
+      }, 0);
     },
   );
 
@@ -449,6 +455,62 @@ export async function loginWithEmailPassword(
   if (error) {
     throw new Error(mapSupabaseAuthErrorMessage(error));
   }
+}
+
+export async function registerWithEmailPassword(
+  name: string,
+  storeName: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  if (getActiveDataProvider() !== 'supabase') {
+    throw new Error('O cadastro de novas lojas será habilitado quando o ambiente Supabase estiver ativo.');
+  }
+
+  const cleanName = name.trim().slice(0, 80);
+  const cleanStoreName = storeName.trim().slice(0, 80);
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanName || !cleanStoreName || !cleanEmail || !cleanEmail.includes('@')) {
+    throw new Error('Preencha seu nome, o nome do estabelecimento e um e-mail válido.');
+  }
+  if (password.length < 8) {
+    throw new Error('A senha precisa ter pelo menos 8 caracteres.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: {
+        full_name: cleanName,
+        shop_name: cleanStoreName,
+      },
+      emailRedirectTo: window.location.origin,
+    },
+  });
+  if (error) {
+    throw new Error(mapSupabaseAuthErrorMessage(error));
+  }
+  if (!data.user) {
+    throw new Error('Não foi possível concluir o cadastro. Tente novamente.');
+  }
+  if (data.session) {
+    // O trigger do banco cria o tenant e o vínculo atomicamente ao inserir auth.users.
+    return;
+  }
+}
+
+export async function updateAccountPassword(password: string): Promise<void> {
+  if (getActiveDataProvider() !== 'supabase') {
+    throw new Error('Atualização de senha disponível apenas no Supabase Auth.');
+  }
+  if (password.length < 8) {
+    throw new Error('A nova senha precisa ter pelo menos 8 caracteres.');
+  }
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw new Error(mapSupabaseAuthErrorMessage(error));
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {

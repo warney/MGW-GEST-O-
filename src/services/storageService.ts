@@ -1,4 +1,4 @@
-import { auth } from '../firebase';
+import { getSupabaseClient } from '../lib/supabase';
 import { getSupabaseStorageConfig } from '../lib/supabase';
 import {
   buildTenantStoragePath,
@@ -258,13 +258,14 @@ export async function uploadTenantMenuImage(params: {
     );
   }
 
-  const currentUser = auth.currentUser;
-  if (!currentUser) {
+  const supabase = getSupabaseClient();
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (sessionError || !accessToken) {
     throw new Error(formatStorageErrorMessage({ code: 'storage/unauthenticated' }));
   }
 
   onProgress?.(6);
-  const firebaseIdToken = await currentUser.getIdToken();
 
   if (signal?.aborted) {
     throw new Error(formatStorageErrorMessage({ code: 'storage/canceled' }));
@@ -286,8 +287,7 @@ export async function uploadTenantMenuImage(params: {
       headers: {
         'Content-Type': 'application/json',
         apikey: supabaseCfg.anonKey,
-        Authorization: `Bearer ${firebaseIdToken}`,
-        'x-firebase-token': firebaseIdToken,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         action: 'create-upload-url',
@@ -381,27 +381,20 @@ export async function deleteTenantMenuImage(
   }
 
   const supabaseCfg = getSupabaseStorageConfig();
-  const currentUser = auth.currentUser;
-  if (
-    !supabaseCfg.configured ||
-    !supabaseCfg.edgeFunctionUrl ||
-    !supabaseCfg.anonKey ||
-    !currentUser
-  ) {
-    return;
-  }
+  const supabase = getSupabaseClient();
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!supabaseCfg.configured || !supabaseCfg.edgeFunctionUrl || !supabaseCfg.anonKey || sessionError || !accessToken) return;
 
   const { signal, cleanup } = createAbortSignalWithTimeout(EDGE_DELETE_TIMEOUT_MS);
   try {
-    const firebaseIdToken = await currentUser.getIdToken();
     const res = await fetch(supabaseCfg.edgeFunctionUrl, {
       method: 'POST',
       signal,
       headers: {
         'Content-Type': 'application/json',
         apikey: supabaseCfg.anonKey,
-        Authorization: `Bearer ${firebaseIdToken}`,
-        'x-firebase-token': firebaseIdToken,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         action: 'delete',

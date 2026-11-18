@@ -494,6 +494,8 @@ export function buildProductPayloadForSupabase(input: ProductInput): {
   unit_price: number;
   counts_as_x_salada: boolean;
   active: boolean;
+  image_url: string;
+  image_path: string;
 } {
   const name = input.name.trim().slice(0, 80);
   const unitPrice = roundCurrency(Math.max(0, Number(input.unitPrice)));
@@ -511,6 +513,8 @@ export function buildProductPayloadForSupabase(input: ProductInput): {
     unit_price: unitPrice,
     counts_as_x_salada: Boolean(input.countsAsXSalada),
     active: Boolean(input.active),
+    image_url: String(input.imageUrl || '').trim(),
+    image_path: String(input.imagePath || '').trim(),
   };
 }
 
@@ -521,6 +525,8 @@ export function buildComboPayloadForSupabase(input: ComboInput): {
   sale_price: number;
   estimated_cost: number;
   active: boolean;
+  image_url: string;
+  image_path: string;
 } {
   const name = input.name.trim().slice(0, 80);
   const description = input.description.trim().slice(0, 240);
@@ -553,6 +559,8 @@ export function buildComboPayloadForSupabase(input: ComboInput): {
     sale_price: salePrice,
     estimated_cost: estimatedCost,
     active: Boolean(input.active),
+    image_url: String(input.imageUrl || '').trim(),
+    image_path: String(input.imagePath || '').trim(),
   };
 }
 
@@ -601,7 +609,7 @@ export function hasActiveTenantBillingAccess(
     return true;
   }
   if (subscription.status === 'trialing') {
-    if (!subscription.trial_ends_at) return true;
+    if (!subscription.trial_ends_at) return false;
     const trialEndMs = Date.parse(subscription.trial_ends_at);
     return Number.isFinite(trialEndMs) && trialEndMs > nowMs;
   }
@@ -737,6 +745,10 @@ export function buildDigitalMenuSettingsPayloadForSupabase(
   minimum_order_amount: number;
   accepts_delivery: boolean;
   accepts_pickup: boolean;
+  logo_url: string;
+  logo_path: string;
+  banner_url: string;
+  banner_path: string;
 } {
   const storeName = input.storeName.trim().slice(0, 80);
   if (!storeName) {
@@ -764,6 +776,11 @@ export function buildDigitalMenuSettingsPayloadForSupabase(
     ),
     accepts_delivery: acceptsDelivery,
     accepts_pickup: acceptsPickup,
+    // Persistir URLs e caminhos dos arquivos enviados ao Supabase Storage.
+    logo_url: (input.logoUrl || '').trim(),
+    logo_path: (input.logoPath || '').trim(),
+    banner_url: (input.bannerUrl || '').trim(),
+    banner_path: (input.bannerPath || '').trim(),
   };
 }
 
