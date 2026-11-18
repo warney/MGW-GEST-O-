@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Globe, Layers, Loader2, Save, Store } from 'lucide-react';
+import { Check, Globe, Layers, Loader2, LogOut, Save, Store } from 'lucide-react';
 import type {
   ComboInput,
   ComboRecord,
@@ -27,6 +27,8 @@ interface SettingsViewProps {
   onSeedCatalog: () => Promise<void>;
   onPreviewPublicMenu?: (slug: string) => void;
   initialTab?: 'shop' | 'catalog' | 'digital_menu';
+  accountEmail: string;
+  onLogout: () => Promise<void>;
 }
 
 export function SettingsView({
@@ -44,6 +46,8 @@ export function SettingsView({
   onSeedCatalog,
   onPreviewPublicMenu,
   initialTab = 'shop',
+  accountEmail,
+  onLogout,
 }: SettingsViewProps) {
   const [activeTab, setActiveTab] = useState<'shop' | 'catalog' | 'digital_menu'>(
     initialTab,
@@ -65,6 +69,7 @@ export function SettingsView({
   const [isSaving, setIsSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     setEstablishmentName(settings.establishmentName);
@@ -73,6 +78,16 @@ export function SettingsView({
     setMonthlyGoal(String(settings.monthlyGoal));
     setStartDate(settings.startDate);
   }, [settings]);
+
+  async function handleLogoutClick() {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await onLogout();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -197,7 +212,29 @@ export function SettingsView({
           onPreviewPublicMenu={onPreviewPublicMenu}
         />
       ) : (
-        <section className="max-w-2xl bg-[#12151C] border border-[#232834] rounded-2xl p-5 sm:p-6 space-y-5">
+        <div className="max-w-2xl space-y-4">
+        <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#F3F4F6]">
+              <span className="w-8 h-8 rounded-lg bg-[#F5B731]/10 text-[#F5B731] flex items-center justify-center">
+                <LogOut className="w-4 h-4" />
+              </span>
+              Conta e acesso
+            </div>
+            <p className="text-xs text-[#9CA3AF] mt-2 break-all">{accountEmail}</p>
+            <p className="text-[11px] text-[#6B7280] mt-1">Encerre sua sessão neste dispositivo com segurança.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleLogoutClick()}
+            disabled={isSigningOut}
+            className="min-h-[42px] px-4 rounded-xl border border-[#EF4444]/35 text-[#FCA5A5] hover:bg-[#EF4444]/10 disabled:opacity-60 text-xs font-semibold inline-flex items-center justify-center gap-2 shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
+            {isSigningOut ? 'Saindo...' : 'Sair da conta'}
+          </button>
+        </section>
+        <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 sm:p-6 space-y-5">
           <div className="border-b border-[#232834] pb-4">
             <h2 className="text-lg font-bold text-[#F3F4F6]">
               Configurações da Lanchonete
@@ -351,6 +388,7 @@ export function SettingsView({
             </div>
           </form>
         </section>
+        </div>
       )}
     </div>
   );
