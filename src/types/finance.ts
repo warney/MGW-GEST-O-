@@ -207,7 +207,6 @@ export interface CreatePublicOrderPayload {
   customerPhone: string;
   fulfillmentType: OnlineOrderFulfillment;
   deliveryAddress: string;
-  deliveryNeighborhood?: string;
   deliveryReference: string;
   deliveryNeighborhood?: string;
   paymentMethod: OnlineOrderPaymentMethod;
@@ -262,6 +261,7 @@ export interface OnlineOrderRecord {
   customerName: string;
   customerPhone: string;
   deliveryAddress: string;
+  deliveryNeighborhood?: string;
   deliveryReference: string;
   paymentMethod: OnlineOrderPaymentMethod;
   changeFor: number | null;
@@ -293,6 +293,7 @@ export interface PublicOrderTrackingRecord {
   fulfillmentType: OnlineOrderFulfillment;
   customerName: string;
   deliveryAddress: string;
+  deliveryNeighborhood?: string;
   deliveryReference: string;
   paymentMethod: OnlineOrderPaymentMethod;
   changeFor: number | null;
