@@ -1,30 +1,8 @@
 export type MenuImageKind = 'logo' | 'banner' | 'product' | 'combo';
 
-export interface FirebaseJwtPayload {
-  iss?: unknown;
-  aud?: unknown;
-  sub?: unknown;
-  email?: unknown;
-  email_verified?: unknown;
-  exp?: unknown;
-  iat?: unknown;
-  auth_time?: unknown;
-  firebase?: {
-    sign_in_provider?: unknown;
-  };
-}
-
-export interface VerifiedFirebaseIdentity {
-  uid: string;
-  email: string;
-  emailVerified: true;
-  provider: string;
-}
-
 export class MenuStorageAuthError extends Error {
   readonly status: number;
   readonly code: string;
-
   constructor(status: number, code: string, message: string) {
     super(message);
     this.status = status;
@@ -32,7 +10,6 @@ export class MenuStorageAuthError extends Error {
   }
 }
 
-export const DEFAULT_FIREBASE_PROJECT_ID = 'intelligent-crossing-bmbw7';
 export const MAX_MENU_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MB
 export const ALLOWED_MENU_IMAGE_TYPES = [
   'image/webp',
