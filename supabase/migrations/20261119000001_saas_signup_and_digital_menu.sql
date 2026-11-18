@@ -85,7 +85,7 @@ BEGIN
     v_name := 'Meu Estabelecimento';
   END IF;
 
-  v_slug_base := lower(regexp_replace(public.unaccent(v_name), '[^a-zA-Z0-9]+', '-', 'g'));
+  v_slug_base := lower(regexp_replace(v_name, '[^a-zA-Z0-9]+', '-', 'g'));
   v_slug_base := trim(both '-' from v_slug_base);
   IF char_length(v_slug_base) < 2 THEN
     v_slug_base := 'loja';
