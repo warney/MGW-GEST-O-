@@ -506,7 +506,7 @@ export function OrdersCenterView({
                         </p>
                         {order.fulfillmentType === 'delivery' && (
                           <p className="text-[#F3F4F6]">
-                            {order.deliveryAddress}
+                            {order.deliveryNeighborhood ? `${order.deliveryNeighborhood} · ` : ''}{order.deliveryAddress}
                             {order.deliveryReference
                               ? ` · Ref: ${order.deliveryReference}`
                               : ''}
