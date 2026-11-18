@@ -207,6 +207,7 @@ export interface CreatePublicOrderPayload {
   customerPhone: string;
   fulfillmentType: OnlineOrderFulfillment;
   deliveryAddress: string;
+  deliveryNeighborhood?: string;
   deliveryReference: string;
   deliveryNeighborhood?: string;
   paymentMethod: OnlineOrderPaymentMethod;
