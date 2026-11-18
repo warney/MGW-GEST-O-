@@ -842,7 +842,7 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
   }
   const obj = raw as Record<string, unknown>;
   if (!obj.found || !obj.store || typeof obj.store !== 'object') {
-    return { found: false, store: null, products: [], combos: [] };
+    return { found: false, store: null, products: [], combos: [], deliveryZones: [] };
   }
   const st = obj.store as Record<string, unknown>;
   const store: DigitalMenuSettingsInput = {
