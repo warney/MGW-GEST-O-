@@ -953,6 +953,7 @@ export function mapPublicOrderTrackingRpcResponse(
     fulfillmentType: normalizeOnlineFulfillment(o.fulfillmentType),
     customerName: String(o.customerName || ''),
     deliveryAddress: String(o.deliveryAddress || ''),
+    deliveryNeighborhood: String(o.deliveryNeighborhood || ''),
     deliveryReference: String(o.deliveryReference || ''),
     paymentMethod: normalizeOnlinePaymentMethod(o.paymentMethod),
     changeFor:
