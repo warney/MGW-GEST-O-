@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { getActiveDataProvider } from './lib/supabase';
+import { registerOrderPushSubscription, setOrderPushSubscriptionEnabled } from './services/orderPushNotifications';
 import {
   addCombo,
   addExpense,
@@ -240,9 +241,9 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try {
       const saved = window.localStorage.getItem(SOUND_PREF_KEY);
-      return saved === null ? true : saved === '1';
+      return saved === null ? false : saved === '1';
     } catch {
-      return true;
+      return false;
     }
   });
   const [pushEnabled, setPushEnabled] = useState<boolean>(() => {
@@ -298,71 +299,87 @@ export default function App() {
   }
 
   async function handleEnableMobileNotifications() {
-    if (soundEnabled) {
-      void unlockAlertAudio();
-    }
+    if (soundEnabled) void unlockAlertAudio();
     const permission = await requestMobileOrderNotificationsPermission();
     setNotificationPermission(permission);
 
     if (permission === 'granted') {
+      const tenantId = activeTenant?.tenantId;
+      if (!user || !tenantId) {
+        showToast('Não foi possível identificar o estabelecimento ativo.', 'err');
+        return;
+      }
+
+      try {
+        await registerOrderPushSubscription({ tenantId, userId: user.uid });
+      } catch (error) {
+        showToast(
+          error instanceof Error ? error.message : 'Não foi possível cadastrar este celular para notificações.',
+          'err',
+        );
+        return;
+      }
+
       setPushEnabled(true);
       try {
         window.localStorage.setItem(PUSH_PREF_KEY, '1');
       } catch {
         // Ignora erro de storage
       }
-      if (soundEnabled) {
-        void playNewOrderAlertChime();
-      }
+      if (soundEnabled) void playNewOrderAlertChime();
       vibrateMobileDevice();
       await sendMobileSystemNotification({
         title: `Notificações ativadas — ${digitalMenuSettings.storeName || settings.establishmentName || 'MGW GESTÃO'}`,
-        body: 'Você receberá alertas em tempo real no celular sempre que chegar um novo pedido.',
+        body: 'Este celular foi cadastrado para receber novos pedidos mesmo com o MGW Gestão fechado.',
         tag: 'mgw-notifications-enabled',
         orderId: null,
       });
-      showToast('Notificações no celular ativadas para novos pedidos!');
+      showToast('Este celular está cadastrado para receber novos pedidos!');
       return;
     }
 
     if (permission === 'denied') {
-      showToast(
-        'Permissão bloqueada no navegador. Libere as notificações nas configurações do site.',
-        'err',
-      );
+      showToast('Permissão bloqueada no navegador. Libere as notificações nas configurações do site.', 'err');
       return;
     }
 
     if (permission === 'unsupported') {
-      showToast(
-        'Este navegador não suporta notificações do sistema. No iPhone, instale o app na Tela de Início.',
-        'err',
-      );
+      showToast('Este navegador não suporta Web Push. No iPhone, instale o MGW Gestão na Tela de Início.', 'err');
     }
   }
 
-  function handleTogglePushNotifications() {
+  async function handleTogglePushNotifications() {
     const currentPermission = getBrowserNotificationPermission();
     setNotificationPermission(currentPermission);
     if (currentPermission !== 'granted') {
-      void handleEnableMobileNotifications();
+      await handleEnableMobileNotifications();
       return;
     }
 
-    setPushEnabled((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(PUSH_PREF_KEY, next ? '1' : '0');
-      } catch {
-        // Ignora erro de storage
-      }
-      showToast(
-        next
-          ? 'Notificações no celular reativadas.'
-          : 'Notificações no celular pausadas.',
-      );
-      return next;
-    });
+    if (!user || !activeTenant) {
+      showToast('Não foi possível identificar o estabelecimento ativo.', 'err');
+      return;
+    }
+
+    const next = !pushEnabled;
+    try {
+      await setOrderPushSubscriptionEnabled({
+        tenantId: activeTenant.tenantId,
+        userId: user.uid,
+        enabled: next,
+      });
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar as notificações.', 'err');
+      return;
+    }
+
+    setPushEnabled(next);
+    try {
+      window.localStorage.setItem(PUSH_PREF_KEY, next ? '1' : '0');
+    } catch {
+      // Ignora erro de storage
+    }
+    showToast(next ? 'Notificações Push reativadas.' : 'Notificações Push pausadas.');
   }
 
   async function handleTestOrderAlert() {
