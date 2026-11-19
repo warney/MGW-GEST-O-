@@ -33,26 +33,31 @@ self.addEventListener('push', function (event) {
   try {
     payload = event.data.json();
   } catch (e) {
-    payload = {
-      title: 'Novo pedido no Cardápio Digital!',
-      body: event.data.text(),
-    };
+    payload = { title: 'Novo pedido no Cardápio Digital!', body: event.data.text() };
   }
 
-  var title = payload.title || 'Novo pedido recebido — MGW GESTÃO';
-  var options = {
-    body: payload.body || 'Abra a Central de Pedidos para aceitar ou recusar.',
-    icon: '/pwa-192x192.png',
-    badge: '/pwa-192x192.png',
-    tag: payload.tag || 'mgw-new-order',
-    renotify: true,
-    requireInteraction: true,
-    vibrate: [250, 120, 250, 120, 350],
-    data: {
-      url: '/?view=orders',
-      orderId: payload.orderId || null,
-    },
-  };
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clients) {
+      var hasVisibleAdmin = clients.some(function (client) {
+        var isAdminClient = client.url && client.url.indexOf('/cardapio') === -1 && client.url.indexOf('/pedido/') === -1;
+        return isAdminClient && client.visibilityState === 'visible';
+      });
+      if (hasVisibleAdmin) return;
 
-  event.waitUntil(self.registration.showNotification(title, options));
+      var targetUrl = typeof payload.url === 'string' && payload.url.charAt(0) === '/'
+        ? payload.url
+        : '/?view=orders';
+      return self.registration.showNotification(payload.title || 'Novo pedido recebido — MGW GESTÃO', {
+        body: payload.body || 'Abra a Central de Pedidos para aceitar ou recusar.',
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-192x192.png',
+        tag: payload.tag || 'mgw-new-order',
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [250, 120, 250, 120, 350],
+        data: { url: targetUrl, orderId: payload.orderId || null },
+        actions: [{ action: 'open-orders', title: 'Ver pedidos' }],
+      });
+    }),
+  );
 });
