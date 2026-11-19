@@ -241,17 +241,17 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try {
       const saved = window.localStorage.getItem(SOUND_PREF_KEY);
-      return saved === null ? false : saved === '1';
+      return saved === null ? true : saved === '1';
     } catch {
-      return false;
+      return true;
     }
   });
   const [pushEnabled, setPushEnabled] = useState<boolean>(() => {
     try {
       const saved = window.localStorage.getItem(PUSH_PREF_KEY);
-      return saved === null ? true : saved === '1';
+      return saved === null ? false : saved === '1';
     } catch {
-      return true;
+      return false;
     }
   });
   const [notificationPermission, setNotificationPermission] =
