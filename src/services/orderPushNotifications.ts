@@ -14,6 +14,17 @@ async function ensureSubscription(): Promise<PushSubscription> {
   }
   const registration = await navigator.serviceWorker.ready;
   let subscription = await registration.pushManager.getSubscription();
+  if (subscription) {
+    const currentKey = subscription.options.applicationServerKey;
+    const expectedKey = decodeBase64Url(VAPID_PUBLIC_KEY);
+    const currentBytes = currentKey ? new Uint8Array(currentKey) : new Uint8Array();
+    const keyMatches = currentBytes.length === expectedKey.length &&
+      currentBytes.every((value, index) => value === expectedKey[index]);
+    if (!keyMatches) {
+      await subscription.unsubscribe();
+      subscription = null;
+    }
+  }
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
@@ -45,6 +56,16 @@ export async function registerOrderPushSubscription(input: {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'tenant_id,user_id,endpoint' });
   if (error) throw new Error(error.message);
+
+  // Keep only the current endpoint for this user and tenant. This removes
+  // browser subscriptions created with an older VAPID public key.
+  const { error: cleanupError } = await getSupabaseClient()
+    .from('tenant_push_subscriptions')
+    .delete()
+    .eq('tenant_id', input.tenantId)
+    .eq('user_id', input.userId)
+    .neq('endpoint', subscription.endpoint);
+  if (cleanupError) throw new Error(cleanupError.message);
 }
 
 export async function setOrderPushSubscriptionEnabled(input: {
@@ -52,6 +73,10 @@ export async function setOrderPushSubscriptionEnabled(input: {
   userId: string;
   enabled: boolean;
 }): Promise<void> {
+  if (input.enabled) {
+    await registerOrderPushSubscription(input);
+    return;
+  }
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) {
