@@ -124,6 +124,7 @@ Deno.serve(async (req: Request) => {
       pending: "pending",
       paused: "paused",
       cancelled: "cancelled",
+      canceled: "cancelled",
     };
     const nextStatus = statusMap[String(mp.status)] || "pending";
     const startDate = mp.date_created ? new Date(mp.date_created) : now;
