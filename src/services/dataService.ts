@@ -1489,33 +1489,29 @@ export function subscribePublicOrderTracking(
     return subscribePublicOrderByTokenHashFirestore(tokenHash, onUpdate, onError);
   }
 
-  const supabase = getSupabaseClient();
-  let active = true;
+  // Public tracking uses the unguessable order token through the RPC only.
+  // It never subscribes to or reads the shared realtime-pings table.
+  if (!/^[a-f0-9]{64}$/i.test(tokenHash)) {
+    onError(new Error('Token de rastreamento inválido.'));
+    return () => undefined;
+  }
 
-  const channel = supabase
-    .channel(`public-order-${tokenHash.slice(0, 16)}`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'online_order_realtime_pings',
-        filter: `token_hash=eq.${tokenHash}`,
-      },
-      () => {
-        void fetchPublicOrderByToken(token)
-          .then((order) => {
-            if (active) onUpdate(order);
-          })
-          .catch((e) => {
-            if (active) onError(e instanceof Error ? e : new Error(String(e)));
-          });
-      },
-    )
-    .subscribe();
+  let active = true;
+  const poll = async () => {
+    try {
+      const order = await fetchPublicOrderByToken(token);
+      if (active) onUpdate(order);
+    } catch (error) {
+      if (active) onError(error instanceof Error ? error : new Error(String(error)));
+    }
+  };
+
+  const timer = window.setInterval(() => {
+    void poll();
+  }, 8000);
 
   return () => {
     active = false;
-    void supabase.removeChannel(channel);
+    window.clearInterval(timer);
   };
 }
