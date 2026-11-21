@@ -70,6 +70,11 @@ Deno.serve(async (req: Request) => {
       return json({ received: true, deferred: true });
     }
 
+    if (!accessToken) {
+      console.error("[mp-webhook] MP_ACCESS_TOKEN_TEST ausente para consultar a assinatura.");
+      return json({ error: "Provider access token not configured" }, 503);
+    }
+
     const mpResponse = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(resourceId)}`, {
       headers: { "Authorization": `Bearer ${accessToken}` },
     });
