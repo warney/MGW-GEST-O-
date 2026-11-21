@@ -88,7 +88,11 @@ Deno.serve(async (req: Request) => {
     if (subscriptionError || !subscription) {
       return json({ error: "Assinatura do estabelecimento não encontrada." }, 404);
     }
-    if (subscription.mp_preapproval_id && subscription.mp_init_point) {
+    if (
+      subscription.mp_preapproval_id &&
+      subscription.mp_init_point &&
+      !["cancelled", "expired", "suspended"].includes(subscription.status)
+    ) {
       return json({ checkoutUrl: subscription.mp_init_point, reused: true });
     }
     if (subscription.status === "authorized" || subscription.status === "exempt") {
@@ -105,7 +109,7 @@ Deno.serve(async (req: Request) => {
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "X-scope": "stage",
-        "X-Idempotency-Key": `mgw-sub-${tenantId}-v1`,
+        "X-Idempotency-Key": `mgw-sub-${tenantId}-${subscription.mp_preapproval_id || "initial"}`,
       },
       body: JSON.stringify({
         reason: "MGW Gestão SaaS — plano mensal",
