@@ -122,6 +122,7 @@ Deno.serve(async (req: Request) => {
           currency_id: "BRL",
         },
         back_url: `${APP_URL}/?billing=return`,
+        notification_url: `${supabaseUrl}/functions/v1/mp-webhook`,
         status: "pending",
       }),
     });
