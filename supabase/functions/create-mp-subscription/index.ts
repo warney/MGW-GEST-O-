@@ -1,29 +1,37 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-const APP_URL = "https://mgw-gest-o.vercel.app";
-const ALLOWED_ORIGIN = APP_URL;
-const HEADERS = {
-  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+const PRODUCTION_APP_URL = "https://mgw-gest-o.vercel.app";
+const BASE_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Vary": "Origin",
 };
+
+function getReturnUrl(req: Request): string {
+  const origin = req.headers.get("origin") || "";
+  try {
+    const parsed = new URL(origin);
+    const isProduction = parsed.origin === PRODUCTION_APP_URL;
+    const isProjectPreview = parsed.protocol === "https:"
+      && parsed.hostname.startsWith("mgw-gest-")
+      && parsed.hostname.endsWith("-warney-fernandes-projects.vercel.app");
+    return isProduction || isProjectPreview ? parsed.origin : PRODUCTION_APP_URL;
+  } catch {
+    return PRODUCTION_APP_URL;
+  }
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...HEADERS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+    headers: { ...BASE_HEADERS, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: HEADERS });
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: BASE_HEADERS });
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
-  if (req.headers.get("origin") && req.headers.get("origin") !== ALLOWED_ORIGIN) {
-    return json({ error: "Origem não permitida." }, 403);
-  }
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   const accessToken = Deno.env.get("MP_ACCESS_TOKEN_TEST") || "";
@@ -121,7 +129,7 @@ Deno.serve(async (req: Request) => {
           transaction_amount: 49.90,
           currency_id: "BRL",
         },
-        back_url: `${APP_URL}/?billing=return`,
+        back_url: `${getReturnUrl(req)}/?billing=return`,
         notification_url: `${supabaseUrl}/functions/v1/mp-webhook`,
         status: "pending",
       }),
