@@ -58,10 +58,14 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const accessToken = Deno.env.get("MP_ACCESS_TOKEN_TEST") || "";
-  const webhookSecret = Deno.env.get("MP_WEBHOOK_SECRET_TEST") || "";
-  if (!supabaseUrl || !serviceRoleKey || !webhookSecret) {
-    console.error("[mp-webhook] Configuração obrigatória ausente.", { supabaseUrl: Boolean(supabaseUrl), serviceRoleKey: Boolean(serviceRoleKey), webhookSecretPresent: Boolean(webhookSecret) });
+  const accessToken = (Deno.env.get("MP_ACCESS_TOKEN_TEST") || "").trim();
+  const webhookSecret = (Deno.env.get("MP_WEBHOOK_SECRET_TEST") || "").trim();
+  if (!supabaseUrl || !serviceRoleKey || !accessToken) {
+    console.error("[mp-webhook] Configuração obrigatória ausente.", {
+      supabaseUrl: Boolean(supabaseUrl),
+      serviceRoleKey: Boolean(serviceRoleKey),
+      accessTokenPresent: Boolean(accessToken),
+    });
     return json({ error: "Webhook not configured" }, 503);
   }
 
@@ -76,26 +80,42 @@ Deno.serve(async (req: Request) => {
       return json({ received: true, ignored: true });
     }
 
-    if (!await verifySignature(req, resourceId, webhookSecret)) {
-      console.warn("[mp-webhook] Falha na validação HMAC ou nos cabeçalhos.");
-      return json({ error: "Invalid signature" }, 401);
-    }
-
+    // Payment/invoice events are acknowledged but not allowed to mutate subscription state
+    // until invoice reconciliation is implemented. This also lets the dashboard simulator
+    // verify delivery without treating its fixed sample ID as a real payment.
     if (eventType === "subscription_authorized_payment") {
-      // Payment notifications are acknowledged here; subscription state is verified from the canonical preapproval resource.
+      console.info("[mp-webhook] Evento de pagamento recebido; conciliação ainda pendente.", {
+        liveMode: body.live_mode === true,
+      });
       return json({ received: true, deferred: true });
     }
 
-    if (!accessToken) {
-      console.error("[mp-webhook] MP_ACCESS_TOKEN_TEST ausente para consultar a assinatura.");
-      return json({ error: "Provider access token not configured" }, 503);
+    // Subscription integrations must set notification_url on each preapproval.
+    // The dashboard-level Webhooks configuration is not the supported setup path for Subscriptions.
+    // Prefer HMAC when available; for test mode also require a canonical resource lookup before
+    // any database mutation, so simulator payloads cannot activate a tenant.
+    const signatureValid = webhookSecret
+      ? await verifySignature(req, resourceId, webhookSecret)
+      : false;
+    if (!signatureValid && body.live_mode === true) {
+      console.warn("[mp-webhook] Assinatura inválida em notificação live; recusada.");
+      return json({ error: "Invalid signature" }, 401);
     }
 
     const mpResponse = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(resourceId)}`, {
-      headers: { "Authorization": `Bearer ${accessToken}` },
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "X-scope": "stage",
+      },
     });
     const mp = await mpResponse.json().catch(() => ({}));
     if (!mpResponse.ok || typeof mp.external_reference !== "string") {
+      // The Mercado Pago dashboard simulator uses fixed sample IDs (for example 123456).
+      // A missing test resource is acknowledged, but never changes tenant billing state.
+      if (body.live_mode === false && !mpResponse.ok) {
+        console.info("[mp-webhook] Simulação recebida; ID de exemplo não existe na API. Nenhuma assinatura foi alterada.");
+        return json({ received: true, simulated: true, ignored: true });
+      }
       console.error("[mp-webhook] Não foi possível confirmar a assinatura na API:", mpResponse.status);
       return json({ error: "Could not verify subscription with provider" }, 502);
     }
