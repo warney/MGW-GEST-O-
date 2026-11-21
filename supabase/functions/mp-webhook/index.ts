@@ -44,8 +44,8 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   const accessToken = Deno.env.get("MP_ACCESS_TOKEN_TEST") || "";
   const webhookSecret = Deno.env.get("MP_WEBHOOK_SECRET_TEST") || "";
-  if (!supabaseUrl || !serviceRoleKey || !accessToken || !webhookSecret || !accessToken.startsWith("TEST-")) {
-    console.error("[mp-webhook] Configuração de teste ausente ou inválida.");
+  if (!supabaseUrl || !serviceRoleKey || !webhookSecret) {
+    console.error("[mp-webhook] Configuração obrigatória ausente.", { supabaseUrl: Boolean(supabaseUrl), serviceRoleKey: Boolean(serviceRoleKey), webhookSecretPresent: Boolean(webhookSecret) });
     return json({ error: "Webhook not configured" }, 503);
   }
 
