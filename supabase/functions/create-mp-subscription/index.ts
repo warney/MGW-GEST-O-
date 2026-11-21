@@ -122,7 +122,7 @@ Deno.serve(async (req: Request) => {
     });
 
     const mpData = await mpResponse.json().catch(() => ({}));
-    if (!mpResponse.ok || typeof mpData.id !== "string" || typeof mpData.init_point !== "string") {
+    if (!mpResponse.ok || typeof mpData.id !== "string" || typeof mpData.sandbox_init_point !== "string") {
       console.error("[create-mp-subscription] Mercado Pago recusou a criação:", mpResponse.status, mpData?.message || "sem mensagem");
       return json({ error: "Não foi possível gerar o checkout de teste. Tente novamente mais tarde." }, 502);
     }
@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
       .update({
         mp_preapproval_id: mpData.id,
         mp_payer_email: user.email,
-        mp_init_point: mpData.init_point,
+        mp_init_point: mpData.sandbox_init_point,
         status: nextStatus,
         updated_at: new Date().toISOString(),
       })
@@ -147,7 +147,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Checkout criado, mas não foi possível salvar o vínculo. Contate o suporte antes de tentar novamente." }, 500);
     }
 
-    return json({ checkoutUrl: mpData.init_point, subscriptionId: mpData.id, reused: false });
+    return json({ checkoutUrl: mpData.sandbox_init_point, subscriptionId: mpData.id, reused: false });
   } catch (error) {
     console.error("[create-mp-subscription] Erro inesperado:", error instanceof Error ? error.message : "unknown");
     return json({ error: "Erro interno ao preparar a assinatura." }, 500);
