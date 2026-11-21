@@ -63,12 +63,14 @@ async function authorizeTenant(admin: ReturnType<typeof createClient>, token: st
 
   const { data: sub } = await admin
     .from('subscriptions')
-    .select('status,trial_ends_at,grace_until')
+    .select('status,trial_ends_at,grace_until,current_period_end')
     .eq('tenant_id', tenantId)
     .maybeSingle();
-  const trialActive = sub?.status === 'trialing' && Boolean(sub.trial_ends_at) && Date.parse(sub.trial_ends_at as string) > Date.now();
-  const graceActive = sub?.status === 'paused' && sub.grace_until && Date.parse(sub.grace_until) > Date.now();
-  const billingActive = Boolean(tenant.billing_exempt || ['authorized', 'exempt', 'free'].includes(sub?.status) || trialActive || graceActive);
+  const now = Date.now();
+  const trialActive = sub?.status === 'trialing' && Boolean(sub.trial_ends_at) && Date.parse(sub.trial_ends_at as string) > now;
+  const graceActive = ['paused', 'past_due'].includes(sub?.status || '') && Boolean(sub.grace_until) && Date.parse(sub.grace_until as string) > now;
+  const cancelledPeriodActive = sub?.status === 'cancelled' && Boolean(sub.current_period_end) && Date.parse(sub.current_period_end as string) > now;
+  const billingActive = Boolean(tenant.billing_exempt || ['authorized', 'exempt'].includes(sub?.status || '') || trialActive || graceActive || cancelledPeriodActive);
   if (!billingActive) throw new MenuStorageAuthError(403, 'billing_inactive', 'O acesso deste estabelecimento está suspenso ou aguardando ativação.');
 
   return { tenantId, role: String(member.role || '') };
