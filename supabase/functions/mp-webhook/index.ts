@@ -80,6 +80,14 @@ Deno.serve(async (req: Request) => {
       return json({ received: true, ignored: true });
     }
 
+    // Mercado Pago's dashboard simulator sends this fixed sample preapproval ID.
+    // Acknowledge this exact synthetic event without provider lookup or any DB mutation.
+    // This exception cannot authorize, activate, pause, or cancel a real tenant subscription.
+    if (resourceId === "123456" && eventType === "subscription_preapproval" && action === "updated") {
+      console.info("[mp-webhook] Simulação do painel recebida e confirmada; nenhum dado de assinatura foi alterado.");
+      return json({ received: true, simulated: true, ignored: true });
+    }
+
     // Payment/invoice events are acknowledged but not allowed to mutate subscription state
     // until invoice reconciliation is implemented. This also lets the dashboard simulator
     // verify delivery without treating its fixed sample ID as a real payment.
