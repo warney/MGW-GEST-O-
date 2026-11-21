@@ -22,11 +22,27 @@ function parseSignature(value: string): { ts: string; v1: string } | null {
 }
 
 async function verifySignature(req: Request, resourceId: string, secret: string): Promise<boolean> {
-  const signature = parseSignature(req.headers.get("x-signature") || "");
+  const rawSignature = req.headers.get("x-signature") || "";
+  const signature = parseSignature(rawSignature);
   const requestId = req.headers.get("x-request-id") || "";
-  if (!signature || !requestId || !resourceId) return false;
+  if (!signature || !requestId || !resourceId) {
+    console.warn("[mp-webhook] Cabeçalho de assinatura incompleto.", {
+      xSignaturePresent: Boolean(rawSignature),
+      xRequestIdPresent: Boolean(requestId),
+      resourceIdPresent: Boolean(resourceId),
+    });
+    return false;
+  }
   const timestamp = Number(signature.ts);
-  if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > 5 * 60 * 1000) return false;
+  // Mercado Pago integrations may expose ts in seconds or milliseconds.
+  const timestampMs = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
+  if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+    console.warn("[mp-webhook] Timestamp da assinatura inválido ou expirado.", {
+      timestampPresent: Boolean(signature.ts),
+      timestampUnit: timestamp < 1_000_000_000_000 ? "seconds" : "milliseconds",
+    });
+    return false;
+  }
 
   const manifest = `id:${resourceId};request-id:${requestId};ts:${signature.ts};`;
   const key = await crypto.subtle.importKey(
@@ -61,7 +77,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!await verifySignature(req, resourceId, webhookSecret)) {
-      console.warn("[mp-webhook] Assinatura inválida ou ausente.");
+      console.warn("[mp-webhook] Falha na validação HMAC ou nos cabeçalhos.");
       return json({ error: "Invalid signature" }, 401);
     }
 
