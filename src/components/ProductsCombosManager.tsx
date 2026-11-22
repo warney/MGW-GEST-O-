@@ -59,6 +59,8 @@ export function ProductsCombosManager({
   const [addonGroupDraft, setAddonGroupDraft] = useState('');
   const [optionDrafts, setOptionDrafts] = useState<Record<string, { name: string; price: string }>>({});
   const [catalogBusy, setCatalogBusy] = useState(false);
+  const [selectedAddonGroupIds, setSelectedAddonGroupIds] = useState<string[]>([]);
+  const [addonGroupRules, setAddonGroupRules] = useState<Record<string, { isRequired: boolean; minSelect: number; maxSelect: number }>>({});
 
   async function refreshCustomCatalog() {
     if (!workspaceId) return;
@@ -69,9 +71,10 @@ export function ProductsCombosManager({
     ]);
     if (!cats.error && cats.data?.length) setCustomCategories(cats.data.map((r) => String(r.name)));
     if (!groups.error) setAddonGroups((groups.data || []).map((r: any) => ({
-      id: String(r.id), name: String(r.name),
+      id: String(r.id), name: String(r.name), isRequired: Boolean(r.is_required), minSelect: Number(r.min_select) || 0, maxSelect: Number(r.max_select) || 1,
       options: Array.isArray(r.addon_options) ? r.addon_options.map((o: any) => ({ id: String(o.id), name: String(o.name), price: Number(o.price) || 0 })) : [],
     })));
+    if (!groups.error) setAddonGroupRules(Object.fromEntries((groups.data || []).map((g: any) => [String(g.id), { isRequired: Boolean(g.is_required), minSelect: Number(g.min_select) || 0, maxSelect: Number(g.max_select) || 1 }])));
   }
 
   useEffect(() => { void refreshCustomCatalog(); }, [workspaceId]);
@@ -165,6 +168,7 @@ export function ProductsCombosManager({
     setProdActive(true);
     setProdImageUrl('');
     setProdImagePath('');
+    setSelectedAddonGroupIds([]);
     setProductFormOpen(true);
   }
 
@@ -178,6 +182,8 @@ export function ProductsCombosManager({
     setProdActive(p.active);
     setProdImageUrl(p.imageUrl || '');
     setProdImagePath(p.imagePath || '');
+    setSelectedAddonGroupIds([]);
+    void getSupabaseClient().from('product_addon_groups').select('group_id').eq('tenant_id', workspaceId).eq('product_id', p.id).then(({ data, error }) => { if (!error) setSelectedAddonGroupIds((data || []).map((row) => String(row.group_id))); });
     setProductFormOpen(true);
   }
 
@@ -208,6 +214,7 @@ export function ProductsCombosManager({
         imageUrl: prodImageUrl,
         imagePath: prodImagePath,
       };
+      let savedProductId = editingProduct?.id || draftProductId;
       if (editingProduct) {
         await onUpdateProduct(editingProduct.id, payload);
         if (previousSavedPath && previousSavedPath !== prodImagePath) {
@@ -215,11 +222,18 @@ export function ProductsCombosManager({
         }
         showNotice('Produto atualizado.');
       } else {
-        await onCreateProduct({
+        savedProductId = await onCreateProduct({
           ...payload,
           preferredId: draftProductId || undefined,
         });
         showNotice('Produto cadastrado.');
+      }
+      const supabase = getSupabaseClient();
+      const { error: clearLinksError } = await supabase.from('product_addon_groups').delete().eq('tenant_id', workspaceId).eq('product_id', savedProductId);
+      if (clearLinksError) throw clearLinksError;
+      if (selectedAddonGroupIds.length) {
+        const { error: linkError } = await supabase.from('product_addon_groups').insert(selectedAddonGroupIds.map((groupId, index) => ({ tenant_id: workspaceId, product_id: savedProductId, group_id: groupId, sort_order: index })));
+        if (linkError) throw linkError;
       }
       setProductFormOpen(false);
       setEditingProduct(null);
@@ -871,7 +885,13 @@ export function ProductsCombosManager({
           <div className="flex flex-wrap gap-2">{customCategories.map((v) => <span key={v} className="px-3 py-1.5 rounded-full bg-[#0B0D11] border border-[#343B49] text-xs text-white">{v}</span>)}</div>
           <div className="border-t border-[#232834] pt-4 space-y-3"><h3 className="text-sm font-bold text-white">Grupos de adicionais</h3>
             <div className="flex gap-2"><input value={addonGroupDraft} onChange={(e) => setAddonGroupDraft(e.target.value)} maxLength={80} placeholder="Ex.: Sabores de pastel" className="flex-1 min-h-[42px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] text-sm text-white"/><button type="button" disabled={catalogBusy || !addonGroupDraft.trim()} onClick={() => void addAddonGroup()} className="px-4 rounded-xl border border-[#F5B731] text-[#F5B731] text-xs font-bold">Criar grupo</button></div>
-            {addonGroups.map((g) => <div key={g.id} className="rounded-xl border border-[#343B49] p-3 space-y-2"><strong className="text-sm text-white">{g.name}</strong><div className="flex flex-wrap gap-2">{g.options.map((o) => <span key={o.id} className="text-xs px-2 py-1 rounded bg-[#0B0D11] text-[#D1D5DB]">{o.name} · {formatCurrencyBRL(o.price)}</span>)}</div><div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_auto] gap-2"><input value={optionDrafts[g.id]?.name || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: e.target.value, price: p[g.id]?.price || '' } }))} placeholder="Opção" className="min-h-[40px] px-3 rounded-lg bg-[#0B0D11] border border-[#232834] text-xs text-white"/><input type="number" min="0" step="0.01" value={optionDrafts[g.id]?.price || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: p[g.id]?.name || '', price: e.target.value } }))} placeholder="Preço" className="min-h-[40px] px-3 rounded-lg bg-[#0B0D11] border border-[#232834] text-xs text-white"/><button type="button" disabled={catalogBusy || !optionDrafts[g.id]?.name?.trim()} onClick={() => void addAddonOption(g.id)} className="px-3 rounded-lg bg-[#F5B731] text-[#0B0D11] text-xs font-bold">Adicionar</button></div></div>)}
+            {addonGroups.map((g) => <div key={g.id} className="rounded-xl border border-[#343B49] p-3 space-y-2"><strong className="text-sm text-white">{g.name}</strong>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-[#D1D5DB]">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={addonGroupRules[g.id]?.isRequired ?? false} onChange={(e) => setAddonGroupRules((prev) => ({ ...prev, [g.id]: { ...(prev[g.id] || { minSelect: 0, maxSelect: 1 }), isRequired: e.target.checked, minSelect: e.target.checked ? Math.max(1, prev[g.id]?.minSelect || 1) : Math.min(prev[g.id]?.minSelect || 0, prev[g.id]?.maxSelect || 1) } }))}/>Obrigatório</label>
+                <label> Mínimo <input type="number" min="0" max="30" value={addonGroupRules[g.id]?.minSelect ?? 0} onChange={(e) => setAddonGroupRules((prev) => ({ ...prev, [g.id]: { ...(prev[g.id] || { isRequired: false, maxSelect: 1 }), minSelect: Math.max(0, Number(e.target.value) || 0) } }))} className="w-14 ml-1 bg-[#0B0D11] border border-[#343B49] rounded px-1 py-1"/></label>
+                <label> Máximo <input type="number" min="1" max="30" value={addonGroupRules[g.id]?.maxSelect ?? 1} onChange={(e) => setAddonGroupRules((prev) => ({ ...prev, [g.id]: { ...(prev[g.id] || { isRequired: false, minSelect: 0 }), maxSelect: Math.max(1, Number(e.target.value) || 1) } }))} className="w-14 ml-1 bg-[#0B0D11] border border-[#343B49] rounded px-1 py-1"/></label>
+                <button type="button" onClick={() => { const rule = addonGroupRules[g.id] || { isRequired: false, minSelect: 0, maxSelect: 1 }; if (rule.minSelect > rule.maxSelect || (rule.isRequired && rule.minSelect < 1)) { showNotice('Revise mínimo e máximo deste grupo.', 'err'); return; } void getSupabaseClient().from('addon_groups').update({ is_required: rule.isRequired, min_select: rule.minSelect, max_select: rule.maxSelect }).eq('tenant_id', workspaceId).eq('id', g.id).then(({ error }) => { if (error) showNotice(error.message, 'err'); else { showNotice('Regras do grupo atualizadas.'); void refreshCustomCatalog(); } }); }} className="text-[#F5B731] underline">Salvar regras</button>
+              </div><div className="flex flex-wrap gap-2">{g.options.map((o) => <span key={o.id} className="text-xs px-2 py-1 rounded bg-[#0B0D11] text-[#D1D5DB]">{o.name} · {formatCurrencyBRL(o.price)}</span>)}</div><div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_auto] gap-2"><input value={optionDrafts[g.id]?.name || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: e.target.value, price: p[g.id]?.price || '' } }))} placeholder="Opção" className="min-h-[40px] px-3 rounded-lg bg-[#0B0D11] border border-[#232834] text-xs text-white"/><input type="number" min="0" step="0.01" value={optionDrafts[g.id]?.price || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: p[g.id]?.name || '', price: e.target.value } }))} placeholder="Preço" className="min-h-[40px] px-3 rounded-lg bg-[#0B0D11] border border-[#232834] text-xs text-white"/><button type="button" disabled={catalogBusy || !optionDrafts[g.id]?.name?.trim()} onClick={() => void addAddonOption(g.id)} className="px-3 rounded-lg bg-[#F5B731] text-[#0B0D11] text-xs font-bold">Adicionar</button></div></div>)}
           </div>
         </section>
       )}
@@ -934,6 +954,10 @@ export function ProductsCombosManager({
                 </div>
               </div>
 
+              <section className="rounded-xl border border-[#343B49] bg-[#0B0D11] p-3 space-y-2">
+                <div><h4 className="text-xs font-bold text-[#F3F4F6]">Grupos de adicionais deste produto</h4><p className="text-[11px] text-[#9CA3AF]">Selecione os grupos que o cliente poderá escolher no cardápio. Um grupo pode ser reutilizado em vários produtos.</p></div>
+                {addonGroups.length === 0 ? <p className="text-xs text-[#9CA3AF]">Crie primeiro um grupo de adicionais nesta tela.</p> : addonGroups.map((group) => <label key={group.id} className="flex items-center gap-2 py-1 text-xs text-[#D1D5DB]"><input type="checkbox" checked={selectedAddonGroupIds.includes(group.id)} onChange={(e) => setSelectedAddonGroupIds((prev) => e.target.checked ? [...prev, group.id] : prev.filter((id) => id !== group.id))} className="accent-[#F5B731]"/><span>{group.name} · {group.options.length} opções</span></label>)}
+              </section>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
                 <div>
                   <label htmlFor="prod-price" className="block text-xs font-medium text-[#D1D5DB] mb-1.5">
