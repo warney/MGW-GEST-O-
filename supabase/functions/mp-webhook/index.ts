@@ -1,3 +1,4 @@
+// @ts-expect-error Deno Edge Runtime types are provided by Supabase during function deployment.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -145,6 +146,9 @@ Deno.serve(async (req: Request) => {
       const paymentObject = authorized.payment && typeof authorized.payment === "object"
         ? authorized.payment as Record<string, unknown>
         : {};
+      const payerObject = paymentObject.payer && typeof paymentObject.payer === "object"
+        ? paymentObject.payer as Record<string, unknown>
+        : {};
       const mpPaymentId = String(paymentObject.id || authorized.id);
       const paidAtValue = authorized.date_approved || authorized.date_last_updated || null;
       const paidAt = normalizedStatus === "approved" && paidAtValue
@@ -179,7 +183,7 @@ Deno.serve(async (req: Request) => {
         currency,
         status: normalizedStatus,
         payment_method: String(paymentObject.payment_method_id || paymentObject.payment_type_id || authorized.payment_method_id || ""),
-        payer_email: String(paymentObject.payer?.email || authorized.payer_email || subscription.mp_payer_email || ""),
+        payer_email: String(payerObject.email || authorized.payer_email || subscription.mp_payer_email || ""),
         failure_reason: normalizedStatus === "rejected" ? String(authorized.reason || authorized.status_detail || "Pagamento recusado") : "",
         paid_at: paidAt && !Number.isNaN(paidAt.getTime()) ? paidAt.toISOString() : null,
         due_at: dueAt && !Number.isNaN(dueAt.getTime()) ? dueAt.toISOString() : null,
