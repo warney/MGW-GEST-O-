@@ -186,6 +186,7 @@ export interface SupabaseOnlineOrderItemRow {
   x_saladas_per_unit: number;
   components: unknown;
   item_note: string;
+  selected_addons?: unknown;
   created_at?: string;
 }
 
@@ -954,6 +955,15 @@ function parseOrderItemComponents(raw: unknown): SaleLineComponentSnapshot[] {
     }));
 }
 
+function parseSelectedAddonSnapshots(raw: unknown): Array<{ groupId: string; groupName: string; options: Array<{ id: string; name: string; price: number }> }> {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((g): g is Record<string, unknown> => Boolean(g && typeof g === 'object')).slice(0, 30).map((g) => ({
+    groupId: String(g.groupId || ''),
+    groupName: String(g.groupName || 'Adicionais'),
+    options: Array.isArray(g.options) ? g.options.filter((o): o is Record<string, unknown> => Boolean(o && typeof o === 'object')).slice(0, 30).map((o) => ({ id: String(o.id || ''), name: String(o.name || ''), price: roundCurrency(Math.max(0, Number(o.price) || 0)) })) : [],
+  }));
+}
+
 export function mapOnlineOrderItemRow(
   row: SupabaseOnlineOrderItemRow,
 ): OnlineOrderItemSnapshot {
@@ -968,6 +978,7 @@ export function mapOnlineOrderItemRow(
     estimatedUnitCost: roundCurrency(Math.max(0, Number(row.estimated_unit_cost) || 0)),
     xSaladasPerUnit: Math.max(0, Math.trunc(Number(row.x_saladas_per_unit) || 0)),
     components: parseOrderItemComponents(row.components),
+    selectedAddons: parseSelectedAddonSnapshots(row.selected_addons),
     itemNote: String(row.item_note || ''),
   };
 }
@@ -1112,6 +1123,7 @@ export function mapPublicOrderTrackingRpcResponse(
           quantity: Math.max(1, Math.trunc(Number(it.quantity) || 1)),
           unitPrice: roundCurrency(Number(it.unitPrice) || 0),
           lineTotal: roundCurrency(Number(it.lineTotal) || 0),
+          selectedAddons: parseSelectedAddonSnapshots(it.selectedAddons),
           itemNote: String(it.itemNote || ''),
         }))
     : [];
