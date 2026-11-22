@@ -458,6 +458,7 @@ test('Cenarios 12 e 13: Pedido online concluido gera apenas 1 venda com delivery
         quantity: 2,
         unitPrice: 23.5,
         lineTotal: 47,
+        selectedAddons: [],
         estimatedUnitCost: 0,
         xSaladasPerUnit: 2,
         components: [
@@ -801,6 +802,7 @@ test('Etapa 2 Final: Fuso horario padrao America/Manaus, taxa de entrega na conv
         quantity: 2,
         unitPrice: 23.5,
         lineTotal: 47,
+        selectedAddons: [],
         estimatedUnitCost: 0,
         xSaladasPerUnit: 2,
         components: [
