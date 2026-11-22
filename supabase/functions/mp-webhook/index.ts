@@ -88,25 +88,135 @@ Deno.serve(async (req: Request) => {
       return json({ received: true, simulated: true, ignored: true });
     }
 
-    // Payment/invoice events are acknowledged but not allowed to mutate subscription state
-    // until invoice reconciliation is implemented. This also lets the dashboard simulator
-    // verify delivery without treating its fixed sample ID as a real payment.
+    // Reconcile recurring invoices using Mercado Pago's canonical invoice endpoint.
     if (eventType === "subscription_authorized_payment") {
-      console.info("[mp-webhook] Evento de pagamento recebido; conciliação ainda pendente.", {
-        liveMode: body.live_mode === true,
+      if (!webhookSecret) return json({ error: "Webhook signature secret is not configured" }, 503);
+      const valid = await verifySignature(req, resourceId, webhookSecret);
+      if (!valid) return json({ error: "Invalid signature" }, 401);
+
+      const invoiceResponse = await fetch(
+        `https://api.mercadopago.com/authorized_payments/${encodeURIComponent(resourceId)}`,
+        { headers: { "Authorization": `Bearer ${accessToken}`, "X-scope": "stage" } },
+      );
+      const invoice = await invoiceResponse.json().catch(() => ({}));
+      if (!invoiceResponse.ok || !invoice.preapproval_id || !invoice.external_reference) {
+        console.error("[mp-webhook] Não foi possível validar a fatura:", invoiceResponse.status);
+        return json({ error: "Could not verify invoice with provider" }, 502);
+      }
+
+      const tenantId = String(invoice.external_reference);
+      const preapprovalId = String(invoice.preapproval_id);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
+        return json({ error: "Invalid invoice external reference" }, 400);
+      }
+      if (Number(invoice.transaction_amount) !== 49.9 || String(invoice.currency_id) !== "BRL") {
+        return json({ error: "Invoice amount mismatch" }, 409);
+      }
+
+      const preapprovalResponse = await fetch(
+        `https://api.mercadopago.com/preapproval/${encodeURIComponent(preapprovalId)}`,
+        { headers: { "Authorization": `Bearer ${accessToken}`, "X-scope": "stage" } },
+      );
+      const preapproval = await preapprovalResponse.json().catch(() => ({}));
+      if (
+        !preapprovalResponse.ok ||
+        String(preapproval.external_reference) !== tenantId ||
+        Number(preapproval.auto_recurring?.transaction_amount) !== 49.9 ||
+        String(preapproval.auto_recurring?.currency_id) !== "BRL"
+      ) {
+        return json({ error: "Invoice subscription could not be verified" }, 409);
+      }
+
+      const supabase = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
       });
-      return json({ received: true, deferred: true });
+      const { data: current, error: currentError } = await supabase
+        .from("subscriptions")
+        .select("id,tenant_id,status,mp_preapproval_id")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (currentError || !current) return json({ error: "MGW subscription not found" }, 404);
+      if (current.mp_preapproval_id !== preapprovalId) {
+        return json({ error: "Invoice subscription ID mismatch" }, 409);
+      }
+
+      const invoiceStatus = String(invoice.payment?.status || invoice.summarized || invoice.status || "pending");
+      const eventId = `invoice:${resourceId}:${String(invoice.last_modified || invoiceStatus)}`;
+      const now = new Date();
+      const { error: eventError } = await supabase.from("mp_webhook_events").insert({
+        id: eventId,
+        event_type: eventType,
+        action: action || null,
+        resource_id: resourceId,
+        tenant_id: tenantId,
+        signature_verified: true,
+        processing_status: "received",
+        payload: {
+          id: resourceId,
+          preapproval_id: preapprovalId,
+          status: invoice.status || null,
+          summarized: invoice.summarized || null,
+          payment_status: invoice.payment?.status || null,
+        },
+      });
+      if (eventError?.code === "23505") return json({ received: true, duplicate: true });
+      if (eventError) {
+        console.error("[mp-webhook] Falha ao registrar fatura:", eventError.message);
+        return json({ error: "Could not record invoice event" }, 500);
+      }
+
+      let updateError = null;
+      if (invoiceStatus === "approved") {
+        const startDate = invoice.debit_date || invoice.date_created || now.toISOString();
+        const nextDate = preapproval.next_payment_date ? new Date(preapproval.next_payment_date) : null;
+        const update = await supabase.from("subscriptions").update({
+          status: "authorized",
+          current_period_start: startDate,
+          current_period_end: nextDate && !Number.isNaN(nextDate.getTime()) ? nextDate.toISOString() : null,
+          grace_until: null,
+          ended_at: null,
+          retention_until: null,
+          last_event_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        }).eq("tenant_id", tenantId);
+        updateError = update.error;
+      } else if (["rejected", "cancelled", "canceled"].includes(invoiceStatus)) {
+        // Keep access during the configured retry/grace window; do not cancel
+        // the recurring authorization based on a single failed collection.
+        const update = await supabase.from("subscriptions").update({
+          grace_until: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          last_event_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        }).eq("tenant_id", tenantId);
+        updateError = update.error;
+      }
+
+      if (updateError) {
+        await supabase.from("mp_webhook_events").update({
+          processing_status: "failed",
+          error_message: updateError.message,
+          processed_at: now.toISOString(),
+        }).eq("id", eventId);
+        return json({ error: "Could not reconcile invoice" }, 500);
+      }
+      await supabase.from("mp_webhook_events").update({
+        processing_status: "processed",
+        processed_at: now.toISOString(),
+      }).eq("id", eventId);
+      return json({ received: true, processed: true, invoiceStatus });
     }
 
     // Subscription integrations must set notification_url on each preapproval.
     // The dashboard-level Webhooks configuration is not the supported setup path for Subscriptions.
     // Prefer HMAC when available; for test mode also require a canonical resource lookup before
     // any database mutation, so simulator payloads cannot activate a tenant.
-    const signatureValid = webhookSecret
-      ? await verifySignature(req, resourceId, webhookSecret)
-      : false;
-    if (!signatureValid && body.live_mode === true) {
-      console.warn("[mp-webhook] Assinatura inválida em notificação live; recusada.");
+    if (!webhookSecret) {
+      console.error("[mp-webhook] Segredo de assinatura não configurado.");
+      return json({ error: "Webhook signature secret is not configured" }, 503);
+    }
+    const signatureValid = await verifySignature(req, resourceId, webhookSecret);
+    if (!signatureValid) {
+      console.warn("[mp-webhook] Assinatura inválida; notificação recusada.");
       return json({ error: "Invalid signature" }, 401);
     }
 
