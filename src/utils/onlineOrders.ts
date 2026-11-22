@@ -278,6 +278,7 @@ export interface ComputedCartLine {
   unitPrice: number;
   lineTotal: number;
   note: string;
+  selectedAddons: Array<{ groupId: string; groupName: string; options: Array<{ id: string; name: string; price: number }> }>;
   xSaladasPerUnit: number;
 }
 
@@ -318,7 +319,18 @@ export function computeCartSummary(
         missingItems.push(raw);
         continue;
       }
-      const lineTotal = roundCurrency(prod.unitPrice * qty);
+      const selected = raw.selectedAddons || [];
+      const addonGroups = prod.addonGroups || [];
+      let addonUnitTotal = 0;
+      const addonSnapshots = selected.flatMap((selection) => {
+        const group = addonGroups.find((g) => g.id === selection.groupId);
+        if (!group) return [];
+        const options = (selection.optionIds || []).map((id) => group.options.find((o) => o.id === id)).filter((o): o is NonNullable<typeof o> => Boolean(o && o.active));
+        addonUnitTotal += options.reduce((sum, option) => sum + option.price, 0);
+        return options.length ? [{ groupId: group.id, groupName: group.name, options: options.map((o) => ({ id: o.id, name: o.name, price: o.price })) }] : [];
+      });
+      const unitPrice = roundCurrency(prod.unitPrice + addonUnitTotal);
+      const lineTotal = roundCurrency(unitPrice * qty);
       subtotal = roundCurrency(subtotal + lineTotal);
       totalItemsCount += qty;
       lines.push({
@@ -327,8 +339,9 @@ export function computeCartSummary(
         name: prod.name,
         description: prod.category,
         quantity: qty,
-        unitPrice: roundCurrency(prod.unitPrice),
+        unitPrice,
         lineTotal,
+        selectedAddons: addonSnapshots,
         note: (raw.note || '').trim().slice(0, 200),
         xSaladasPerUnit: prod.countsAsXSalada ? 1 : 0,
       });
@@ -355,6 +368,7 @@ export function computeCartSummary(
         quantity: qty,
         unitPrice: roundCurrency(combo.salePrice),
         lineTotal,
+        selectedAddons: [],
         note: (raw.note || '').trim().slice(0, 200),
         xSaladasPerUnit: xPerUnit,
       });
