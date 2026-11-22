@@ -1191,6 +1191,7 @@ export default function App() {
                   digitalMenuSettings={digitalMenuSettings}
                   initialTab={settingsInitialTab}
                   accountEmail={user.email}
+                  billingExempt={Boolean(dataContext?.tenant.billingExempt)}
                   onLogout={handleLogout}
                   onSaveSettings={handleSaveSettings}
                   onSaveDigitalMenuSettings={handleSaveDigitalMenuSettings}

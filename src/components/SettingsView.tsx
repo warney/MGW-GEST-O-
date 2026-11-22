@@ -11,6 +11,7 @@ import type {
 } from '../types/finance';
 import { DigitalMenuSettingsPanel } from './DigitalMenuSettingsPanel';
 import { ProductsCombosManager } from './ProductsCombosManager';
+import { BillingSettingsPanel } from './BillingSettingsPanel';
 
 interface SettingsViewProps {
   workspaceId: string;
@@ -28,6 +29,7 @@ interface SettingsViewProps {
   onPreviewPublicMenu?: (slug: string) => void;
   initialTab?: 'shop' | 'catalog' | 'digital_menu';
   accountEmail: string;
+  billingExempt: boolean;
   onLogout: () => Promise<void>;
 }
 
@@ -47,6 +49,7 @@ export function SettingsView({
   onPreviewPublicMenu,
   initialTab = 'shop',
   accountEmail,
+  billingExempt,
   onLogout,
 }: SettingsViewProps) {
   const [activeTab, setActiveTab] = useState<'shop' | 'catalog' | 'digital_menu'>(
@@ -213,6 +216,7 @@ export function SettingsView({
         />
       ) : (
         <div className="max-w-2xl space-y-4">
+        <BillingSettingsPanel tenantId={workspaceId} billingExempt={billingExempt} />
         <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-[#F3F4F6]">
