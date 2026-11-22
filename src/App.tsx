@@ -12,7 +12,6 @@ import {
   ShoppingBag,
   X,
 } from 'lucide-react';
-import { getActiveDataProvider } from './lib/supabase';
 import { registerOrderPushSubscription, setOrderPushSubscriptionEnabled } from './services/orderPushNotifications';
 import {
   addCombo,
@@ -156,8 +155,6 @@ const NAV_ITEMS: Array<{
 ];
 
 export default function App() {
-  const activeProvider = getActiveDataProvider();
-
   const [publicRoute, setPublicRoute] = useState<PublicUrlRoute>(() =>
     typeof window !== 'undefined'
       ? parsePublicUrlRoute(window.location.pathname)
@@ -880,7 +877,7 @@ export default function App() {
         onEmailLogin={handleEmailLogin}
         onRegister={handleRegister}
         onPasswordReset={handlePasswordReset}
-        supportsEmailAuth={activeProvider === 'supabase'}
+        supportsEmailAuth={true}
         isSigningIn={isSigningIn}
         errorMessage={authError}
       />

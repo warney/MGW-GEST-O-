@@ -485,7 +485,6 @@ export const DEFAULT_SHOP_SETTINGS: Omit<ShopSettings, 'ownerId'> = {
   timezone: 'America/Manaus',
 };
 
-export type DataProviderMode = 'firebase' | 'supabase';
 
 export type TenantRole = 'owner' | 'admin' | 'manager' | 'staff';
 
