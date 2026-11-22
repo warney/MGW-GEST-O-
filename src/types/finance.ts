@@ -202,6 +202,7 @@ export interface PublicCatalogProduct {
   unitPrice: number;
   countsAsXSalada: boolean;
   imageUrl?: string;
+  addonGroups?: PublicProductAddonGroup[];
 }
 
 export interface PublicCatalogCombo {
@@ -225,6 +226,7 @@ export interface OnlineOrderCartItem {
   id: string;
   quantity: number;
   note?: string;
+  selectedAddons?: SelectedProductAddon[];
 }
 
 export interface CreatePublicOrderPayload {
