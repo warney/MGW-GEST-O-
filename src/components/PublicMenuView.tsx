@@ -1857,9 +1857,9 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 <span>Adicionar à sacola</span>
                 <span className="font-mono tabular-nums">
                   {formatCurrencyBRL(
-                    (inspectItem.kind === 'combo'
+                    ((inspectItem.kind === 'combo'
                       ? inspectItem.combo.salePrice
-                      : inspectItem.product.unitPrice) * modalQty,
+                      : inspectItem.product.unitPrice + (inspectItem.product.addonGroups || []).reduce((sum, group) => sum + (modalAddonSelections[group.id] || []).reduce((groupSum, optionId) => groupSum + (group.options.find((option) => option.id === optionId)?.price || 0), 0), 0)) * modalQty),
                   )}
                 </span>
               </button>
