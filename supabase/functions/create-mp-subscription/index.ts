@@ -1,3 +1,4 @@
+// @ts-expect-error Deno Edge Runtime types are provided by Supabase during function deployment.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
