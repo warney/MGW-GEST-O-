@@ -265,6 +265,7 @@ export interface OnlineOrderItemSnapshot {
   estimatedUnitCost: number;
   xSaladasPerUnit: number;
   components: SaleLineComponentSnapshot[];
+  selectedAddons: Array<{ groupId: string; groupName: string; options: Array<{ id: string; name: string; price: number }> }>;
   itemNote: string;
 }
 
@@ -342,6 +343,7 @@ export interface PublicOrderTrackingRecord {
     quantity: number;
     unitPrice: number;
     lineTotal: number;
+    selectedAddons: Array<{ groupId: string; groupName: string; options: Array<{ id: string; name: string; price: number }> }>;
     itemNote: string;
   }>;
   statusHistory: OnlineOrderStatusEvent[];
