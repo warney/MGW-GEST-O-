@@ -66,13 +66,7 @@ interface PublicMenuViewProps {
   onOrderCreated: (trackingToken: string) => void;
 }
 
-type MenuCategoryFilter =
-  | 'all'
-  | 'combos'
-  | 'Lanche'
-  | 'Bebida'
-  | 'Adicional'
-  | 'Outro';
+type MenuCategoryFilter = 'all' | 'combos' | string;
 
 type CheckoutStep = 'cart' | 'details' | 'review';
 
@@ -157,6 +151,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
   const [inspectItem, setInspectItem] = useState<InspectItemState>(null);
   const [modalQty, setModalQty] = useState(1);
   const [modalNote, setModalNote] = useState('');
+  const [modalAddonSelections, setModalAddonSelections] = useState<Record<string, string[]>>({});
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   function markImageBroken(url?: string) {
@@ -301,6 +296,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     id: string,
     quantityToAdd: number,
     note: string,
+    selectedAddons: Array<{ groupId: string; optionIds: string[] }> = [],
   ) {
     setCheckoutError(null);
     const cleanNote = note.trim().slice(0, 200);
@@ -309,13 +305,13 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
       if (idx === -1) {
         return [
           ...prev,
-          { kind, id, quantity: Math.min(99, Math.max(1, quantityToAdd)), note: cleanNote },
+          { kind, id, quantity: Math.min(99, Math.max(1, quantityToAdd)), note: cleanNote, selectedAddons },
         ];
       }
       const nextQty = Math.min(99, prev[idx].quantity + quantityToAdd);
       return prev.map((entry, i) =>
         i === idx
-          ? { ...entry, quantity: nextQty, note: cleanNote || entry.note }
+          ? { ...entry, quantity: nextQty, note: cleanNote || entry.note, selectedAddons }
           : entry,
       );
     });
@@ -346,6 +342,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     const existing = cart.find((c) => c.kind === item.kind && c.id === id);
     setModalQty(1);
     setModalNote(existing?.note ?? '');
+    setModalAddonSelections(Object.fromEntries((existing?.selectedAddons || []).map((s) => [s.groupId, s.optionIds])));
     setInspectItem(item);
   }
 
@@ -482,11 +479,12 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
       paymentMethod,
       changeFor: parsedChangeForValue(),
       customerNote: customerNote.trim(),
-      items: cartSummary.lines.map((line) => ({
-        kind: line.kind,
-        id: line.id,
-        quantity: line.quantity,
-        note: line.note,
+      items: cart.map((item) => ({
+        kind: item.kind,
+        id: item.id,
+        quantity: item.quantity,
+        note: item.note || '',
+        selectedAddons: item.kind === 'product' ? (item.selectedAddons || []) : [],
       })),
     };
 
@@ -606,24 +604,15 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
         )
       : 100;
 
-  const categoryTabs: Array<{
-    id: MenuCategoryFilter;
-    label: string;
-    count: number;
-  }> = [
+  const categoryTabs: Array<{ id: MenuCategoryFilter; label: string; count: number }> = [
     { id: 'all', label: 'Todos', count: categoryCounts.all },
     { id: 'combos', label: 'Combos', count: categoryCounts.combos },
-    { id: 'Lanche', label: 'Lanches', count: categoryCounts.Lanche },
-    { id: 'Bebida', label: 'Bebidas', count: categoryCounts.Bebida },
-    { id: 'Adicional', label: 'Adicionais', count: categoryCounts.Adicional },
+    ...Array.from(new Set(products.map((p) => p.category))).sort((a, b) => a.localeCompare(b, 'pt-BR')).map((category) => ({
+      id: category,
+      label: category,
+      count: products.filter((p) => p.category === category).length,
+    })),
   ];
-  if (categoryCounts.Outro > 0) {
-    categoryTabs.push({
-      id: 'Outro',
-      label: 'Outros',
-      count: categoryCounts.Outro,
-    });
-  }
 
   const cartPanelContent = (
     <div className="space-y-4">
@@ -1772,6 +1761,32 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               </div>
             )}
 
+            {inspectItem.kind === 'product' && (inspectItem.product.addonGroups || []).filter((g) => g.active).map((group) => {
+              const selectedIds = modalAddonSelections[group.id] || [];
+              const toggleOption = (optionId: string) => {
+                setModalAddonSelections((prev) => {
+                  const current = prev[group.id] || [];
+                  const exists = current.includes(optionId);
+                  const next = exists ? current.filter((id) => id !== optionId) : group.maxSelect === 1 ? [optionId] : current.length < group.maxSelect ? [...current, optionId] : current;
+                  return { ...prev, [group.id]: next };
+                });
+              };
+              return (
+                <section key={group.id} className="rounded-xl border border-[#343B49] bg-[#0B0D11] p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <strong className="text-xs text-[#F3F4F6]">{group.name}</strong>
+                    <span className="text-[10px] text-[#9CA3AF]">{group.isRequired ? 'Obrigatório' : 'Opcional'} · escolha {group.minSelect} a {group.maxSelect}</span>
+                  </div>
+                  {group.options.filter((o) => o.active).map((option) => {
+                    const checked = selectedIds.includes(option.id);
+                    return <label key={option.id} className="flex items-center justify-between gap-3 py-1 text-xs text-[#D1D5DB] cursor-pointer">
+                      <span className="flex items-center gap-2"><input type={group.maxSelect === 1 ? 'radio' : 'checkbox'} name={`addon-${group.id}`} checked={checked} onChange={() => toggleOption(option.id)} className="accent-[#F5B731]"/>{option.name}</span>
+                      <span className="font-mono">{option.price > 0 ? `+${formatCurrencyBRL(option.price)}` : 'Grátis'}</span>
+                    </label>;
+                  })}
+                </section>
+              );
+            })}
             <div>
               <label
                 htmlFor="modal-item-note"
@@ -1815,7 +1830,12 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
 
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  if (inspectItem.kind === 'product') {
+                    const invalid = (inspectItem.product.addonGroups || []).find((g) => g.active && ((modalAddonSelections[g.id] || []).length < g.minSelect || (modalAddonSelections[g.id] || []).length > g.maxSelect));
+                    if (invalid) { setCheckoutError(`Selecione entre ${invalid.minSelect} e ${invalid.maxSelect} opções em ${invalid.name}.`); return; }
+                  }
+                  setCheckoutError(null);
                   addItemFromDetailModal(
                     inspectItem.kind,
                     inspectItem.kind === 'combo'
@@ -1823,8 +1843,9 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                       : inspectItem.product.id,
                     modalQty,
                     modalNote,
-                  )
-                }
+                    inspectItem.kind === 'product' ? (inspectItem.product.addonGroups || []).filter((g) => (modalAddonSelections[g.id] || []).length > 0).map((g) => ({ groupId: g.id, optionIds: modalAddonSelections[g.id] || [] })) : [],
+                  );
+                }}
                 className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs sm:text-sm font-bold inline-flex items-center justify-between gap-2 cursor-pointer transition-colors"
               >
                 <span>Adicionar à sacola</span>
