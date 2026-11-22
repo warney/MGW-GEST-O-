@@ -76,8 +76,45 @@ Deno.serve(async (req: Request) => {
     const resourceId = String(data.id || url.searchParams.get("data.id") || url.searchParams.get("id") || "");
     const eventType = String(body.type || url.searchParams.get("type") || body.topic || url.searchParams.get("topic") || "");
     const action = String(body.action || "");
-    if (!resourceId || !["subscription_preapproval", "subscription_authorized_payment"].includes(eventType)) {
+    if (!resourceId || !["subscription_preapproval", "subscription_preapproval_plan", "subscription_authorized_payment"].includes(eventType)) {
       return json({ received: true, ignored: true });
+    }
+
+    if (eventType === "subscription_preapproval_plan") {
+      if (!webhookSecret) return json({ error: "Webhook signature secret is not configured" }, 503);
+      const valid = await verifySignature(req, resourceId, webhookSecret);
+      if (!valid) return json({ error: "Invalid signature" }, 401);
+      const planResponse = await fetch(
+        `https://api.mercadopago.com/preapproval_plan/${encodeURIComponent(resourceId)}`,
+        { headers: { "Authorization": `Bearer ${accessToken}`, "X-scope": "stage" } },
+      );
+      const plan = await planResponse.json().catch(() => ({}));
+      if (!planResponse.ok || typeof plan.external_reference !== "string") {
+        return json({ error: "Could not verify subscription plan" }, 502);
+      }
+      const tenantId = plan.external_reference;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
+        return json({ error: "Invalid plan external reference" }, 400);
+      }
+      const supabase = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const eventId = `plan:${resourceId}:${String(plan.last_modified || plan.date_created || "unknown")}`;
+      const now = new Date().toISOString();
+      const { error: eventError } = await supabase.from("mp_webhook_events").insert({
+        id: eventId,
+        event_type: eventType,
+        action: action || null,
+        resource_id: resourceId,
+        tenant_id: tenantId,
+        signature_verified: true,
+        processing_status: "processed",
+        payload: { id: resourceId, status: plan.status, external_reference: tenantId },
+        processed_at: now,
+      });
+      if (eventError?.code === "23505") return json({ received: true, duplicate: true });
+      if (eventError) return json({ error: "Could not record plan event" }, 500);
+      return json({ received: true, processed: true, planEvent: true });
     }
 
     // Mercado Pago's dashboard simulator sends this fixed sample preapproval ID.
