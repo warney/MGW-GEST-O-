@@ -80,7 +80,42 @@ export const PRODUCT_CATEGORIES = [
   'Outro',
 ] as const;
 
-export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+// Categories are tenant-defined. PRODUCT_CATEGORIES remains only as legacy defaults.
+export type ProductCategory = string;
+
+export interface ProductCategoryRecord {
+  id: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface AddonOptionRecord {
+  id: string;
+  groupId: string;
+  name: string;
+  price: number;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface AddonGroupRecord {
+  id: string;
+  name: string;
+  isRequired: boolean;
+  minSelect: number;
+  maxSelect: number;
+  active: boolean;
+  sortOrder: number;
+  options: AddonOptionRecord[];
+}
+
+export interface PublicProductAddonGroup extends AddonGroupRecord {}
+
+export interface SelectedProductAddon {
+  groupId: string;
+  optionIds: string[];
+}
 
 export const EXPENSE_CATEGORIES = [
   'Ingredientes',
