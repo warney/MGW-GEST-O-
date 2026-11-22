@@ -403,6 +403,12 @@ export function PublicOrderTrackingView({
                   <p className="font-semibold text-[#F3F4F6]">
                     {item.quantity}x {item.itemName}
                   </p>
+                  {item.selectedAddons?.map((group) => (
+                    <p key={group.groupId} className="text-[#D1D5DB]">
+                      <span className="text-[#F5B731]">{group.groupName}:</span>{' '}
+                      {group.options.map((option) => option.name).join(', ')}
+                    </p>
+                  ))}
                   {item.itemNote && (
                     <p className="text-[#9CA3AF]">Obs: {item.itemNote}</p>
                   )}
