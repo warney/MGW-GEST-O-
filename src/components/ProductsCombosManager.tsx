@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getSupabaseClient } from '../lib/supabase';
 import {
   Check,
   Image as ImageIcon,
@@ -52,6 +53,72 @@ export function ProductsCombosManager({
   const [sectionTab, setSectionTab] = useState<'combos' | 'products'>('combos');
   const [feedback, setFeedback] = useState<{ text: string; type: 'ok' | 'err' } | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [customCategories, setCustomCategories] = useState<string[]>(PRODUCT_CATEGORIES.slice());
+  const [categoryDraft, setCategoryDraft] = useState('');
+  const [addonGroups, setAddonGroups] = useState<Array<{ id: string; name: string; options: Array<{ id: string; name: string; price: number }> }>>([]);
+  const [addonGroupDraft, setAddonGroupDraft] = useState('');
+  const [optionDrafts, setOptionDrafts] = useState<Record<string, { name: string; price: string }>>({});
+  const [catalogBusy, setCatalogBusy] = useState(false);
+
+  async function refreshCustomCatalog() {
+    if (!workspaceId) return;
+    const supabase = getSupabaseClient();
+    const [cats, groups] = await Promise.all([
+      supabase.from('product_categories').select('name').eq('tenant_id', workspaceId).eq('active', true).order('sort_order'),
+      supabase.from('addon_groups').select('id,name,addon_options(id,name,price)').eq('tenant_id', workspaceId).eq('active', true).order('sort_order'),
+    ]);
+    if (!cats.error && cats.data?.length) setCustomCategories(cats.data.map((r) => String(r.name)));
+    if (!groups.error) setAddonGroups((groups.data || []).map((r: any) => ({
+      id: String(r.id), name: String(r.name),
+      options: Array.isArray(r.addon_options) ? r.addon_options.map((o: any) => ({ id: String(o.id), name: String(o.name), price: Number(o.price) || 0 })) : [],
+    })));
+  }
+
+  useEffect(() => { void refreshCustomCatalog(); }, [workspaceId]);
+
+  async function addCustomCategory() {
+    const name = categoryDraft.trim();
+    if (!name || name.length > 60 || customCategories.some((v) => v.toLowerCase() === name.toLowerCase())) return;
+    setCatalogBusy(true);
+    try {
+      const { error } = await getSupabaseClient().from('product_categories').insert({ tenant_id: workspaceId, name, sort_order: customCategories.length });
+      if (error) throw error;
+      setCategoryDraft('');
+      await refreshCustomCatalog();
+      showNotice('Categoria criada.');
+    } catch (error) { showNotice(error instanceof Error ? error.message : 'Falha ao criar categoria.', 'err'); }
+    finally { setCatalogBusy(false); }
+  }
+
+  async function addAddonGroup() {
+    const name = addonGroupDraft.trim();
+    if (!name || name.length > 80) return;
+    setCatalogBusy(true);
+    try {
+      const { error } = await getSupabaseClient().from('addon_groups').insert({ tenant_id: workspaceId, name, is_required: false, min_select: 0, max_select: 1 });
+      if (error) throw error;
+      setAddonGroupDraft('');
+      await refreshCustomCatalog();
+      showNotice('Grupo criado.');
+    } catch (error) { showNotice(error instanceof Error ? error.message : 'Falha ao criar grupo.', 'err'); }
+    finally { setCatalogBusy(false); }
+  }
+
+  async function addAddonOption(groupId: string) {
+    const draft = optionDrafts[groupId];
+    const name = draft?.name.trim() || '';
+    const price = Number(String(draft?.price || '0').replace(',', '.'));
+    if (!name || !Number.isFinite(price) || price < 0 || price > 10000) return;
+    setCatalogBusy(true);
+    try {
+      const { error } = await getSupabaseClient().from('addon_options').insert({ tenant_id: workspaceId, group_id: groupId, name, price });
+      if (error) throw error;
+      setOptionDrafts((prev) => ({ ...prev, [groupId]: { name: '', price: '' } }));
+      await refreshCustomCatalog();
+      showNotice('Opção adicionada.');
+    } catch (error) { showNotice(error instanceof Error ? error.message : 'Falha ao adicionar opção.', 'err'); }
+    finally { setCatalogBusy(false); }
+  }
 
   // Product form state
   const [productFormOpen, setProductFormOpen] = useState(false);
@@ -92,7 +159,7 @@ export function ProductsCombosManager({
     setEditingProduct(null);
     setDraftProductId(generateDraftEntityId('prod'));
     setProdName('');
-    setProdCategory('Bebida');
+    setProdCategory(customCategories[0] || 'Bebida');
     setProdPrice('');
     setProdCountsXSalada(false);
     setProdActive(true);
@@ -797,6 +864,18 @@ export function ProductsCombosManager({
         </div>
       )}
 
+      {sectionTab === 'products' && (
+        <section className="space-y-4 bg-[#12151C] border border-[#232834] rounded-2xl p-4">
+          <div><h3 className="text-sm font-bold text-white">Categorias personalizadas</h3><p className="text-xs text-[#9CA3AF]">Crie categorias como Pastéis, Kikão, Porções e Bebidas.</p></div>
+          <div className="flex gap-2"><input value={categoryDraft} onChange={(e) => setCategoryDraft(e.target.value)} maxLength={60} placeholder="Nova categoria" className="flex-1 min-h-[42px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] text-sm text-white"/><button type="button" disabled={catalogBusy || !categoryDraft.trim()} onClick={() => void addCustomCategory()} className="px-4 rounded-xl bg-[#F5B731] text-[#0B0D11] text-xs font-bold disabled:opacity-50">Criar</button></div>
+          <div className="flex flex-wrap gap-2">{customCategories.map((v) => <span key={v} className="px-3 py-1.5 rounded-full bg-[#0B0D11] border border-[#343B49] text-xs text-white">{v}</span>)}</div>
+          <div className="border-t border-[#232834] pt-4 space-y-3"><h3 className="text-sm font-bold text-white">Grupos de adicionais</h3>
+            <div className="flex gap-2"><input value={addonGroupDraft} onChange={(e) => setAddonGroupDraft(e.target.value)} maxLength={80} placeholder="Ex.: Sabores de pastel" className="flex-1 min-h-[42px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] text-sm text-white"/><button type="button" disabled={catalogBusy || !addonGroupDraft.trim()} onClick={() => void addAddonGroup()} className="px-4 rounded-xl border border-[#F5B731] text-[#F5B731] text-xs font-bold">Criar grupo</button></div>
+            {addonGroups.map((g) => <div key={g.id} className="rounded-xl border border-[#343B49] p-3 space-y-2"><strong className="text-sm text-white">{g.name}</strong><div className="flex flex-wrap gap-2">{g.options.map((o) => <span key={o.id} className="text-xs px-2 py-1 rounded bg-[#0B0D11] text-[#D1D5DB]">{o.name} · {formatCurrencyBRL(o.price)}</span>)}</div><div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_auto] gap-2"><input value={optionDrafts[g.id]?.name || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: e.target.value, price: p[g.id]?.price || '' } }))} placeholder="Opção" className="min-h-[40px] px-3 rounded-lg bg-[#0B0D11] border border-[#232834] text-xs text-white"/><input type="number" min="0" step="0.01" value={optionDrafts[g.id]?.price || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: p[g.id]?.name || '', price: e.target.value } }))} placeholder="Preço" className="min-h-[40px] px-3 rounded-lg bg-[#0B0D11] border border-[#232834] text-xs text-white"/><button type="button" disabled={catalogBusy || !optionDrafts[g.id]?.name?.trim()} onClick={() => void addAddonOption(g.id)} className="px-3 rounded-lg bg-[#F5B731] text-[#0B0D11] text-xs font-bold">Adicionar</button></div></div>)}
+          </div>
+        </section>
+      )}
+
       {/* PRODUCTS TAB */}
       {sectionTab === 'products' && (
         <div className="space-y-4">
@@ -846,7 +925,7 @@ export function ProductsCombosManager({
                     onChange={(e) => setProdCategory(e.target.value as ProductCategory)}
                     className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
                   >
-                    {PRODUCT_CATEGORIES.map((c) => (
+                    {customCategories.map((c) => (
                       <option key={c} value={c}>
                         {c}
                       </option>
