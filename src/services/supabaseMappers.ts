@@ -326,9 +326,7 @@ export function mapShopSettingsRow(
 }
 
 export function mapProductRow(row: SupabaseProductRow): ProductRecord {
-  const category = PRODUCT_CATEGORIES.includes(row.category as ProductCategory)
-    ? (row.category as ProductCategory)
-    : 'Outro';
+  const category = String(row.category || 'Outro').trim() || 'Outro';
 
   return {
     id: row.id,
@@ -535,7 +533,7 @@ export function buildProductPayloadForSupabase(input: ProductInput): {
 
   return {
     name,
-    category: PRODUCT_CATEGORIES.includes(input.category) ? input.category : 'Outro',
+    category: String(input.category || 'Outro').trim() || 'Outro',
     unit_price: unitPrice,
     counts_as_x_salada: Boolean(input.countsAsXSalada),
     active: Boolean(input.active),
@@ -1069,9 +1067,7 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
           return {
             id: String(p.id || ''),
             name: String(p.name || ''),
-            category: PRODUCT_CATEGORIES.includes(cat as ProductCategory)
-              ? (cat as ProductCategory)
-              : 'Outro',
+            category: cat.trim() || 'Outro',
             unitPrice: roundCurrency(Math.max(0, Number(p.unitPrice) || 0)),
             countsAsXSalada: Boolean(p.countsAsXSalada),
             imageUrl: typeof p.imageUrl === 'string' ? p.imageUrl : '',
