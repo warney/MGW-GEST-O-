@@ -11,39 +11,45 @@ ALTER TABLE public.subscriptions
   ADD COLUMN IF NOT EXISTS retention_ends_at timestamptz,
   ADD COLUMN IF NOT EXISTS retention_status text NOT NULL DEFAULT 'none';
 
--- Converte os dados legados sem sobrescrever datas já registradas.
-UPDATE public.subscriptions
+-- Deriva os campos apenas de datas já presentes no registro.
+-- Não inventa data quando o histórico não contém um marco de encerramento.
+WITH legacy AS (
+  SELECT
+    id,
+    CASE
+      WHEN status = 'cancelled' THEN COALESCE(ended_at, current_period_end, trial_ends_at)
+      WHEN status = 'expired' THEN COALESCE(ended_at, trial_ends_at, current_period_end)
+      WHEN status = 'suspended' THEN COALESCE(ended_at, grace_until)
+      ELSE ended_at
+    END AS retention_start,
+    COALESCE(
+      retention_until,
+      CASE
+        WHEN status = 'cancelled' THEN COALESCE(ended_at, current_period_end, trial_ends_at)
+        WHEN status = 'expired' THEN COALESCE(ended_at, trial_ends_at, current_period_end)
+        WHEN status = 'suspended' THEN COALESCE(ended_at, grace_until)
+        ELSE ended_at
+      END + interval '6 months'
+    ) AS retention_end
+  FROM public.subscriptions
+)
+UPDATE public.subscriptions AS s
 SET
-  ended_at = COALESCE(
-    ended_at,
-    retention_until - interval '6 months',
-    current_period_end,
-    trial_ends_at,
-    grace_until
-  ),
-  retention_started_at = COALESCE(
-    retention_started_at,
-    ended_at,
-    retention_until - interval '6 months'
-  ),
-  retention_ends_at = COALESCE(
-    retention_ends_at,
-    retention_until,
-    ended_at + interval '6 months',
-    (retention_until - interval '6 months') + interval '6 months'
-  ),
+  ended_at = COALESCE(s.ended_at, legacy.retention_start),
+  retention_started_at = COALESCE(s.retention_started_at, legacy.retention_start),
+  retention_ends_at = COALESCE(s.retention_ends_at, legacy.retention_end),
   retention_status = CASE
-    WHEN COALESCE(retention_ends_at, retention_until, ended_at + interval '6 months') IS NULL
-      THEN 'none'
-    WHEN COALESCE(retention_ends_at, retention_until, ended_at + interval '6 months') > now()
-      THEN 'active_retention'
+    WHEN legacy.retention_end IS NULL THEN 'none'
+    WHEN legacy.retention_end > now() THEN 'active_retention'
     ELSE 'expired'
   END
-WHERE status IN ('cancelled', 'expired', 'suspended')
+FROM legacy
+WHERE legacy.id = s.id
+  AND s.status IN ('cancelled', 'expired', 'suspended')
   AND (
-    retention_status = 'none'
-    OR retention_started_at IS NULL
-    OR retention_ends_at IS NULL
+    s.retention_status = 'none'
+    OR s.retention_started_at IS NULL
+    OR s.retention_ends_at IS NULL
   );
 
 ALTER TABLE public.subscriptions
@@ -60,7 +66,8 @@ COMMENT ON COLUMN public.subscriptions.retention_ends_at IS
 COMMENT ON COLUMN public.subscriptions.retention_status IS
   'Estado da retenção: none, active_retention ou expired.';
 
--- O onboarding e o painel usam o fuso de Manaus como padrão.
+-- O onboarding do MGW Gestão grava America/Manaus; alinhar o default
+-- para novos registros sem sobrescrever fusos já definidos por estabelecimento.
 ALTER TABLE public.shop_settings
   ADD COLUMN IF NOT EXISTS timezone text NOT NULL DEFAULT 'America/Manaus';
 
@@ -93,7 +100,7 @@ REVOKE ALL ON FUNCTION public.validate_shop_settings_timezone() FROM PUBLIC, ano
 
 DROP TRIGGER IF EXISTS trg_shop_settings_validate_timezone ON public.shop_settings;
 CREATE TRIGGER trg_shop_settings_validate_timezone
-  BEFORE INSERT OR UPDATE OF timezone ON public.shop_settings
+  BEFORE INSERT OR UPDATE ON public.shop_settings
   FOR EACH ROW
   EXECUTE FUNCTION public.validate_shop_settings_timezone();
 
