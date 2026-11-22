@@ -111,24 +111,69 @@ Deno.serve(async (req: Request) => {
     }
 
     const externalReference = tenantId;
+    const trialStillActive = subscription.status === "trialing"
+      && Boolean(subscription.trial_ends_at)
+      && Date.parse(subscription.trial_ends_at) > Date.now();
+    const remainingTrialDays = trialStillActive
+      ? Math.max(1, Math.min(3, Math.ceil((Date.parse(subscription.trial_ends_at) - Date.now()) / (24 * 60 * 60 * 1000))))
+      : 0;
+
+    // A trial is configured on a Mercado Pago preapproval plan, not on a standalone
+    // preapproval. Persist the plan ID before creating the subscription so retries
+    // reuse the same plan and cannot create duplicate plans for one tenant.
+    let planId = subscription.mp_preapproval_plan_id;
+    if (!planId) {
+      const planResponse = await fetch("https://api.mercadopago.com/preapproval_plan", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "X-scope": "stage",
+          "X-Idempotency-Key": `mgw-plan-${tenantId}-${remainingTrialDays}`,
+        },
+        body: JSON.stringify({
+          reason: "MGW Gestão SaaS — plano mensal",
+          external_reference: externalReference,
+          auto_recurring: {
+            frequency: 1,
+            frequency_type: "months",
+            ...(remainingTrialDays > 0
+              ? { free_trial: { frequency: remainingTrialDays, frequency_type: "days" } }
+              : {}),
+            transaction_amount: 49.90,
+            currency_id: "BRL",
+          },
+          back_url: `${getReturnUrl(req)}/?billing=return`,
+        }),
+      });
+      const planData = await planResponse.json().catch(() => ({}));
+      if (!planResponse.ok || typeof planData.id !== "string") {
+        console.error("[create-mp-subscription] Mercado Pago recusou a criação do plano:", planResponse.status, planData?.message || "sem mensagem");
+        return json({ error: "Não foi possível preparar o plano de teste. Tente novamente mais tarde." }, 502);
+      }
+      planId = planData.id;
+      const { error: planSaveError } = await admin
+        .from("subscriptions")
+        .update({ mp_preapproval_plan_id: planId, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenantId);
+      if (planSaveError) {
+        console.error("[create-mp-subscription] Não foi possível salvar o plano:", planSaveError.message);
+        return json({ error: "Plano criado, mas não foi possível salvar o vínculo. Contate o suporte antes de tentar novamente." }, 500);
+      }
+    }
+
     const mpResponse = await fetch("https://api.mercadopago.com/preapproval", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "X-scope": "stage",
-        "X-Idempotency-Key": `mgw-sub-${tenantId}-${subscription.mp_preapproval_id || "initial"}`,
+        "X-Idempotency-Key": `mgw-sub-${tenantId}-${planId}`,
       },
       body: JSON.stringify({
-        reason: "MGW Gestão SaaS — plano mensal",
+        preapproval_plan_id: planId,
         external_reference: externalReference,
         payer_email: user.email,
-        auto_recurring: {
-          frequency: 1,
-          frequency_type: "months",
-          transaction_amount: 49.90,
-          currency_id: "BRL",
-        },
         back_url: `${getReturnUrl(req)}/?billing=return`,
         notification_url: `${supabaseUrl}/functions/v1/mp-webhook`,
         status: "pending",
