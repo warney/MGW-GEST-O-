@@ -521,6 +521,12 @@ export function OrdersCenterView({
                             <p className="font-semibold text-[#F3F4F6]">
                               {item.quantity}x {item.itemName}
                             </p>
+                            {item.selectedAddons?.map((group) => (
+                              <p key={group.groupId} className="text-[#D1D5DB] mt-1">
+                                <span className="text-[#F5B731]">{group.groupName}:</span>{' '}
+                                {group.options.map((option) => `${option.name}${option.price > 0 ? ` (+${formatCurrencyBRL(option.price)})` : ''}`).join(', ')}
+                              </p>
+                            ))}
                             {item.itemNote && (
                               <p className="text-[#F5B731] mt-0.5">
                                 Obs: {item.itemNote}
