@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: subscription, error: subscriptionError } = await admin
       .from("subscriptions")
-      .select("id,status,trial_ends_at,mp_preapproval_id,mp_init_point,plan_amount_cents,currency")
+      .select("id,status,trial_ends_at,mp_preapproval_id,mp_preapproval_plan_id,mp_init_point,plan_amount_cents,currency")
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (subscriptionError || !subscription) {
