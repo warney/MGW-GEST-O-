@@ -262,11 +262,6 @@ export interface OnlineOrderItemSnapshot {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
-  selectedAddons?: Array<{
-    groupId: string;
-    groupName: string;
-    options: Array<{ id: string; name: string; price: number }>;
-  }>;
   estimatedUnitCost: number;
   xSaladasPerUnit: number;
   components: SaleLineComponentSnapshot[];
@@ -430,6 +425,11 @@ export interface SaleLineItemSnapshot {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  selectedAddons?: Array<{
+    groupId: string;
+    groupName: string;
+    options: Array<{ id: string; name: string; price: number }>;
+  }>;
   estimatedUnitCost: number;
   xSaladasPerUnit: number;
   components: SaleLineComponentSnapshot[];
