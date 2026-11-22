@@ -1,5 +1,4 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { DataProviderMode } from '../types/finance';
 
 export interface SupabaseConfigStatus {
   configured: boolean;
@@ -61,30 +60,6 @@ export function getSupabaseConfigStatus(): SupabaseConfigStatus {
 
 export function isSupabaseConfigured(): boolean {
   return getSupabaseConfigStatus().configured;
-}
-
-/**
- * Resolve qual provedor unico deve estar ativo no runtime (nunca grava em dois bancos).
- * - Se VITE_DATA_PROVIDER="firebase", mantem Firebase ativo (rollback seguro).
- * - Se VITE_DATA_PROVIDER="supabase", exige configuracao valida do Supabase.
- * - Se nao definido, ativa Supabase somente quando VITE_SUPABASE_URL e
- *   VITE_SUPABASE_ANON_KEY estiverem configurados com valores reais; caso contrario
- *   preserva o Firebase funcionando sem quebrar o aplicativo atual.
- */
-export function getActiveDataProvider(): DataProviderMode {
-  const env = (import.meta as unknown as { env?: Record<string, unknown> }).env ?? {};
-  const explicit =
-    typeof env.VITE_DATA_PROVIDER === 'string'
-      ? env.VITE_DATA_PROVIDER.trim().toLowerCase()
-      : '';
-
-  if (explicit === 'firebase') {
-    return 'firebase';
-  }
-  if (explicit === 'supabase') {
-    return 'supabase';
-  }
-  return isSupabaseConfigured() ? 'supabase' : 'firebase';
 }
 
 let supabaseInstance: SupabaseClient | null = null;
