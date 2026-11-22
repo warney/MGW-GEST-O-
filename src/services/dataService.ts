@@ -1,73 +1,3 @@
-import {
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-  type User as FirebaseUser,
-} from 'firebase/auth';
-import { auth as firebaseAuth, googleProvider } from '../firebase';
-import { getActiveDataProvider, getSupabaseClient } from '../lib/supabase';
-import {
-  ADMIN_EMAILS,
-  type AuthSessionUser,
-  type ComboInput,
-  type ComboRecord,
-  type CreatePublicOrderPayload,
-  type CreatePublicOrderResponse,
-  DEFAULT_SHOP_SETTINGS,
-  type DigitalMenuSettings,
-  type DigitalMenuSettingsInput,
-  type ExpenseInput,
-  type ExpenseRecord,
-  MGW_WORKSPACE,
-  type OnlineOrderRecord,
-  type OnlineOrderStatus,
-  type ProductInput,
-  type ProductRecord,
-  type PublicDigitalMenuPayload,
-  type PublicOrderTrackingRecord,
-  resolveWorkspaceForEmail,
-  type SaleInput,
-  type SaleRecord,
-  SEPARATE_SHOP_EMAIL,
-  type ShopSettings,
-  type TenantContext,
-  type WorkspaceAccess,
-} from '../types/finance';
-import { roundCurrency } from '../utils/finance';
-import {
-  DEFAULT_DIGITAL_MENU_SETTINGS,
-  isTerminalOrderStatus,
-  sanitizeMenuSlug,
-} from '../utils/onlineOrders';
-import { demoMutations, isDemoSandboxActive, subscribeDemoAdminState } from './demoSandbox';
-import {
-  createComboInFirestore,
-  createExpenseInFirestore,
-  createProductInFirestore,
-  createPublicOnlineOrderFirestore,
-  createSaleInFirestore,
-  deleteExpenseInFirestore,
-  deleteSaleInFirestore,
-  fetchPublicDigitalMenuFirestore,
-  fetchPublicOrderByTokenFirestore,
-  markOnlineOrderViewedFirestore,
-  saveDigitalMenuSettingsFirestore,
-  saveSettingsToFirestore,
-  seedDefaultCatalogInFirestore,
-  subscribeCombos as subscribeCombosFirestore,
-  subscribeDigitalMenuSettingsFirestore,
-  subscribeExpenses as subscribeExpensesFirestore,
-  subscribeOnlineOrdersFirestore,
-  subscribeProducts as subscribeProductsFirestore,
-  subscribePublicOrderByTokenHashFirestore,
-  subscribeSales as subscribeSalesFirestore,
-  subscribeSettings as subscribeSettingsFirestore,
-  transitionOnlineOrderStatusFirestore,
-  updateComboInFirestore,
-  updateExpenseInFirestore,
-  updateProductInFirestore,
-  updateSaleInFirestore,
-} from './firestoreService';
 import { hasTenantPermission } from './rbacPolicy';
 import {
   buildComboPayloadForSupabase,
@@ -294,55 +224,6 @@ export function subscribeAuthSession(
     return () => {};
   }
 
-  const provider = getActiveDataProvider();
-
-  if (provider === 'firebase') {
-    return onAuthStateChanged(
-      firebaseAuth,
-      async (currentUser: FirebaseUser | null) => {
-        if (!currentUser) {
-          onChange({ user: null, tenants: [], errorMessage: null });
-          return;
-        }
-        const resolved = resolveWorkspaceForEmail(currentUser.email);
-        if (!resolved || !currentUser.emailVerified) {
-          await signOut(firebaseAuth);
-          onChange({
-            user: null,
-            tenants: [],
-            errorMessage: `A conta ${currentUser.email || 'selecionada'} não tem permissão. Acesso autorizado para ${ADMIN_EMAILS.join(', ')} (MGW Lanches) ou ${SEPARATE_SHOP_EMAIL} (conta separada).`,
-          });
-          return;
-        }
-        onChange({
-          user: {
-            uid: currentUser.uid,
-            email: currentUser.email || '',
-            emailVerified: currentUser.emailVerified,
-          },
-          tenants: [
-            {
-              tenantId: resolved.id,
-              slug: resolved.id,
-              name: resolved.label,
-              role: 'owner',
-              isFounderAccount: true,
-              billingExempt: true,
-              subscriptionStatus: 'exempt',
-              graceUntil: null,
-              retentionStatus: 'none',
-              onboardingCompleted: true,
-              accessAllowed: true,
-              accessBlockReason: null,
-            },
-          ],
-          legacyWorkspace: resolved,
-          errorMessage: null,
-        });
-      },
-    );
-  }
-
   const supabase = getSupabaseClient();
   let active = true;
 
@@ -418,11 +299,7 @@ export function subscribeAuthSession(
 }
 
 export async function loginWithGoogle(): Promise<void> {
-  if (getActiveDataProvider() === 'firebase') {
-    await signInWithPopup(firebaseAuth, googleProvider);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -442,10 +319,7 @@ export async function loginWithEmailPassword(
   email: string,
   password: string,
 ): Promise<void> {
-  if (getActiveDataProvider() === 'firebase') {
-    throw new Error('Login por e-mail e senha disponível após ativação do Supabase Auth.');
-  }
-
+  
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !password) {
     throw new Error('Informe seu e-mail e senha.');
@@ -467,10 +341,7 @@ export async function registerWithEmailPassword(
   email: string,
   password: string,
 ): Promise<void> {
-  if (getActiveDataProvider() !== 'supabase') {
-    throw new Error('O cadastro de novas lojas será habilitado quando o ambiente Supabase estiver ativo.');
-  }
-
+  
   const cleanName = name.trim().slice(0, 80);
   const cleanStoreName = storeName.trim().slice(0, 80);
   const cleanEmail = email.trim().toLowerCase();
@@ -506,10 +377,7 @@ export async function registerWithEmailPassword(
 }
 
 export async function updateAccountPassword(password: string): Promise<void> {
-  if (getActiveDataProvider() !== 'supabase') {
-    throw new Error('Atualização de senha disponível apenas no Supabase Auth.');
-  }
-  if (password.length < 8) {
+    if (password.length < 8) {
     throw new Error('A nova senha precisa ter pelo menos 8 caracteres.');
   }
   const supabase = getSupabaseClient();
@@ -518,10 +386,7 @@ export async function updateAccountPassword(password: string): Promise<void> {
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
-  if (getActiveDataProvider() === 'firebase') {
-    throw new Error('Recuperação de senha disponível após ativação do Supabase Auth.');
-  }
-
+  
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     throw new Error('Informe um e-mail válido para recuperação de senha.');
@@ -537,11 +402,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 export async function logoutSession(): Promise<void> {
-  if (getActiveDataProvider() === 'firebase') {
-    await signOut(firebaseAuth);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const { error } = await supabase.auth.signOut();
   if (error) {
@@ -559,10 +420,7 @@ export async function completeTenantOnboarding(params: {
   name: string;
   onboardingCompleted: boolean;
 }> {
-  if (getActiveDataProvider() !== 'supabase') {
-    throw new Error('Configuração inicial de loja disponível apenas no Supabase.');
-  }
-
+  
   const cleanStoreName = params.storeName.trim().slice(0, 80);
   const cleanOwnerName = (params.ownerName || '').trim().slice(0, 120);
   if (cleanStoreName.length < 2) {
@@ -607,114 +465,7 @@ export function subscribeAllTenantData(
     });
   }
 
-  if (getActiveDataProvider() === 'firebase') {
-    const workspace =
-      ctx.workspace ??
-      resolveWorkspaceForEmail(ctx.user.email) ?? {
-        id: 'mgw_lanches',
-        label: ctx.tenant.name,
-        defaultEstablishmentName: ctx.tenant.name,
-        isSeparateAccount: false,
-      };
-
-    let settingsLoaded = false;
-    let salesLoaded = false;
-    let expensesLoaded = false;
-    let productsLoaded = false;
-    let combosLoaded = false;
-
-    const checkReady = () => {
-      if (
-        settingsLoaded &&
-        salesLoaded &&
-        expensesLoaded &&
-        productsLoaded &&
-        combosLoaded
-      ) {
-        callbacks.onReady();
-      }
-    };
-
-    const unsubSettings = subscribeSettingsFirestore(
-      ctx.user.uid,
-      (s) => {
-        callbacks.onSettings(s);
-        settingsLoaded = true;
-        checkReady();
-      },
-      callbacks.onError,
-      workspace,
-    );
-
-    const unsubSales = subscribeSalesFirestore(
-      (list) => {
-        callbacks.onSales(list);
-        salesLoaded = true;
-        checkReady();
-      },
-      callbacks.onError,
-      workspace,
-    );
-
-    const unsubExpenses = subscribeExpensesFirestore(
-      (list) => {
-        callbacks.onExpenses(list);
-        expensesLoaded = true;
-        checkReady();
-      },
-      callbacks.onError,
-      workspace,
-    );
-
-    const unsubProducts = subscribeProductsFirestore(
-      (list) => {
-        callbacks.onProducts(list);
-        productsLoaded = true;
-        checkReady();
-      },
-      callbacks.onError,
-      workspace,
-    );
-
-    const unsubCombos = subscribeCombosFirestore(
-      (list) => {
-        callbacks.onCombos(list);
-        combosLoaded = true;
-        checkReady();
-      },
-      callbacks.onError,
-      workspace,
-    );
-
-    const unsubDigitalMenu = callbacks.onDigitalMenuSettings
-      ? subscribeDigitalMenuSettingsFirestore(
-          ctx.user.uid,
-          ctx.tenant.name,
-          callbacks.onDigitalMenuSettings,
-          (err) => callbacks.onError(err),
-          workspace,
-        )
-      : () => {};
-
-    const unsubOrders = callbacks.onOnlineOrders
-      ? subscribeOnlineOrdersFirestore(
-          callbacks.onOnlineOrders,
-          (err) => callbacks.onError(err),
-          workspace,
-        )
-      : () => {};
-
-    return () => {
-      unsubSettings();
-      unsubSales();
-      unsubExpenses();
-      unsubProducts();
-      unsubCombos();
-      unsubDigitalMenu();
-      unsubOrders();
-    };
-  }
-
+  
   // Modo Supabase (PostgreSQL + RLS + Realtime)
   if (
     ctx.tenant.accessAllowed === false ||
@@ -1047,11 +798,7 @@ export async function saveSettings(
     demoMutations.saveSettings(input);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await saveSettingsToFirestore(ctx.user.uid, input, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildSettingsPayloadForSupabase(input);
   const { error } = await supabase.from('shop_settings').upsert(
@@ -1074,11 +821,7 @@ export async function saveDigitalMenuSettings(
     demoMutations.saveDigitalMenuSettings(input);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await saveDigitalMenuSettingsFirestore(ctx.user.uid, input, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildDigitalMenuSettingsPayloadForSupabase(input);
   const { error } = await supabase.from('digital_menu_settings').upsert(
@@ -1099,10 +842,7 @@ export async function addProduct(
   if (isDemoSandboxActive()) {
     return demoMutations.addProduct(input);
   }
-  if (getActiveDataProvider() === 'firebase') {
-    return createProductInFirestore(ctx.user.uid, input, ctx.workspace);
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildProductPayloadForSupabase(input);
   const { data, error } = await supabase
@@ -1128,11 +868,7 @@ export async function updateProduct(
     demoMutations.updateProduct(productId, input);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await updateProductInFirestore(productId, input, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildProductPayloadForSupabase(input);
   const { error } = await supabase
@@ -1151,10 +887,7 @@ export async function addCombo(
   if (isDemoSandboxActive()) {
     return demoMutations.addCombo(input);
   }
-  if (getActiveDataProvider() === 'firebase') {
-    return createComboInFirestore(ctx.user.uid, input, ctx.workspace);
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildComboPayloadForSupabase(input);
   const { data, error } = await supabase
@@ -1180,11 +913,7 @@ export async function updateCombo(
     demoMutations.updateCombo(comboId, input);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await updateComboInFirestore(comboId, input, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildComboPayloadForSupabase(input);
   const { error } = await supabase
@@ -1200,11 +929,7 @@ export async function seedDefaultCatalog(
   ctx: DataExecutionContext,
   xSaladaPrice: number,
 ): Promise<void> {
-  if (getActiveDataProvider() === 'firebase' && !isDemoSandboxActive()) {
-    await seedDefaultCatalogInFirestore(ctx.user.uid, xSaladaPrice, ctx.workspace);
-    return;
-  }
-
+  
   const basePrice = xSaladaPrice > 0 ? roundCurrency(xSaladaPrice) : 22;
 
   const pXSaladaId = await addProduct(ctx, {
@@ -1296,11 +1021,7 @@ export async function addSale(
     demoMutations.addSale(input);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await createSaleInFirestore(ctx.user.uid, input, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildSalePayloadForSupabase(input);
   const { error } = await supabase.from('sales').insert({
@@ -1321,11 +1042,7 @@ export async function updateSale(
     demoMutations.updateSale(saleId, input);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await updateSaleInFirestore(saleId, input, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildSalePayloadForSupabase(input);
   const { error } = await supabase
@@ -1345,11 +1062,7 @@ export async function deleteSale(
     demoMutations.deleteSale(saleId);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await deleteSaleInFirestore(saleId, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('sales')
@@ -1368,11 +1081,7 @@ export async function addExpense(
     demoMutations.addExpense(input);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await createExpenseInFirestore(ctx.user.uid, input, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildExpensePayloadForSupabase(input);
   const { error } = await supabase.from('expenses').insert({
@@ -1393,11 +1102,7 @@ export async function updateExpense(
     demoMutations.updateExpense(expenseId, input);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await updateExpenseInFirestore(expenseId, input, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const payload = buildExpensePayloadForSupabase(input);
   const { error } = await supabase
@@ -1417,11 +1122,7 @@ export async function deleteExpense(
     demoMutations.deleteExpense(expenseId);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await deleteExpenseInFirestore(expenseId, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('expenses')
@@ -1443,11 +1144,7 @@ export async function markOnlineOrderViewed(
     demoMutations.markOrderViewed(order.id);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await markOnlineOrderViewedFirestore(order, ctx.workspace);
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const { error } = await supabase.rpc('mark_online_order_viewed', {
     p_order_id: order.id,
@@ -1466,17 +1163,7 @@ export async function transitionOnlineOrderStatus(
     demoMutations.transitionOrderStatus(order.id, nextStatus, reason);
     return;
   }
-  if (getActiveDataProvider() === 'firebase') {
-    await transitionOnlineOrderStatusFirestore(
-      ctx.user.uid,
-      order,
-      nextStatus,
-      reason,
-      ctx.workspace,
-    );
-    return;
-  }
-
+  
   const supabase = getSupabaseClient();
   const { error } = await supabase.rpc('transition_online_order_status', {
     p_order_id: order.id,
@@ -1493,10 +1180,7 @@ export async function fetchPublicDigitalMenu(
   if (isDemoSandboxActive()) {
     return demoMutations.fetchPublicMenu(slug);
   }
-  if (getActiveDataProvider() === 'firebase') {
-    return fetchPublicDigitalMenuFirestore(slug);
-  }
-
+  
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.rpc('get_public_digital_menu', {
     p_slug: slug ?? null,
@@ -1511,10 +1195,7 @@ export async function createPublicOnlineOrder(
   if (isDemoSandboxActive()) {
     return demoMutations.createPublicOrder(payload);
   }
-  if (getActiveDataProvider() === 'firebase') {
-    return createPublicOnlineOrderFirestore(payload);
-  }
-
+  
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.rpc('create_public_online_order', {
     p_slug: payload.slug ?? null,
@@ -1538,10 +1219,7 @@ export async function fetchPublicOrderByToken(
   if (isDemoSandboxActive()) {
     return demoMutations.getPublicOrderByToken(token);
   }
-  if (getActiveDataProvider() === 'firebase') {
-    return fetchPublicOrderByTokenFirestore(token);
-  }
-
+  
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.rpc('get_public_order_by_token', {
     p_tracking_token: token,
@@ -1659,15 +1337,7 @@ export function subscribePublicOrderTracking(
   if (isDemoSandboxActive()) {
     return demoMutations.subscribeTrackingByToken(token, onUpdate);
   }
-  if (getActiveDataProvider() === 'firebase') {
-    if (!options?.tokenHash) return () => {};
-    return subscribePublicOrderByTokenHashFirestore(
-      options.tokenHash,
-      onUpdate,
-      onError,
-    );
-  }
-
+  
   return createPublicOrderPollingController({
     token,
     onUpdate,
