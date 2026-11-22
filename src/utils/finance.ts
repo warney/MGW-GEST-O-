@@ -17,11 +17,36 @@ export function roundCurrency(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+export const DEFAULT_SHOP_TIMEZONE = 'America/Manaus';
+
 export function getLocalTodayDate(now: Date = new Date()): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+export function formatDateInTimezone(
+  date: Date = new Date(),
+  timeZone: string = DEFAULT_SHOP_TIMEZONE,
+): string {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    if (year && month && day) {
+      return `${year}-${month}-${day}`;
+    }
+  } catch {
+    // Fallback para timezone local se Intl nao reconhecer
+  }
+  return getLocalTodayDate(date);
 }
 
 export function parseLocalDate(dateStr: string): Date {
@@ -1057,11 +1082,16 @@ export function isLikelyDuplicateSale(
   windowMs = 15000,
 ): boolean {
   const total =
-    candidate.items && candidate.items.length > 0
-      ? roundCurrency(
-          candidate.items.reduce((acc, item) => acc + item.lineTotal, 0),
-        )
-      : calculateSaleTotal(candidate.quantity, candidate.unitPrice);
+    typeof candidate.totalAmount === 'number' &&
+    Number.isFinite(candidate.totalAmount) &&
+    candidate.totalAmount > 0
+      ? roundCurrency(candidate.totalAmount)
+      : candidate.items && candidate.items.length > 0
+        ? roundCurrency(
+            candidate.items.reduce((acc, item) => acc + item.lineTotal, 0) +
+              Math.max(0, Number(candidate.deliveryFee || 0)),
+          )
+        : calculateSaleTotal(candidate.quantity, candidate.unitPrice);
   const candidateSig =
     candidate.items && candidate.items.length > 0
       ? candidate.items.map((i) => `${i.kind}:${i.refId}:${i.quantity}:${i.unitPrice}`).join('|')

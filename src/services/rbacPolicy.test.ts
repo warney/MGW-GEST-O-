@@ -48,13 +48,14 @@ test('RBAC permission matrix isolates financial, catalog, settings, and team act
   assert.equal(hasTenantPermission('manager', 'settings:write'), false);
   assert.equal(hasTenantPermission('manager', 'team:invite'), false);
 
-  // staff (caixa/atendente) cria vendas, mas nao le/edita despesas, nao altera catalogo e nao exclui
+  // staff (caixa/atendente) cria vendas, mas nao le historico financeiro, nao le/edita despesas, nao altera catalogo e nao exclui
   assert.equal(hasTenantPermission('staff', 'sales:create'), true);
-  assert.equal(hasTenantPermission('staff', 'sales:read'), true);
+  assert.equal(hasTenantPermission('staff', 'sales:read'), false);
   assert.equal(hasTenantPermission('staff', 'sales:update'), false);
   assert.equal(hasTenantPermission('staff', 'sales:delete'), false);
   assert.equal(hasTenantPermission('staff', 'expenses:read'), false);
   assert.equal(hasTenantPermission('staff', 'expenses:create'), false);
+  assert.equal(hasTenantPermission('staff', 'reports:view'), false);
   assert.equal(hasTenantPermission('staff', 'catalog:write'), false);
   assert.equal(hasTenantPermission('staff', 'settings:write'), false);
 });
@@ -144,7 +145,9 @@ test('selectAuthorizedTenant never trusts arbitrary client tenant IDs outside RL
 test('plans and billing access support founder_exempt, free, active trial, expired trial, and paid plans', () => {
   assert.equal(PLAN_CATALOG.founder_exempt.selfServeAllowed, false);
   assert.equal(PLAN_CATALOG.free.amountCents, 0);
-  assert.equal(PLAN_CATALOG.mgw_mensal_49.amountCents, 4900);
+  assert.equal(PLAN_CATALOG.free.selfServeAllowed, false);
+  assert.equal(PLAN_CATALOG.mgw_mensal_49.amountCents, 4990);
+  assert.match(PLAN_CATALOG.trial.name, /3 dias/);
 
   assert.equal(normalizeSubscriptionStatus('trialing', false), 'trialing');
   assert.equal(normalizeSubscriptionStatus('free', false), 'free');

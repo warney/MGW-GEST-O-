@@ -2,6 +2,8 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+import { getActiveDataProvider } from './lib/supabase';
+import { isDemoSandboxActive } from './services/demoSandbox';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -62,6 +64,9 @@ export function handleFirestoreError(
 }
 
 export async function testFirestoreConnection(): Promise<void> {
+  if (getActiveDataProvider() !== 'firebase' || isDemoSandboxActive()) {
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
@@ -74,4 +79,10 @@ export async function testFirestoreConnection(): Promise<void> {
   }
 }
 
-void testFirestoreConnection();
+if (
+  typeof window !== 'undefined' &&
+  getActiveDataProvider() === 'firebase' &&
+  !isDemoSandboxActive()
+) {
+  void testFirestoreConnection();
+}

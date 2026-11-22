@@ -14,6 +14,9 @@ import {
 
 interface ExpensesViewProps {
   expenses: ExpenseRecord[];
+  canCreateExpenses?: boolean;
+  canEditExpenses?: boolean;
+  canDeleteExpenses?: boolean;
   onOpenNewExpense: () => void;
   onEditExpense: (expense: ExpenseRecord) => void;
   onDeleteExpense: (expenseId: string) => Promise<void>;
@@ -21,6 +24,9 @@ interface ExpensesViewProps {
 
 export function ExpensesView({
   expenses,
+  canCreateExpenses = true,
+  canEditExpenses = true,
+  canDeleteExpenses = true,
   onOpenNewExpense,
   onEditExpense,
   onDeleteExpense,
@@ -99,22 +105,24 @@ export function ExpensesView({
           </p>
         </div>
 
-        <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 flex items-center justify-between gap-4 sm:col-span-2 lg:col-span-1">
-          <div>
-            <p className="text-xs text-[#9CA3AF]">Novo gasto ou compra</p>
-            <p className="text-sm font-semibold text-[#F3F4F6] mt-1">
-              Mantenha o lucro real atualizado
-            </p>
+        {canCreateExpenses && (
+          <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 flex items-center justify-between gap-4 sm:col-span-2 lg:col-span-1">
+            <div>
+              <p className="text-xs text-[#9CA3AF]">Novo gasto ou compra</p>
+              <p className="text-sm font-semibold text-[#F3F4F6] mt-1">
+                Mantenha o lucro real atualizado
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenNewExpense}
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Nova Despesa
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onOpenNewExpense}
-            className="min-h-[44px] px-4 py-2 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Nova Despesa
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Expenses by Category (Month) */}
@@ -225,7 +233,7 @@ export function ExpensesView({
                 ? 'Registre compras de carne, pães, queijos, bebidas, gás e outras despesas.'
                 : 'Limpe os filtros para visualizar todas as despesas.'}
             </p>
-            {expenses.length === 0 && (
+            {expenses.length === 0 && canCreateExpenses && (
               <button
                 type="button"
                 onClick={onOpenNewExpense}
@@ -264,7 +272,7 @@ export function ExpensesView({
                     − {formatCurrencyBRL(expense.amount)}
                   </span>
 
-                  {confirmDeleteId === expense.id ? (
+                  {canDeleteExpenses && confirmDeleteId === expense.id ? (
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -283,24 +291,30 @@ export function ExpensesView({
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => onEditExpense(expense)}
-                        aria-label={`Editar despesa ${expense.description}`}
-                        className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#F5B731]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F5B731] transition-colors cursor-pointer"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteId(expense.id)}
-                        aria-label={`Excluir despesa ${expense.description}`}
-                        className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#EF4444]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F87171] transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    (canEditExpenses || canDeleteExpenses) && (
+                      <div className="flex items-center gap-1.5">
+                        {canEditExpenses && (
+                          <button
+                            type="button"
+                            onClick={() => onEditExpense(expense)}
+                            aria-label={`Editar despesa ${expense.description}`}
+                            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#F5B731]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F5B731] transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDeleteExpenses && (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(expense.id)}
+                            aria-label={`Excluir despesa ${expense.description}`}
+                            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#EF4444]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F87171] transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )
                   )}
                 </div>
               </div>

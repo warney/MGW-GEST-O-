@@ -50,6 +50,74 @@ export const ALLOWED_MENU_IMAGE_TYPES = [
 
 const SAFE_TENANT_ID_REGEX = /^[a-z0-9][a-z0-9_-]{1,62}$/;
 const SAFE_ENTITY_ID_REGEX = /^[a-zA-Z0-9_-]{1,80}$/;
+const UUID_TENANT_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function normalizeTenantId(rawTenantId: unknown): string {
+  const normalized =
+    typeof rawTenantId === 'string' ? rawTenantId.trim().toLowerCase() : '';
+  if (!UUID_TENANT_REGEX.test(normalized)) {
+    throw new MenuStorageAuthError(
+      400,
+      'invalid_tenant_id',
+      'Identificador de estabelecimento inválido.',
+    );
+  }
+  return normalized;
+}
+
+export function resolveCorsOrigin(
+  requestOrigin: string | null,
+  allowedOriginsEnv?: string,
+): string | null {
+  const raw = (allowedOriginsEnv || '').trim();
+  if (!raw) {
+    return '*';
+  }
+
+  const allowlist = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (allowlist.length === 0 || allowlist.includes('*')) {
+    return '*';
+  }
+
+  const origin = (requestOrigin || '').trim();
+  if (!origin) {
+    return null;
+  }
+
+  return allowlist.includes(origin) ? origin : null;
+}
+
+export function buildCorsHeaders(params: {
+  requestOrigin: string | null;
+  allowedOriginsEnv?: string;
+  allowedMethods?: string;
+  allowedHeaders?: string;
+}): Record<string, string> {
+  const origin = resolveCorsOrigin(
+    params.requestOrigin,
+    params.allowedOriginsEnv,
+  );
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Methods': params.allowedMethods || 'POST, OPTIONS',
+    'Access-Control-Allow-Headers':
+      params.allowedHeaders || 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Max-Age': '86400',
+  };
+
+  if (origin) {
+    headers['Access-Control-Allow-Origin'] = origin;
+    if (origin !== '*') {
+      headers['Vary'] = 'Origin';
+    }
+  }
+
+  return headers;
+}
 
 export function buildCanonicalMenuStoragePath(params: {
   authorizedTenantId: string;

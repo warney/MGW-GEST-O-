@@ -14,7 +14,13 @@ import type {
   SaleMode,
   SaleRecord,
 } from '../types/finance';
-import { getLocalTodayDate, getMonthBounds, roundCurrency } from './finance';
+import {
+  DEFAULT_SHOP_TIMEZONE,
+  formatDateInTimezone,
+  getLocalTodayDate,
+  getMonthBounds,
+  roundCurrency,
+} from './finance';
 
 export const ORDER_STATUS_LABELS: Record<OnlineOrderStatus, string> = {
   received: 'Pedido recebido',
@@ -458,6 +464,7 @@ export function normalizeOrderPaymentToSaleMethod(
 export function buildSaleInputFromCompletedOrder(
   order: OnlineOrderRecord,
   dateOverride?: string,
+  timezone: string = DEFAULT_SHOP_TIMEZONE,
 ): SaleInput {
   if (order.status !== 'completed') {
     throw new Error('Somente pedidos concluídos podem gerar lançamento financeiro de venda.');
@@ -496,12 +503,16 @@ export function buildSaleInputFromCompletedOrder(
   const saleMode: SaleMode =
     hasCombo && hasProduct ? 'mixed' : hasCombo ? 'combo' : 'individual';
   const quantity = Math.max(1, xSaladaCount > 0 ? xSaladaCount : totalItemUnits);
-  const totalAmount = roundCurrency(order.totalAmount);
+  const deliveryFee = roundCurrency(Math.max(0, order.deliveryFee));
+  const totalAmount = roundCurrency(
+    Math.max(order.totalAmount, order.subtotalAmount + deliveryFee),
+  );
   const unitPrice = roundCurrency(totalAmount / quantity);
   const saleDate =
     dateOverride ||
-    getLocalTodayDate(
+    formatDateInTimezone(
       order.completedAtMs ? new Date(order.completedAtMs) : new Date(),
+      timezone,
     );
   const baseNote = `${formatOrderNumber(order.orderNumber)} · ${order.customerName.trim()}`;
   const fullNote = order.customerNote.trim()
@@ -512,6 +523,7 @@ export function buildSaleInputFromCompletedOrder(
     date: saleDate,
     quantity,
     unitPrice,
+    totalAmount,
     paymentMethod: normalizeOrderPaymentToSaleMethod(order.paymentMethod),
     note: fullNote.slice(0, 240),
     saleMode,
@@ -521,7 +533,7 @@ export function buildSaleInputFromCompletedOrder(
     saleOrigin: 'online',
     onlineOrderId: order.id,
     onlineOrderNumber: order.orderNumber,
-    deliveryFee: roundCurrency(Math.max(0, order.deliveryFee)),
+    deliveryFee,
   };
 }
 

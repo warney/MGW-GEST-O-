@@ -210,7 +210,7 @@ export interface CreatePublicOrderResponse {
   orderNumber: number;
   orderCode: string;
   trackingToken: string;
-  tokenHash: string;
+  tokenHash?: string;
   status: OnlineOrderStatus;
   subtotalAmount: number;
   deliveryFee: number;
@@ -275,7 +275,7 @@ export interface OnlineOrderRecord {
 
 export interface PublicOrderTrackingRecord {
   orderId: string;
-  tokenHash: string;
+  tokenHash?: string;
   orderNumber: number;
   orderCode: string;
   status: OnlineOrderStatus;
@@ -432,6 +432,7 @@ export interface ShopSettings {
   dailyGoal: number;
   monthlyGoal: number;
   startDate: string; // YYYY-MM-DD
+  timezone?: string;
 }
 
 export interface SaleOrderDraftItem {
@@ -453,6 +454,7 @@ export interface SaleInput {
   date: string;
   quantity: number;
   unitPrice: number;
+  totalAmount?: number;
   paymentMethod: PaymentMethod;
   note: string;
   saleMode?: SaleMode;
@@ -480,6 +482,7 @@ export const DEFAULT_SHOP_SETTINGS: Omit<ShopSettings, 'ownerId'> = {
   dailyGoal: 800.0,
   monthlyGoal: 18000.0,
   startDate: '2026-01-01',
+  timezone: 'America/Manaus',
 };
 
 export type DataProviderMode = 'firebase' | 'supabase';
@@ -489,11 +492,26 @@ export type TenantRole = 'owner' | 'admin' | 'manager' | 'staff';
 export type SubscriptionStatus =
   | 'pending'
   | 'trialing'
-  | 'free'
+  | 'active'
   | 'authorized'
+  | 'past_due'
   | 'paused'
   | 'cancelled'
+  | 'expired'
+  | 'suspended'
+  | 'free'
   | 'exempt';
+
+export type RetentionStatus = 'none' | 'active_retention' | 'expired';
+
+export type TenantBillingBlockReason =
+  | 'trial_expired'
+  | 'grace_expired'
+  | 'cancelled_ended'
+  | 'retention_active'
+  | 'billing_pending'
+  | 'tenant_suspended'
+  | 'subscription_missing';
 
 export interface TenantContext {
   tenantId: string;
@@ -504,6 +522,15 @@ export interface TenantContext {
   billingExempt: boolean;
   subscriptionStatus: SubscriptionStatus;
   graceUntil: string | null;
+  trialEndsAt?: string | null;
+  currentPeriodEnd?: string | null;
+  endedAt?: string | null;
+  retentionStartedAt?: string | null;
+  retentionEndsAt?: string | null;
+  retentionStatus?: RetentionStatus;
+  onboardingCompleted?: boolean;
+  accessAllowed?: boolean;
+  accessBlockReason?: TenantBillingBlockReason | null;
 }
 
 export interface AuthSessionUser {

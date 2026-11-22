@@ -19,6 +19,7 @@ import {
   addExpense,
   addProduct,
   addSale,
+  completeTenantOnboarding,
   type DataExecutionContext,
   deleteExpense,
   deleteSale,
@@ -40,6 +41,7 @@ import {
   updateProduct,
   updateSale,
 } from './services/dataService';
+import { hasTenantPermission, selectAuthorizedTenant } from './services/rbacPolicy';
 import {
   type AppRoute,
   type AuthSessionUser,
@@ -100,6 +102,8 @@ import { ReportsView } from './components/ReportsView';
 import { SaleModal } from './components/SaleModal';
 import { SalesView } from './components/SalesView';
 import { SettingsView } from './components/SettingsView';
+import { StoreOnboardingScreen } from './components/StoreOnboardingScreen';
+import { SubscriptionBlockedScreen } from './components/SubscriptionBlockedScreen';
 import { PWAInstallButton } from './components/PWAInstallButton';
 
 const TENANT_PREF_KEY = 'mgw_active_tenant_id';
@@ -491,14 +495,16 @@ export default function App() {
     return unsub;
   }, [publicRoute.kind]);
 
-  const activeTenant = useMemo<TenantContext | null>(() => {
-    if (tenants.length === 0) return null;
-    return tenants.find((t) => t.tenantId === selectedTenantId) ?? tenants[0];
-  }, [tenants, selectedTenantId]);
+  const activeTenant = useMemo<TenantContext | null>(
+    () => selectAuthorizedTenant(tenants, selectedTenantId),
+    [tenants, selectedTenantId],
+  );
 
   const dataContext = useMemo<DataExecutionContext | null>(() => {
     if (publicRoute.kind !== 'admin') return null;
     if (!user || !user.emailVerified || !activeTenant) return null;
+    if (activeTenant.accessAllowed === false) return null;
+    if (activeTenant.onboardingCompleted === false) return null;
     return {
       user,
       tenant: activeTenant,
@@ -695,6 +701,28 @@ export default function App() {
     }
   }
 
+  async function handleCompleteOnboarding(storeName: string, ownerName: string) {
+    if (!activeTenant) return;
+    const updated = await completeTenantOnboarding({
+      tenantId: activeTenant.tenantId,
+      storeName,
+      ownerName,
+    });
+    setTenants((prev) =>
+      prev.map((t) =>
+        t.tenantId === updated.tenantId
+          ? {
+              ...t,
+              name: updated.name,
+              slug: updated.slug || t.slug,
+              onboardingCompleted: true,
+            }
+          : t,
+      ),
+    );
+    showToast('Estabelecimento configurado com sucesso!');
+  }
+
   async function handleSaveSale(input: SaleInput, editingId?: string) {
     if (!editingId && isLikelyDuplicateSale(sales, input)) {
       throw new Error(
@@ -713,7 +741,7 @@ export default function App() {
   }
 
   async function handleDeleteSale(saleId: string) {
-    if (!dataContext) return;
+    if (!dataContext || !hasTenantPermission(dataContext.tenant.role, 'sales:delete')) return;
     await deleteSale(dataContext, saleId);
     showToast('Venda excluída.');
   }
@@ -736,7 +764,7 @@ export default function App() {
   }
 
   async function handleDeleteExpense(expenseId: string) {
-    if (!dataContext) return;
+    if (!dataContext || !hasTenantPermission(dataContext.tenant.role, 'expenses:delete')) return;
     await deleteExpense(dataContext, expenseId);
     showToast('Despesa excluída.');
   }
@@ -845,7 +873,7 @@ export default function App() {
     );
   }
 
-  if (!user || !dataContext) {
+  if (!user || !user.emailVerified || !activeTenant) {
     return (
       <LoginScreen
         onGoogleLogin={handleGoogleLogin}
@@ -859,8 +887,72 @@ export default function App() {
     );
   }
 
-  const currentNav = NAV_ITEMS.find((item) => item.id === route) ?? NAV_ITEMS[0];
+  if (activeTenant.accessAllowed === false) {
+    return (
+      <SubscriptionBlockedScreen
+        accountEmail={user.email}
+        tenant={activeTenant}
+        tenants={tenants}
+        onSelectTenant={handleSelectTenant}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  if (activeTenant.onboardingCompleted === false) {
+    return (
+      <StoreOnboardingScreen
+        accountEmail={user.email}
+        initialStoreName={activeTenant.name}
+        onComplete={handleCompleteOnboarding}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  const canViewDashboard = hasTenantPermission(activeTenant.role, 'dashboard:view');
+  const canReadSales = hasTenantPermission(activeTenant.role, 'sales:read');
+  const canCreateSales = hasTenantPermission(activeTenant.role, 'sales:create');
+  const canEditSales = hasTenantPermission(activeTenant.role, 'sales:update');
+  const canDeleteSales = hasTenantPermission(activeTenant.role, 'sales:delete');
+  const canReadExpenses = hasTenantPermission(activeTenant.role, 'expenses:read');
+  const canCreateExpenses = hasTenantPermission(activeTenant.role, 'expenses:create');
+  const canEditExpenses = hasTenantPermission(activeTenant.role, 'expenses:update');
+  const canDeleteExpenses = hasTenantPermission(activeTenant.role, 'expenses:delete');
+  const canViewReports = hasTenantPermission(activeTenant.role, 'reports:view');
+  const canWriteSettings = hasTenantPermission(activeTenant.role, 'settings:write');
+  const canWriteCatalog = hasTenantPermission(activeTenant.role, 'catalog:write');
+  const canAccessSettingsRoute = canWriteSettings || canWriteCatalog;
+
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.id === 'dashboard') return canViewDashboard;
+    if (item.id === 'orders') return canReadSales;
+    if (item.id === 'sales') return canReadSales || canCreateSales;
+    if (item.id === 'expenses') return canReadExpenses;
+    if (item.id === 'reports') return canViewReports;
+    if (item.id === 'settings') return canAccessSettingsRoute;
+    return false;
+  });
+
+  const effectiveRoute: AppRoute = visibleNavItems.some((item) => item.id === route)
+    ? route
+    : visibleNavItems[0]?.id ?? 'dashboard';
+  const currentNav =
+    visibleNavItems.find((item) => item.id === effectiveRoute) ??
+    visibleNavItems[0] ??
+    NAV_ITEMS[0];
   const hasMultipleTenants = tenants.length > 1;
+  const mobileNavGridClass =
+    (
+      {
+        1: 'grid-cols-1',
+        2: 'grid-cols-2',
+        3: 'grid-cols-3',
+        4: 'grid-cols-4',
+        5: 'grid-cols-5',
+        6: 'grid-cols-6',
+      } as Record<number, string>
+    )[visibleNavItems.length] ?? 'grid-cols-6';
 
   return (
     <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex flex-col lg:flex-row">
@@ -879,16 +971,18 @@ export default function App() {
           aria-label="Navegação principal"
           className="flex-1 p-3 space-y-1 overflow-y-auto"
         >
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
-            const active = route === item.id;
+            const active = effectiveRoute === item.id;
             const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => {
-                  if (item.id === 'settings') setSettingsInitialTab('shop');
+                  if (item.id === 'settings') {
+                    setSettingsInitialTab(canWriteSettings ? 'shop' : 'catalog');
+                  }
                   setRoute(item.id);
                 }}
                 aria-current={active ? 'page' : undefined}
@@ -980,39 +1074,44 @@ export default function App() {
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <PWAInstallButton appName="MGW Gestão" installLabel="Instalar gestão" />
-            <button
-              type="button"
-              onClick={() => {
-                setEditingExpense(null);
-                setExpenseModalOpen(true);
-              }}
-              className="min-h-[40px] lg:min-h-[42px] px-3 lg:px-4 rounded-xl border border-[#F5B731]/40 hover:border-[#F5B731] bg-[#12151C] text-[#F5B731] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Nova Despesa</span>
-              <span className="sm:hidden">Despesa</span>
-            </button>
+            {canCreateExpenses && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingExpense(null);
+                  setExpenseModalOpen(true);
+                }}
+                className="min-h-[40px] lg:min-h-[42px] px-3 lg:px-4 rounded-xl border border-[#F5B731]/40 hover:border-[#F5B731] bg-[#12151C] text-[#F5B731] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Nova Despesa</span>
+                <span className="sm:hidden">Despesa</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setEditingSale(null);
-                setSaleModalOpen(true);
-              }}
-              className="min-h-[40px] lg:min-h-[42px] px-3 lg:px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Nova Venda</span>
-              <span className="sm:hidden">Venda</span>
-            </button>
+            {canCreateSales && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSale(null);
+                  setSaleModalOpen(true);
+                }}
+                className="min-h-[40px] lg:min-h-[42px] px-3 lg:px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Nova Venda</span>
+                <span className="sm:hidden">Venda</span>
+              </button>
+            )}
           </div>
         </header>
 
         {/* Real-time Sticky Order Alert Banner across all Admin Screens */}
-        {liveOrderBanner &&
+        {canReadSales &&
+          liveOrderBanner &&
           liveOrderBanner.length > 0 &&
           unviewedOrdersCount > 0 &&
-          route !== 'orders' && (
+          effectiveRoute !== 'orders' && (
             <div
               role="alert"
               data-testid="live-order-alert"
@@ -1104,25 +1203,29 @@ export default function App() {
             </div>
           ) : (
             <>
-              {route === 'dashboard' && (
+              {effectiveRoute === 'dashboard' && canViewDashboard && (
                 <DashboardView
                   sales={sales}
                   expenses={expenses}
                   settings={settings}
                   onlineOrders={onlineOrders}
                   onOpenNewSale={() => {
+                    if (!canCreateSales) return;
                     setEditingSale(null);
                     setSaleModalOpen(true);
                   }}
                   onOpenNewExpense={() => {
+                    if (!canCreateExpenses) return;
                     setEditingExpense(null);
                     setExpenseModalOpen(true);
                   }}
-                  onOpenOrders={() => setRoute('orders')}
+                  onOpenOrders={() => {
+                    if (canReadSales) setRoute('orders');
+                  }}
                 />
               )}
 
-              {route === 'orders' && (
+              {effectiveRoute === 'orders' && canReadSales && (
                 <OrdersCenterView
                   orders={onlineOrders}
                   digitalMenuSettings={digitalMenuSettings}
@@ -1138,20 +1241,26 @@ export default function App() {
                   onMarkViewed={handleMarkOnlineOrderViewed}
                   onTransitionStatus={handleTransitionOnlineOrderStatus}
                   onOpenDigitalMenuSettings={() => {
-                    setSettingsInitialTab('digital_menu');
+                    if (!canAccessSettingsRoute) return;
+                    setSettingsInitialTab(canWriteSettings ? 'digital_menu' : 'catalog');
                     setRoute('settings');
                   }}
                 />
               )}
 
-              {route === 'sales' && (
+              {effectiveRoute === 'sales' && (canReadSales || canCreateSales) && (
                 <SalesView
                   sales={sales}
+                  canCreateSales={canCreateSales}
+                  canEditSales={canEditSales}
+                  canDeleteSales={canDeleteSales}
                   onOpenNewSale={() => {
+                    if (!canCreateSales) return;
                     setEditingSale(null);
                     setSaleModalOpen(true);
                   }}
                   onEditSale={(sale) => {
+                    if (!canEditSales) return;
                     setEditingSale(sale);
                     setSaleModalOpen(true);
                   }}
@@ -1159,14 +1268,19 @@ export default function App() {
                 />
               )}
 
-              {route === 'expenses' && (
+              {effectiveRoute === 'expenses' && canReadExpenses && (
                 <ExpensesView
                   expenses={expenses}
+                  canCreateExpenses={canCreateExpenses}
+                  canEditExpenses={canEditExpenses}
+                  canDeleteExpenses={canDeleteExpenses}
                   onOpenNewExpense={() => {
+                    if (!canCreateExpenses) return;
                     setEditingExpense(null);
                     setExpenseModalOpen(true);
                   }}
                   onEditExpense={(expense) => {
+                    if (!canEditExpenses) return;
                     setEditingExpense(expense);
                     setExpenseModalOpen(true);
                   }}
@@ -1174,7 +1288,7 @@ export default function App() {
                 />
               )}
 
-              {route === 'reports' && (
+              {effectiveRoute === 'reports' && canViewReports && (
                 <ReportsView
                   sales={sales}
                   expenses={expenses}
@@ -1182,15 +1296,17 @@ export default function App() {
                 />
               )}
 
-              {route === 'settings' && (
+              {effectiveRoute === 'settings' && canAccessSettingsRoute && (
                 <SettingsView
-                  workspaceId={dataContext?.tenant.tenantId || 'mgw_lanches'}
+                  workspaceId={dataContext?.tenant.tenantId || activeTenant.tenantId}
                   settings={settings}
                   products={products}
                   combos={combos}
                   digitalMenuSettings={digitalMenuSettings}
                   initialTab={settingsInitialTab}
                   accountEmail={user.email}
+                  canManageShopSettings={canWriteSettings}
+                  canManageDigitalMenu={canWriteSettings}
                   onLogout={handleLogout}
                   onSaveSettings={handleSaveSettings}
                   onSaveDigitalMenuSettings={handleSaveDigitalMenuSettings}
@@ -1212,18 +1328,20 @@ export default function App() {
       {/* Mobile Bottom Navigation (64px) */}
       <nav
         aria-label="Menu inferior"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-[#12151C]/95 backdrop-blur-md border-t border-[#232834] grid grid-cols-6 items-center"
+        className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-[#12151C]/95 backdrop-blur-md border-t border-[#232834] grid ${mobileNavGridClass} items-center`}
       >
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
-          const active = route === item.id;
+          const active = effectiveRoute === item.id;
           const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => {
-                if (item.id === 'settings') setSettingsInitialTab('shop');
+                if (item.id === 'settings') {
+                  setSettingsInitialTab(canWriteSettings ? 'shop' : 'catalog');
+                }
                 setRoute(item.id);
               }}
               aria-current={active ? 'page' : undefined}

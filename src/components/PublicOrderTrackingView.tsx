@@ -24,6 +24,7 @@ import {
   formatOrderNumber,
   formatTimeBR,
   getTrackingFlowSteps,
+  isTerminalOrderStatus,
   normalizePixKeyInput,
   ORDER_STATUS_LABELS,
   shouldShowOrderPixPaymentBox,
@@ -123,20 +124,24 @@ export function PublicOrderTrackingView({
     void loadInitial();
   }, [token]);
 
+  const hasLoadedOrder = order !== null;
+  const isTerminalOrder = order ? isTerminalOrderStatus(order.status) : false;
+  const firebaseTokenHash = order?.tokenHash;
+
   useEffect(() => {
-    if (!order?.tokenHash) return;
+    if (!hasLoadedOrder || isTerminalOrder) return;
     const unsub = subscribePublicOrderTracking(
       token,
-      order.tokenHash,
       (updated) => {
         setOrder(updated);
       },
       () => {
-        // Falha transitória silenciosa na assinatura ao vivo; o botão de recarregar continua disponível
+        // Falha transitória silenciosa na atualização automática; o botão de atualizar continua disponível
       },
+      { tokenHash: firebaseTokenHash },
     );
     return unsub;
-  }, [token, order?.tokenHash]);
+  }, [token, hasLoadedOrder, isTerminalOrder, firebaseTokenHash]);
 
   if (loading) {
     return (

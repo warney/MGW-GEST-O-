@@ -93,7 +93,6 @@ export const ROLE_PERMISSIONS: Record<TenantRole, ReadonlySet<TenantPermission>>
   ]),
   staff: new Set<TenantPermission>([
     'dashboard:view',
-    'sales:read',
     'sales:create',
     'catalog:read',
     'settings:read',
@@ -120,15 +119,15 @@ export const PLAN_CATALOG: Record<PlanDefinition['code'], PlanDefinition> = {
   },
   free: {
     code: 'free',
-    name: 'Plano Gratuito',
+    name: 'Plano Gratuito (Legado)',
     amountCents: 0,
     billingInterval: 'none',
     maxMembers: 3,
-    selfServeAllowed: true,
+    selfServeAllowed: false,
   },
   trial: {
     code: 'trial',
-    name: 'Período de Teste (14 dias)',
+    name: 'Período de Teste (3 dias)',
     amountCents: 0,
     billingInterval: 'trial',
     maxMembers: 5,
@@ -137,7 +136,7 @@ export const PLAN_CATALOG: Record<PlanDefinition['code'], PlanDefinition> = {
   mgw_mensal_49: {
     code: 'mgw_mensal_49',
     name: 'MGW Gestão Mensal',
-    amountCents: 4900,
+    amountCents: 4990,
     billingInterval: 'monthly',
     maxMembers: 15,
     selfServeAllowed: true,
@@ -162,15 +161,28 @@ export function normalizeSubscriptionStatus(
   if (
     rawStatus === 'pending' ||
     rawStatus === 'trialing' ||
-    rawStatus === 'free' ||
+    rawStatus === 'active' ||
     rawStatus === 'authorized' ||
+    rawStatus === 'past_due' ||
     rawStatus === 'paused' ||
     rawStatus === 'cancelled' ||
+    rawStatus === 'expired' ||
+    rawStatus === 'suspended' ||
+    rawStatus === 'free' ||
     rawStatus === 'exempt'
   ) {
     return rawStatus;
   }
   return billingExempt ? 'exempt' : 'pending';
+}
+
+export function normalizeRetentionStatus(
+  rawRetention: unknown,
+): 'none' | 'active_retention' | 'expired' {
+  if (rawRetention === 'active_retention' || rawRetention === 'expired') {
+    return rawRetention;
+  }
+  return 'none';
 }
 
 export function hasTenantPermission(

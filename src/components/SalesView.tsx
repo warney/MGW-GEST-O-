@@ -18,6 +18,9 @@ import {
 
 interface SalesViewProps {
   sales: SaleRecord[];
+  canCreateSales?: boolean;
+  canEditSales?: boolean;
+  canDeleteSales?: boolean;
   onOpenNewSale: () => void;
   onEditSale: (sale: SaleRecord) => void;
   onDeleteSale: (saleId: string) => Promise<void>;
@@ -25,6 +28,9 @@ interface SalesViewProps {
 
 export function SalesView({
   sales,
+  canCreateSales = true,
+  canEditSales = true,
+  canDeleteSales = true,
   onOpenNewSale,
   onEditSale,
   onDeleteSale,
@@ -129,22 +135,24 @@ export function SalesView({
           </p>
         </div>
 
-        <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 flex items-center justify-between gap-4 sm:col-span-2 lg:col-span-1">
-          <div>
-            <p className="text-xs text-[#9CA3AF]">Lançamento rápido</p>
-            <p className="text-sm font-semibold text-[#F3F4F6] mt-1">
-              Registre combos ou vendas individuais
-            </p>
+        {canCreateSales && (
+          <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 flex items-center justify-between gap-4 sm:col-span-2 lg:col-span-1">
+            <div>
+              <p className="text-xs text-[#9CA3AF]">Lançamento rápido</p>
+              <p className="text-sm font-semibold text-[#F3F4F6] mt-1">
+                Registre combos ou vendas individuais
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenNewSale}
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Nova Venda
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onOpenNewSale}
-            className="min-h-[44px] px-4 py-2 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Nova Venda
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -240,7 +248,7 @@ export function SalesView({
                 ? 'Clique em + Nova Venda para lançar sua primeira venda.'
                 : 'Altere os filtros acima para visualizar todo o histórico.'}
             </p>
-            {sales.length === 0 && (
+            {sales.length === 0 && canCreateSales && (
               <button
                 type="button"
                 onClick={onOpenNewSale}
@@ -305,7 +313,7 @@ export function SalesView({
                       {formatCurrencyBRL(sale.totalAmount)}
                     </span>
 
-                    {confirmDeleteId === sale.id ? (
+                    {canDeleteSales && confirmDeleteId === sale.id ? (
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -324,24 +332,30 @@ export function SalesView({
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => onEditSale(sale)}
-                          aria-label={`Editar venda ${summaryText} em ${formatDateBR(sale.date)}`}
-                          className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#F5B731]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F5B731] transition-colors cursor-pointer"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteId(sale.id)}
-                          aria-label={`Excluir venda ${summaryText} em ${formatDateBR(sale.date)}`}
-                          className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#EF4444]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F87171] transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      (canEditSales || canDeleteSales) && (
+                        <div className="flex items-center gap-1.5">
+                          {canEditSales && (
+                            <button
+                              type="button"
+                              onClick={() => onEditSale(sale)}
+                              aria-label={`Editar venda ${summaryText} em ${formatDateBR(sale.date)}`}
+                              className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#F5B731]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F5B731] transition-colors cursor-pointer"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canDeleteSales && (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(sale.id)}
+                              aria-label={`Excluir venda ${summaryText} em ${formatDateBR(sale.date)}`}
+                              className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#EF4444]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F87171] transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )
                     )}
                   </div>
                 </div>

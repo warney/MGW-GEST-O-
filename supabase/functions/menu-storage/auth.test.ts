@@ -3,11 +3,81 @@ import test from 'node:test';
 import {
   assertMenuImagePermission,
   buildCanonicalMenuStoragePath,
+  buildCorsHeaders,
   inferMenuImageKindFromPath,
   MAX_MENU_IMAGE_BYTES,
   MenuStorageAuthError,
+  normalizeTenantId,
+  resolveCorsOrigin,
   validateTenantDeletePath,
 } from './auth.ts';
+
+test('normalizeTenantId accepts uppercase/whitespace UUIDs and rejects invalid values', () => {
+  const upperUuid = '  A1B2C3D4-E5F6-4789-ABCD-0123456789EF  ';
+  const normalized = normalizeTenantId(upperUuid);
+  assert.equal(normalized, 'a1b2C3d4-e5f6-4789-abcd-0123456789ef'.toLowerCase());
+
+  const target = buildCanonicalMenuStoragePath({
+    authorizedTenantId: normalized,
+    kind: 'logo',
+    contentType: 'image/webp',
+    fileSize: 1024,
+    nowMs: 1700000000123,
+    uniqueId: 'norm01',
+  });
+  assert.equal(
+    target.path,
+    'tenants/a1b2c3d4-e5f6-4789-abcd-0123456789ef/branding/logo/1700000000123_norm01.webp',
+  );
+  assert.equal(
+    validateTenantDeletePath({
+      authorizedTenantId: normalized,
+      rawPath: target.path,
+    }),
+    target.path,
+  );
+
+  assert.throws(
+    () => normalizeTenantId('../other-tenant'),
+    (e: unknown) => e instanceof MenuStorageAuthError && e.status === 400 && e.code === 'invalid_tenant_id',
+  );
+  assert.throws(
+    () => normalizeTenantId(null),
+    (e: unknown) => e instanceof MenuStorageAuthError && e.status === 400,
+  );
+});
+
+test('CORS helper supports env allowlist and controlled fallback when unset', () => {
+  assert.equal(resolveCorsOrigin('http://localhost:3000', undefined), '*');
+  assert.equal(resolveCorsOrigin('https://preview.run.app', ''), '*');
+
+  const configuredEnv = 'https://app.mgwgestao.com.br, http://localhost:3000';
+  assert.equal(
+    resolveCorsOrigin('https://app.mgwgestao.com.br', configuredEnv),
+    'https://app.mgwgestao.com.br',
+  );
+  assert.equal(
+    resolveCorsOrigin('http://localhost:3000', configuredEnv),
+    'http://localhost:3000',
+  );
+  assert.equal(
+    resolveCorsOrigin('https://evil.example.com', configuredEnv),
+    null,
+  );
+
+  const allowedHeaders = buildCorsHeaders({
+    requestOrigin: 'https://app.mgwgestao.com.br',
+    allowedOriginsEnv: configuredEnv,
+  });
+  assert.equal(allowedHeaders['Access-Control-Allow-Origin'], 'https://app.mgwgestao.com.br');
+  assert.equal(allowedHeaders.Vary, 'Origin');
+
+  const blockedHeaders = buildCorsHeaders({
+    requestOrigin: 'https://evil.example.com',
+    allowedOriginsEnv: configuredEnv,
+  });
+  assert.equal(blockedHeaders['Access-Control-Allow-Origin'], undefined);
+});
 
 test('buildCanonicalMenuStoragePath enforces exact folder hierarchy, 2MB cap, and MIME whitelist', () => {
   const logo = buildCanonicalMenuStoragePath({

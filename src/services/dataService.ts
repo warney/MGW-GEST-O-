@@ -34,7 +34,11 @@ import {
   type WorkspaceAccess,
 } from '../types/finance';
 import { roundCurrency } from '../utils/finance';
-import { DEFAULT_DIGITAL_MENU_SETTINGS, sanitizeMenuSlug } from '../utils/onlineOrders';
+import {
+  DEFAULT_DIGITAL_MENU_SETTINGS,
+  isTerminalOrderStatus,
+  sanitizeMenuSlug,
+} from '../utils/onlineOrders';
 import { demoMutations, isDemoSandboxActive, subscribeDemoAdminState } from './demoSandbox';
 import {
   createComboInFirestore,
@@ -64,6 +68,7 @@ import {
   updateProductInFirestore,
   updateSaleInFirestore,
 } from './firestoreService';
+import { hasTenantPermission } from './rbacPolicy';
 import {
   buildComboPayloadForSupabase,
   buildDigitalMenuSettingsPayloadForSupabase,
@@ -72,7 +77,6 @@ import {
   buildSalePayloadForSupabase,
   buildSettingsPayloadForSupabase,
   buildTenantContextFromRows,
-  hasActiveTenantBillingAccess,
   mapComboRow,
   mapDigitalMenuSettingsRow,
   mapExpenseRow,
@@ -196,7 +200,7 @@ async function resolveSupabaseAuthenticatedContext(
   const { data: memberRows, error: memberError } = await supabase
     .from('tenant_members')
     .select(
-      'id, tenant_id, user_id, email, role, is_founder, active, tenants ( id, slug, name, is_founder_account, billing_exempt, status )',
+      'id, tenant_id, user_id, email, role, is_founder, active, tenants ( id, slug, name, is_founder_account, billing_exempt, status, onboarding_completed )',
     )
     .eq('user_id', userId)
     .eq('active', true);
@@ -216,7 +220,9 @@ async function resolveSupabaseAuthenticatedContext(
   if (tenantIds.length > 0) {
     const { data: subRows, error: subError } = await supabase
       .from('subscriptions')
-      .select('tenant_id, status, grace_until, trial_ends_at')
+      .select(
+        'tenant_id, status, grace_until, trial_ends_at, current_period_end, ended_at, retention_started_at, retention_ends_at, retention_status',
+      )
       .in('tenant_id', tenantIds);
 
     if (!subError && Array.isArray(subRows)) {
@@ -229,39 +235,29 @@ async function resolveSupabaseAuthenticatedContext(
     }
   }
 
-  const authorizedTenants: TenantContext[] = [];
-  let hasBlockedTenant = false;
+  const resolvedTenants: TenantContext[] = [];
 
   for (const member of typedMembers) {
-    const tenantRaw = Array.isArray(member.tenants)
-      ? member.tenants[0]
-      : member.tenants;
-    if (!tenantRaw) continue;
     const sub = subsByTenant.get(member.tenant_id);
-    if (!hasActiveTenantBillingAccess(tenantRaw as SupabaseTenantRow, sub)) {
-      hasBlockedTenant = true;
-      continue;
-    }
     const ctx = buildTenantContextFromRows(member, sub);
     if (ctx) {
-      authorizedTenants.push(ctx);
+      resolvedTenants.push(ctx);
     }
   }
 
-  if (authorizedTenants.length === 0) {
+  if (resolvedTenants.length === 0) {
     await supabase.auth.signOut();
     return {
       user: null,
       tenants: [],
-      errorMessage: hasBlockedTenant
-        ? 'O acesso deste estabelecimento está temporariamente suspenso ou aguardando ativação.'
-        : 'Esta conta autenticada não possui vínculo ativo com nenhum estabelecimento autorizado.',
+      errorMessage:
+        'Esta conta autenticada não possui vínculo ativo com nenhum estabelecimento autorizado.',
     };
   }
 
   return {
     user: { uid: userId, email, emailVerified },
-    tenants: authorizedTenants,
+    tenants: resolvedTenants,
     errorMessage: null,
   };
 }
@@ -286,6 +282,10 @@ export function subscribeAuthSession(
           billingExempt: true,
           subscriptionStatus: 'exempt',
           graceUntil: null,
+          retentionStatus: 'none',
+          onboardingCompleted: true,
+          accessAllowed: true,
+          accessBlockReason: null,
         },
       ],
       legacyWorkspace: MGW_WORKSPACE,
@@ -330,6 +330,10 @@ export function subscribeAuthSession(
               billingExempt: true,
               subscriptionStatus: 'exempt',
               graceUntil: null,
+              retentionStatus: 'none',
+              onboardingCompleted: true,
+              accessAllowed: true,
+              accessBlockReason: null,
             },
           ],
           legacyWorkspace: resolved,
@@ -545,6 +549,45 @@ export async function logoutSession(): Promise<void> {
   }
 }
 
+export async function completeTenantOnboarding(params: {
+  tenantId: string;
+  storeName: string;
+  ownerName?: string;
+}): Promise<{
+  tenantId: string;
+  slug: string;
+  name: string;
+  onboardingCompleted: boolean;
+}> {
+  if (getActiveDataProvider() !== 'supabase') {
+    throw new Error('Configuração inicial de loja disponível apenas no Supabase.');
+  }
+
+  const cleanStoreName = params.storeName.trim().slice(0, 80);
+  const cleanOwnerName = (params.ownerName || '').trim().slice(0, 120);
+  if (cleanStoreName.length < 2) {
+    throw new Error('Informe o nome do estabelecimento (mínimo 2 caracteres).');
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('complete_tenant_onboarding', {
+    p_tenant_id: params.tenantId,
+    p_store_name: cleanStoreName,
+    p_owner_name: cleanOwnerName,
+  });
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const res = (data ?? {}) as Record<string, unknown>;
+  return {
+    tenantId: String(res.tenantId || params.tenantId),
+    slug: String(res.slug || ''),
+    name: String(res.name || cleanStoreName),
+    onboardingCompleted: res.onboardingCompleted !== false,
+  };
+}
+
 // ==================== LEITURA E ASSINATURA REATIVA ====================
 
 export function subscribeAllTenantData(
@@ -673,8 +716,18 @@ export function subscribeAllTenantData(
   }
 
   // Modo Supabase (PostgreSQL + RLS + Realtime)
+  if (
+    ctx.tenant.accessAllowed === false ||
+    ctx.tenant.onboardingCompleted === false
+  ) {
+    callbacks.onReady();
+    return () => {};
+  }
+
   const supabase = getSupabaseClient();
   const tenantId = ctx.tenant.tenantId;
+  const canReadSales = hasTenantPermission(ctx.tenant.role, 'sales:read');
+  const canReadExpenses = hasTenantPermission(ctx.tenant.role, 'expenses:read');
   let active = true;
 
   const fetchSettings = async () => {
@@ -702,6 +755,7 @@ export function subscribeAllTenantData(
       daily_goal: DEFAULT_SHOP_SETTINGS.dailyGoal,
       monthly_goal: DEFAULT_SHOP_SETTINGS.monthlyGoal,
       start_date: DEFAULT_SHOP_SETTINGS.startDate,
+      timezone: DEFAULT_SHOP_SETTINGS.timezone || 'America/Manaus',
     };
 
     const { data: inserted, error: insertError } = await supabase
@@ -782,6 +836,10 @@ export function subscribeAllTenantData(
   };
 
   const fetchSales = async () => {
+    if (!canReadSales) {
+      if (active) callbacks.onSales([]);
+      return;
+    }
     const { data, error } = await supabase
       .from('sales')
       .select('*')
@@ -796,6 +854,10 @@ export function subscribeAllTenantData(
   };
 
   const fetchExpenses = async () => {
+    if (!canReadExpenses) {
+      if (active) callbacks.onExpenses([]);
+      return;
+    }
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
@@ -811,6 +873,10 @@ export function subscribeAllTenantData(
 
   const fetchOnlineOrders = async () => {
     if (!callbacks.onOnlineOrders) return;
+    if (!canReadSales) {
+      if (active) callbacks.onOnlineOrders([]);
+      return;
+    }
     const { data: orderRows, error: ordersError } = await supabase
       .from('online_orders')
       .select('*')
@@ -903,7 +969,7 @@ export function subscribeAllTenantData(
 
   void fetchAll();
 
-  const channel = supabase
+  let channel = supabase
     .channel(`tenant-sync-${tenantId}`)
     .on(
       'postgres_changes',
@@ -924,33 +990,41 @@ export function subscribeAllTenantData(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'combos', filter: `tenant_id=eq.${tenantId}` },
       () => void fetchCombos().catch((e) => active && callbacks.onError(e as Error)),
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'sales', filter: `tenant_id=eq.${tenantId}` },
-      () => void fetchSales().catch((e) => active && callbacks.onError(e as Error)),
-    )
-    .on(
+    );
+
+  if (canReadSales) {
+    channel = channel
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sales', filter: `tenant_id=eq.${tenantId}` },
+        () => void fetchSales().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'online_orders', filter: `tenant_id=eq.${tenantId}` },
+        () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'online_order_items', filter: `tenant_id=eq.${tenantId}` },
+        () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'online_order_status_history', filter: `tenant_id=eq.${tenantId}` },
+        () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
+      );
+  }
+
+  if (canReadExpenses) {
+    channel = channel.on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'expenses', filter: `tenant_id=eq.${tenantId}` },
       () => void fetchExpenses().catch((e) => active && callbacks.onError(e as Error)),
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'online_orders', filter: `tenant_id=eq.${tenantId}` },
-      () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'online_order_items', filter: `tenant_id=eq.${tenantId}` },
-      () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
-    )
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'online_order_status_history', filter: `tenant_id=eq.${tenantId}` },
-      () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
-    )
-    .subscribe();
+    );
+  }
+
+  channel.subscribe();
 
   return () => {
     active = false;
@@ -1476,42 +1550,133 @@ export async function fetchPublicOrderByToken(
   return mapPublicOrderTrackingRpcResponse(data);
 }
 
+export interface PublicOrderPollingOptions {
+  tokenHash?: string;
+  intervalMs?: number;
+  fetchOrder?: (token: string) => Promise<PublicOrderTrackingRecord | null>;
+  isVisible?: () => boolean;
+  addVisibilityListener?: (listener: () => void) => () => void;
+  setTimer?: (fn: () => void, ms: number) => ReturnType<typeof setInterval>;
+  clearTimer?: (id: ReturnType<typeof setInterval>) => void;
+}
+
+export function createPublicOrderPollingController(params: {
+  token: string;
+  onUpdate: (order: PublicOrderTrackingRecord | null) => void;
+  onError: (err: Error) => void;
+  intervalMs?: number;
+  fetchOrder: (token: string) => Promise<PublicOrderTrackingRecord | null>;
+  isVisible?: () => boolean;
+  addVisibilityListener?: (listener: () => void) => () => void;
+  setTimer?: (fn: () => void, ms: number) => ReturnType<typeof setInterval>;
+  clearTimer?: (id: ReturnType<typeof setInterval>) => void;
+}): () => void {
+  const intervalMs = Math.max(2000, params.intervalMs ?? 10000);
+  const checkVisible =
+    params.isVisible ??
+    (() => typeof document === 'undefined' || document.visibilityState !== 'hidden');
+  const setTimerFn =
+    params.setTimer ?? ((fn, ms) => globalThis.setInterval(fn, ms));
+  const clearTimerFn =
+    params.clearTimer ?? ((id) => globalThis.clearInterval(id));
+  const addVisFn =
+    params.addVisibilityListener ??
+    ((listener) => {
+      if (typeof document === 'undefined') return () => {};
+      document.addEventListener('visibilitychange', listener);
+      return () => document.removeEventListener('visibilitychange', listener);
+    });
+
+  let active = true;
+  let stoppedForever = false;
+  let inFlight = false;
+  let timerId: ReturnType<typeof setInterval> | null = null;
+  let removeVisibilityListener: () => void = () => {};
+
+  const stopTimer = () => {
+    if (timerId !== null) {
+      clearTimerFn(timerId);
+      timerId = null;
+    }
+  };
+
+  const cleanup = () => {
+    active = false;
+    stoppedForever = true;
+    stopTimer();
+    removeVisibilityListener();
+    removeVisibilityListener = () => {};
+  };
+
+  const refreshOrder = async () => {
+    if (!active || stoppedForever || inFlight || !checkVisible()) return;
+    inFlight = true;
+    try {
+      const updated = await params.fetchOrder(params.token);
+      if (!active || stoppedForever) return;
+      params.onUpdate(updated);
+      if (!updated || isTerminalOrderStatus(updated.status)) {
+        cleanup();
+      }
+    } catch (e) {
+      if (active && !stoppedForever) {
+        params.onError(e instanceof Error ? e : new Error(String(e)));
+      }
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  const startTimer = () => {
+    if (!active || stoppedForever || timerId !== null || !checkVisible()) return;
+    timerId = setTimerFn(() => {
+      void refreshOrder();
+    }, intervalMs);
+  };
+
+  const handleVisibilityChange = () => {
+    if (!active || stoppedForever) return;
+    if (checkVisible()) {
+      startTimer();
+      void refreshOrder();
+    } else {
+      stopTimer();
+    }
+  };
+
+  removeVisibilityListener = addVisFn(handleVisibilityChange);
+  startTimer();
+
+  return cleanup;
+}
+
 export function subscribePublicOrderTracking(
   token: string,
-  tokenHash: string,
   onUpdate: (order: PublicOrderTrackingRecord | null) => void,
   onError: (err: Error) => void,
+  options?: PublicOrderPollingOptions,
 ): () => void {
   if (isDemoSandboxActive()) {
     return demoMutations.subscribeTrackingByToken(token, onUpdate);
   }
   if (getActiveDataProvider() === 'firebase') {
-    return subscribePublicOrderByTokenHashFirestore(tokenHash, onUpdate, onError);
+    if (!options?.tokenHash) return () => {};
+    return subscribePublicOrderByTokenHashFirestore(
+      options.tokenHash,
+      onUpdate,
+      onError,
+    );
   }
 
-  // Public tracking uses the unguessable order token through the RPC only.
-  // It never subscribes to or reads the shared realtime-pings table.
-  if (!/^[a-f0-9]{64}$/i.test(tokenHash)) {
-    onError(new Error('Token de rastreamento inválido.'));
-    return () => undefined;
-  }
-
-  let active = true;
-  const poll = async () => {
-    try {
-      const order = await fetchPublicOrderByToken(token);
-      if (active) onUpdate(order);
-    } catch (error) {
-      if (active) onError(error instanceof Error ? error : new Error(String(error)));
-    }
-  };
-
-  const timer = window.setInterval(() => {
-    void poll();
-  }, 8000);
-
-  return () => {
-    active = false;
-    window.clearInterval(timer);
-  };
+  return createPublicOrderPollingController({
+    token,
+    onUpdate,
+    onError,
+    intervalMs: options?.intervalMs,
+    fetchOrder: options?.fetchOrder ?? fetchPublicOrderByToken,
+    isVisible: options?.isVisible,
+    addVisibilityListener: options?.addVisibilityListener,
+    setTimer: options?.setTimer,
+    clearTimer: options?.clearTimer,
+  });
 }

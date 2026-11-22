@@ -24,6 +24,7 @@ import {
   type PublicCatalogProduct,
   type PublicDigitalMenuPayload,
   type PublicOrderTrackingRecord,
+  type RetentionStatus,
   type SaleInput,
   type SaleLineComponentSnapshot,
   type SaleLineItemSnapshot,
@@ -32,6 +33,7 @@ import {
   type SaleRecord,
   type ShopSettings,
   type SubscriptionStatus,
+  type TenantBillingBlockReason,
   type TenantContext,
   type TenantRole,
 } from '../types/finance';
@@ -41,7 +43,11 @@ import {
   normalizePixKeyInput,
   sanitizeMenuSlug,
 } from '../utils/onlineOrders';
-import { normalizeSubscriptionStatus, normalizeTenantRole } from './rbacPolicy';
+import {
+  normalizeRetentionStatus,
+  normalizeSubscriptionStatus,
+  normalizeTenantRole,
+} from './rbacPolicy';
 
 export interface SupabaseTenantRow {
   id: string;
@@ -50,12 +56,18 @@ export interface SupabaseTenantRow {
   is_founder_account: boolean;
   billing_exempt: boolean;
   status: string;
+  onboarding_completed?: boolean;
 }
 
 export interface SupabaseSubscriptionRow {
   status: string;
   grace_until: string | null;
   trial_ends_at?: string | null;
+  current_period_end?: string | null;
+  ended_at?: string | null;
+  retention_started_at?: string | null;
+  retention_ends_at?: string | null;
+  retention_status?: string | null;
 }
 
 export interface SupabaseTenantMemberRow {
@@ -77,6 +89,7 @@ export interface SupabaseShopSettingsRow {
   daily_goal: number | string;
   monthly_goal: number | string;
   start_date: string;
+  timezone?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -297,6 +310,10 @@ export function mapShopSettingsRow(
   row: SupabaseShopSettingsRow,
   fallbackOwnerId = '',
 ): ShopSettings {
+  const tz = typeof row.timezone === 'string' && row.timezone.trim()
+    ? row.timezone.trim()
+    : DEFAULT_SHOP_SETTINGS.timezone;
+
   return {
     ownerId: String(row.owner_email || fallbackOwnerId || row.tenant_id),
     establishmentName: String(row.establishment_name || DEFAULT_SHOP_SETTINGS.establishmentName),
@@ -304,6 +321,7 @@ export function mapShopSettingsRow(
     dailyGoal: Number(row.daily_goal) || 0,
     monthlyGoal: Number(row.monthly_goal) || 0,
     startDate: String(row.start_date || DEFAULT_SHOP_SETTINGS.startDate).slice(0, 10),
+    timezone: tz,
   };
 }
 
@@ -417,12 +435,20 @@ export function buildSalePayloadForSupabase(
   delivery_fee: number;
 } {
   const quantity = Math.max(1, Math.trunc(Number(input.quantity)));
+  const deliveryFee = roundCurrency(Math.max(0, Number(input.deliveryFee || 0)));
   const totalAmount =
-    input.items && input.items.length > 0
-      ? roundCurrency(input.items.reduce((acc, item) => acc + item.lineTotal, 0))
-      : calculateSaleTotal(quantity, roundCurrency(Number(input.unitPrice)));
+    typeof input.totalAmount === 'number' &&
+    Number.isFinite(input.totalAmount) &&
+    input.totalAmount > 0
+      ? roundCurrency(input.totalAmount)
+      : input.items && input.items.length > 0
+        ? roundCurrency(
+            input.items.reduce((acc, item) => acc + item.lineTotal, 0) + deliveryFee,
+          )
+        : calculateSaleTotal(quantity, roundCurrency(Number(input.unitPrice)));
   const unitPrice =
-    input.items && input.items.length > 0
+    (input.items && input.items.length > 0) ||
+    (typeof input.totalAmount === 'number' && input.totalAmount > 0)
       ? roundCurrency(totalAmount / quantity)
       : roundCurrency(Number(input.unitPrice));
   const date = sanitizeDateYYYYMMDD(input.date);
@@ -570,12 +596,16 @@ export function buildSettingsPayloadForSupabase(input: Omit<ShopSettings, 'owner
   daily_goal: number;
   monthly_goal: number;
   start_date: string;
+  timezone?: string;
 } {
   const establishmentName = input.establishmentName.trim().slice(0, 80);
   const xSaladaPrice = roundCurrency(Number(input.xSaladaPrice));
   const dailyGoal = roundCurrency(Math.max(0, Number(input.dailyGoal)));
   const monthlyGoal = roundCurrency(Math.max(0, Number(input.monthlyGoal)));
   const startDate = sanitizeDateYYYYMMDD(input.startDate);
+  const timezone = typeof input.timezone === 'string' && input.timezone.trim()
+    ? input.timezone.trim().slice(0, 80)
+    : undefined;
 
   if (!establishmentName) {
     throw new Error('Informe o nome do estabelecimento.');
@@ -590,6 +620,142 @@ export function buildSettingsPayloadForSupabase(input: Omit<ShopSettings, 'owner
     daily_goal: dailyGoal,
     monthly_goal: monthlyGoal,
     start_date: startDate,
+    ...(timezone ? { timezone } : {}),
+  };
+}
+
+export interface TenantBillingAccessEvaluation {
+  allowed: boolean;
+  reason: TenantBillingBlockReason | null;
+  status: SubscriptionStatus;
+  retentionStatus: RetentionStatus;
+}
+
+export function evaluateTenantBillingAccess(
+  tenant: Pick<SupabaseTenantRow, 'billing_exempt' | 'status'>,
+  subscription: SupabaseSubscriptionRow | null | undefined,
+  nowMs = Date.now(),
+): TenantBillingAccessEvaluation {
+  const retentionStatus: RetentionStatus = normalizeRetentionStatus(
+    subscription?.retention_status,
+  );
+  const subStatus: SubscriptionStatus = normalizeSubscriptionStatus(
+    subscription?.status,
+    Boolean(tenant.billing_exempt),
+  );
+
+  if (tenant.status !== 'active') {
+    return {
+      allowed: false,
+      reason: 'tenant_suspended',
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  if (retentionStatus !== 'none') {
+    return {
+      allowed: false,
+      reason: 'retention_active',
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  if (tenant.billing_exempt) {
+    return {
+      allowed: true,
+      reason: null,
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  if (!subscription) {
+    return {
+      allowed: false,
+      reason: 'subscription_missing',
+      status: 'pending',
+      retentionStatus,
+    };
+  }
+
+  if (
+    subStatus === 'exempt' ||
+    subStatus === 'authorized' ||
+    subStatus === 'active' ||
+    subStatus === 'free'
+  ) {
+    return {
+      allowed: true,
+      reason: null,
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  if (subStatus === 'trialing') {
+    const trialEndMs = subscription.trial_ends_at
+      ? Date.parse(subscription.trial_ends_at)
+      : Number.NaN;
+    const allowed = Number.isFinite(trialEndMs) && trialEndMs > nowMs;
+    return {
+      allowed,
+      reason: allowed ? null : 'trial_expired',
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  if (subStatus === 'past_due' || subStatus === 'paused') {
+    const graceMs = subscription.grace_until
+      ? Date.parse(subscription.grace_until)
+      : Number.NaN;
+    const allowed = Number.isFinite(graceMs) && graceMs > nowMs;
+    return {
+      allowed,
+      reason: allowed ? null : 'grace_expired',
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  if (subStatus === 'cancelled') {
+    const periodEndMs = subscription.current_period_end
+      ? Date.parse(subscription.current_period_end)
+      : Number.NaN;
+    const allowed = Number.isFinite(periodEndMs) && periodEndMs > nowMs;
+    return {
+      allowed,
+      reason: allowed ? null : 'cancelled_ended',
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  if (subStatus === 'expired') {
+    return {
+      allowed: false,
+      reason: 'trial_expired',
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  if (subStatus === 'suspended') {
+    return {
+      allowed: false,
+      reason: 'tenant_suspended',
+      status: subStatus,
+      retentionStatus,
+    };
+  }
+
+  return {
+    allowed: false,
+    reason: 'billing_pending',
+    status: subStatus,
+    retentionStatus,
   };
 }
 
@@ -598,44 +764,27 @@ export function hasActiveTenantBillingAccess(
   subscription: SupabaseSubscriptionRow | null | undefined,
   nowMs = Date.now(),
 ): boolean {
-  if (tenant.status !== 'active') return false;
-  if (tenant.billing_exempt) return true;
-  if (!subscription) return false;
-  if (
-    subscription.status === 'exempt' ||
-    subscription.status === 'authorized' ||
-    subscription.status === 'free'
-  ) {
-    return true;
-  }
-  if (subscription.status === 'trialing') {
-    if (!subscription.trial_ends_at) return false;
-    const trialEndMs = Date.parse(subscription.trial_ends_at);
-    return Number.isFinite(trialEndMs) && trialEndMs > nowMs;
-  }
-  if (subscription.status === 'paused' && subscription.grace_until) {
-    const graceMs = Date.parse(subscription.grace_until);
-    return Number.isFinite(graceMs) && graceMs > nowMs;
-  }
-  return false;
+  return evaluateTenantBillingAccess(tenant, subscription, nowMs).allowed;
 }
 
 export function buildTenantContextFromRows(
   member: SupabaseTenantMemberRow,
   subscription: SupabaseSubscriptionRow | null | undefined,
+  nowMs = Date.now(),
 ): TenantContext | null {
   const tenantRaw = Array.isArray(member.tenants)
     ? member.tenants[0]
     : member.tenants;
-  if (!tenantRaw || !member.active || tenantRaw.status !== 'active') {
+  if (
+    !tenantRaw ||
+    !member.active ||
+    (tenantRaw.status !== 'active' && tenantRaw.status !== 'suspended')
+  ) {
     return null;
   }
 
   const role: TenantRole = normalizeTenantRole(member.role);
-  const subStatus: SubscriptionStatus = normalizeSubscriptionStatus(
-    subscription?.status,
-    Boolean(tenantRaw.billing_exempt),
-  );
+  const access = evaluateTenantBillingAccess(tenantRaw, subscription, nowMs);
 
   return {
     tenantId: tenantRaw.id,
@@ -644,8 +793,17 @@ export function buildTenantContextFromRows(
     role,
     isFounderAccount: Boolean(tenantRaw.is_founder_account),
     billingExempt: Boolean(tenantRaw.billing_exempt),
-    subscriptionStatus: subStatus,
+    subscriptionStatus: access.status,
     graceUntil: subscription?.grace_until ?? null,
+    trialEndsAt: subscription?.trial_ends_at ?? null,
+    currentPeriodEnd: subscription?.current_period_end ?? null,
+    endedAt: subscription?.ended_at ?? null,
+    retentionStartedAt: subscription?.retention_started_at ?? null,
+    retentionEndsAt: subscription?.retention_ends_at ?? null,
+    retentionStatus: access.retentionStatus,
+    onboardingCompleted: tenantRaw.onboarding_completed !== false,
+    accessAllowed: access.allowed,
+    accessBlockReason: access.reason,
   };
 }
 
@@ -976,7 +1134,6 @@ export function mapPublicOrderTrackingRpcResponse(
 
   return {
     orderId: String(o.orderId || ''),
-    tokenHash: String(o.tokenHash || ''),
     orderNumber,
     orderCode: String(o.orderCode || formatOrderNumber(orderNumber)),
     status: normalizeOnlineOrderStatus(o.status),

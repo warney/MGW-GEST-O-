@@ -29,7 +29,19 @@ interface SettingsViewProps {
   initialTab?: 'shop' | 'catalog' | 'digital_menu';
   accountEmail: string;
   onLogout: () => Promise<void>;
+  canManageShopSettings?: boolean;
+  canManageDigitalMenu?: boolean;
 }
+
+const BRAZIL_TIMEZONES = [
+  { value: 'America/Manaus', label: 'Amazonas / Roraima / Rondônia (America/Manaus)' },
+  { value: 'America/Sao_Paulo', label: 'Brasília / Sudeste / Sul / Nordeste (America/Sao_Paulo)' },
+  { value: 'America/Cuiaba', label: 'Mato Grosso / Mato Grosso do Sul (America/Cuiaba)' },
+  { value: 'America/Belem', label: 'Pará / Amapá (America/Belem)' },
+  { value: 'America/Fortaleza', label: 'Ceará / Maranhão / Piauí / RN / PB (America/Fortaleza)' },
+  { value: 'America/Rio_Branco', label: 'Acre (America/Rio_Branco)' },
+  { value: 'America/Noronha', label: 'Fernando de Noronha (America/Noronha)' },
+] as const;
 
 export function SettingsView({
   workspaceId,
@@ -48,14 +60,27 @@ export function SettingsView({
   initialTab = 'shop',
   accountEmail,
   onLogout,
+  canManageShopSettings = true,
+  canManageDigitalMenu = true,
 }: SettingsViewProps) {
+  const defaultTab = canManageShopSettings
+    ? initialTab
+    : 'catalog';
   const [activeTab, setActiveTab] = useState<'shop' | 'catalog' | 'digital_menu'>(
-    initialTab,
+    defaultTab,
   );
 
   useEffect(() => {
+    if (initialTab === 'shop' && !canManageShopSettings) {
+      setActiveTab('catalog');
+      return;
+    }
+    if (initialTab === 'digital_menu' && !canManageDigitalMenu) {
+      setActiveTab('catalog');
+      return;
+    }
     setActiveTab(initialTab);
-  }, [initialTab]);
+  }, [initialTab, canManageShopSettings, canManageDigitalMenu]);
 
   const [establishmentName, setEstablishmentName] = useState(
     settings.establishmentName,
@@ -66,6 +91,9 @@ export function SettingsView({
   const [dailyGoal, setDailyGoal] = useState(String(settings.dailyGoal));
   const [monthlyGoal, setMonthlyGoal] = useState(String(settings.monthlyGoal));
   const [startDate, setStartDate] = useState(settings.startDate);
+  const [timezone, setTimezone] = useState(
+    settings.timezone || 'America/Manaus',
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +105,7 @@ export function SettingsView({
     setDailyGoal(String(settings.dailyGoal));
     setMonthlyGoal(String(settings.monthlyGoal));
     setStartDate(settings.startDate);
+    setTimezone(settings.timezone || 'America/Manaus');
   }, [settings]);
 
   async function handleLogoutClick() {
@@ -123,6 +152,7 @@ export function SettingsView({
         dailyGoal: parsedDaily,
         monthlyGoal: parsedMonthly,
         startDate,
+        timezone: timezone || 'America/Manaus',
       });
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 3500);
@@ -144,20 +174,22 @@ export function SettingsView({
         aria-label="Opções de configuração"
         className="flex flex-wrap p-1 bg-[#12151C] border border-[#232834] rounded-xl gap-1"
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'shop'}
-          onClick={() => setActiveTab('shop')}
-          className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
-            activeTab === 'shop'
-              ? 'bg-[#F5B731] text-[#0B0D11]'
-              : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
-          }`}
-        >
-          <Store className="w-4 h-4" />
-          Dados da Lanchonete
-        </button>
+        {canManageShopSettings && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'shop'}
+            onClick={() => setActiveTab('shop')}
+            className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
+              activeTab === 'shop'
+                ? 'bg-[#F5B731] text-[#0B0D11]'
+                : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+            }`}
+          >
+            <Store className="w-4 h-4" />
+            Dados da Lanchonete
+          </button>
+        )}
 
         <button
           type="button"
@@ -174,35 +206,25 @@ export function SettingsView({
           Produtos e Combos
         </button>
 
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'digital_menu'}
-          onClick={() => setActiveTab('digital_menu')}
-          className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
-            activeTab === 'digital_menu'
-              ? 'bg-[#F5B731] text-[#0B0D11]'
-              : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
-          }`}
-        >
-          <Globe className="w-4 h-4" />
-          Cardápio Digital
-        </button>
+        {canManageDigitalMenu && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'digital_menu'}
+            onClick={() => setActiveTab('digital_menu')}
+            className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
+              activeTab === 'digital_menu'
+                ? 'bg-[#F5B731] text-[#0B0D11]'
+                : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            Cardápio Digital
+          </button>
+        )}
       </div>
 
-      {activeTab === 'catalog' ? (
-        <ProductsCombosManager
-          workspaceId={workspaceId}
-          products={products}
-          combos={combos}
-          defaultXSaladaPrice={settings.xSaladaPrice}
-          onCreateProduct={onCreateProduct}
-          onUpdateProduct={onUpdateProduct}
-          onCreateCombo={onCreateCombo}
-          onUpdateCombo={onUpdateCombo}
-          onSeedCatalog={onSeedCatalog}
-        />
-      ) : activeTab === 'digital_menu' ? (
+      {activeTab === 'digital_menu' && canManageDigitalMenu ? (
         <DigitalMenuSettingsPanel
           workspaceId={workspaceId}
           settings={digitalMenuSettings}
@@ -211,7 +233,7 @@ export function SettingsView({
           onSave={onSaveDigitalMenuSettings}
           onPreviewPublicMenu={onPreviewPublicMenu}
         />
-      ) : (
+      ) : activeTab === 'shop' && canManageShopSettings ? (
         <div className="max-w-2xl space-y-4">
         <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
@@ -273,22 +295,48 @@ export function SettingsView({
               </div>
             )}
 
-            <div>
-              <label
-                htmlFor="cfg-name"
-                className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
-              >
-                Nome do estabelecimento
-              </label>
-              <input
-                id="cfg-name"
-                type="text"
-                maxLength={80}
-                value={establishmentName}
-                onChange={(e) => setEstablishmentName(e.target.value)}
-                required
-                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="cfg-name"
+                  className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                >
+                  Nome do estabelecimento
+                </label>
+                <input
+                  id="cfg-name"
+                  type="text"
+                  maxLength={80}
+                  value={establishmentName}
+                  onChange={(e) => setEstablishmentName(e.target.value)}
+                  required
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="cfg-timezone"
+                  className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                >
+                  Fuso horário do estabelecimento
+                </label>
+                <select
+                  id="cfg-timezone"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                >
+                  {BRAZIL_TIMEZONES.map((tzOption) => (
+                    <option key={tzOption.value} value={tzOption.value}>
+                      {tzOption.label}
+                    </option>
+                  ))}
+                  {!BRAZIL_TIMEZONES.some((t) => t.value === timezone) && (
+                    <option value={timezone}>{timezone}</option>
+                  )}
+                </select>
+              </div>
             </div>
 
             <div className="pt-2 border-t border-[#232834]">
@@ -406,6 +454,18 @@ export function SettingsView({
           </form>
         </section>
         </div>
+      ) : (
+        <ProductsCombosManager
+          workspaceId={workspaceId}
+          products={products}
+          combos={combos}
+          defaultXSaladaPrice={settings.xSaladaPrice}
+          onCreateProduct={onCreateProduct}
+          onUpdateProduct={onUpdateProduct}
+          onCreateCombo={onCreateCombo}
+          onUpdateCombo={onUpdateCombo}
+          onSeedCatalog={onSeedCatalog}
+        />
       )}
     </div>
   );
