@@ -193,6 +193,7 @@ function createInitialDemoState(): DemoState {
           quantity: 2,
           unitPrice: 26,
           lineTotal: 52,
+          selectedAddons: [],
           estimatedUnitCost: 11,
           xSaladasPerUnit: 1,
           components: [
@@ -526,6 +527,7 @@ export const demoMutations = {
           quantity: l.quantity,
           unitPrice: l.unitPrice,
           lineTotal: l.lineTotal,
+          selectedAddons: [],
           estimatedUnitCost: c?.estimatedCost ?? 0,
           xSaladasPerUnit: l.xSaladasPerUnit,
           components: (c?.items ?? []).map((comp) => ({
@@ -547,6 +549,7 @@ export const demoMutations = {
         quantity: l.quantity,
         unitPrice: l.unitPrice,
         lineTotal: l.lineTotal,
+        selectedAddons: [],
         estimatedUnitCost: 0,
         xSaladasPerUnit: l.xSaladasPerUnit,
         components: [
@@ -662,6 +665,7 @@ export const demoMutations = {
         quantity: it.quantity,
         unitPrice: it.unitPrice,
         lineTotal: it.lineTotal,
+        selectedAddons: it.selectedAddons || [],
         itemNote: it.itemNote,
       })),
       statusHistory: order.statusHistory,

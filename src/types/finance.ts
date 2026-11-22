@@ -80,7 +80,42 @@ export const PRODUCT_CATEGORIES = [
   'Outro',
 ] as const;
 
-export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+// Categories are tenant-defined. PRODUCT_CATEGORIES remains only as legacy defaults.
+export type ProductCategory = string;
+
+export interface ProductCategoryRecord {
+  id: string;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface AddonOptionRecord {
+  id: string;
+  groupId: string;
+  name: string;
+  price: number;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface AddonGroupRecord {
+  id: string;
+  name: string;
+  isRequired: boolean;
+  minSelect: number;
+  maxSelect: number;
+  active: boolean;
+  sortOrder: number;
+  options: AddonOptionRecord[];
+}
+
+export interface PublicProductAddonGroup extends AddonGroupRecord {}
+
+export interface SelectedProductAddon {
+  groupId: string;
+  optionIds: string[];
+}
 
 export const EXPENSE_CATEGORIES = [
   'Ingredientes',
@@ -167,6 +202,7 @@ export interface PublicCatalogProduct {
   unitPrice: number;
   countsAsXSalada: boolean;
   imageUrl?: string;
+  addonGroups?: PublicProductAddonGroup[];
 }
 
 export interface PublicCatalogCombo {
@@ -190,6 +226,7 @@ export interface OnlineOrderCartItem {
   id: string;
   quantity: number;
   note?: string;
+  selectedAddons?: SelectedProductAddon[];
 }
 
 export interface CreatePublicOrderPayload {
@@ -228,6 +265,7 @@ export interface OnlineOrderItemSnapshot {
   estimatedUnitCost: number;
   xSaladasPerUnit: number;
   components: SaleLineComponentSnapshot[];
+  selectedAddons: Array<{ groupId: string; groupName: string; options: Array<{ id: string; name: string; price: number }> }>;
   itemNote: string;
 }
 
@@ -305,6 +343,7 @@ export interface PublicOrderTrackingRecord {
     quantity: number;
     unitPrice: number;
     lineTotal: number;
+    selectedAddons: Array<{ groupId: string; groupName: string; options: Array<{ id: string; name: string; price: number }> }>;
     itemNote: string;
   }>;
   statusHistory: OnlineOrderStatusEvent[];
@@ -386,6 +425,11 @@ export interface SaleLineItemSnapshot {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  selectedAddons?: Array<{
+    groupId: string;
+    groupName: string;
+    options: Array<{ id: string; name: string; price: number }>;
+  }>;
   estimatedUnitCost: number;
   xSaladasPerUnit: number;
   components: SaleLineComponentSnapshot[];
