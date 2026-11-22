@@ -696,6 +696,12 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                     <p className="text-xs font-bold text-[#F3F4F6] truncate">
                       {line.name}
                     </p>
+                    {line.selectedAddons.map((group) => (
+                      <p key={group.groupId} className="text-[11px] text-[#D1D5DB] mt-1">
+                        <span className="text-[#F5B731]">{group.groupName}:</span>{' '}
+                        {group.options.map((option) => option.name).join(', ')}
+                      </p>
+                    ))}
                     <p className="text-[11px] text-[#9CA3AF] font-mono tabular-nums mt-0.5">
                       {formatCurrencyBRL(line.unitPrice)} cada · Total{' '}
                       <span className="text-[#F5B731] font-semibold">
