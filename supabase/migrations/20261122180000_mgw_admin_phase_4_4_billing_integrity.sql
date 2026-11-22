@@ -28,9 +28,9 @@ BEGIN
     GROUP BY provider, mp_payment_id
     HAVING count(*) > 1
   ) THEN
-    CREATE UNIQUE INDEX IF NOT EXISTS uq_platform_payments_provider_payment
+    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS uq_platform_payments_provider_payment
       ON public.platform_payments (provider, mp_payment_id)
-      WHERE mp_payment_id IS NOT NULL;
+      WHERE mp_payment_id IS NOT NULL';
   END IF;
 END
 $$;
