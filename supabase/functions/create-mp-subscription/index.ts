@@ -118,10 +118,23 @@ Deno.serve(async (req: Request) => {
       ? Math.max(1, Math.min(3, Math.ceil((Date.parse(subscription.trial_ends_at) - Date.now()) / (24 * 60 * 60 * 1000))))
       : 0;
 
-    // A trial is configured on a Mercado Pago preapproval plan, not on a standalone
-    // preapproval. Persist the plan ID before creating the subscription so retries
-    // reuse the same plan and cannot create duplicate plans for one tenant.
+    // Mercado Pago's associated-plan checkout is the plan's init_point.
+    // The plan itself carries the free-trial configuration; do not create a
+    // separate preapproval here (that endpoint requires a payment-method token).
     let planId = subscription.mp_preapproval_plan_id;
+    let checkoutUrl = subscription.mp_init_point;
+    if (planId && !checkoutUrl) {
+      const existingPlanResponse = await fetch(`https://api.mercadopago.com/preapproval_plan/${encodeURIComponent(planId)}`, {
+        headers: { "Authorization": `Bearer ${accessToken}`, "X-scope": "stage" },
+      });
+      const existingPlan = await existingPlanResponse.json().catch(() => ({}));
+      if (existingPlanResponse.ok && typeof existingPlan.init_point === "string") {
+        checkoutUrl = existingPlan.init_point;
+      } else {
+        return json({ error: "Não foi possível recuperar o checkout do plano existente. Contate o suporte antes de tentar novamente." }, 502);
+      }
+    }
+
     if (!planId) {
       const planResponse = await fetch("https://api.mercadopago.com/preapproval_plan", {
         method: "POST",
@@ -147,66 +160,29 @@ Deno.serve(async (req: Request) => {
         }),
       });
       const planData = await planResponse.json().catch(() => ({}));
-      if (!planResponse.ok || typeof planData.id !== "string") {
+      if (!planResponse.ok || typeof planData.id !== "string" || typeof planData.init_point !== "string") {
         console.error("[create-mp-subscription] Mercado Pago recusou a criação do plano:", planResponse.status, planData?.message || "sem mensagem");
         return json({ error: "Não foi possível preparar o plano de teste. Tente novamente mais tarde." }, 502);
       }
       planId = planData.id;
-      const { error: planSaveError } = await admin
-        .from("subscriptions")
-        .update({ mp_preapproval_plan_id: planId, updated_at: new Date().toISOString() })
-        .eq("tenant_id", tenantId);
-      if (planSaveError) {
-        console.error("[create-mp-subscription] Não foi possível salvar o plano:", planSaveError.message);
-        return json({ error: "Plano criado, mas não foi possível salvar o vínculo. Contate o suporte antes de tentar novamente." }, 500);
-      }
+      checkoutUrl = planData.init_point;
     }
-
-    const mpResponse = await fetch("https://api.mercadopago.com/preapproval", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "X-scope": "stage",
-        "X-Idempotency-Key": `mgw-sub-${tenantId}-${planId}`,
-      },
-      body: JSON.stringify({
-        preapproval_plan_id: planId,
-        external_reference: externalReference,
-        payer_email: user.email,
-        back_url: `${getReturnUrl(req)}/?billing=return`,
-        notification_url: `${supabaseUrl}/functions/v1/mp-webhook`,
-        status: "pending",
-      }),
-    });
-
-    const mpData = await mpResponse.json().catch(() => ({}));
-    if (!mpResponse.ok || typeof mpData.id !== "string" || typeof mpData.init_point !== "string") {
-      console.error("[create-mp-subscription] Mercado Pago recusou a criação:", mpResponse.status, mpData?.message || "sem mensagem");
-      return json({ error: "Não foi possível gerar o checkout de teste. Tente novamente mais tarde." }, 502);
-    }
-
-    const trialStillActive = subscription.status === "trialing"
-      && Boolean(subscription.trial_ends_at)
-      && Date.parse(subscription.trial_ends_at) > Date.now();
-    const nextStatus = trialStillActive ? "trialing" : "pending";
 
     const { error: updateError } = await admin
       .from("subscriptions")
       .update({
-        mp_preapproval_id: mpData.id,
+        mp_preapproval_plan_id: planId,
         mp_payer_email: user.email,
-        mp_init_point: mpData.init_point,
-        status: nextStatus,
+        mp_init_point: checkoutUrl,
         updated_at: new Date().toISOString(),
       })
       .eq("tenant_id", tenantId);
     if (updateError) {
-      console.error("[create-mp-subscription] Não foi possível salvar a assinatura:", updateError.message);
-      return json({ error: "Checkout criado, mas não foi possível salvar o vínculo. Contate o suporte antes de tentar novamente." }, 500);
+      console.error("[create-mp-subscription] Não foi possível salvar o plano:", updateError.message);
+      return json({ error: "Plano criado, mas não foi possível salvar o vínculo. Contate o suporte antes de tentar novamente." }, 500);
     }
 
-    return json({ checkoutUrl: mpData.init_point, subscriptionId: mpData.id, reused: false });
+    return json({ checkoutUrl, planId, reused: Boolean(subscription.mp_preapproval_plan_id) });
   } catch (error) {
     console.error("[create-mp-subscription] Erro inesperado:", error instanceof Error ? error.message : "unknown");
     return json({ error: "Erro interno ao preparar a assinatura." }, 500);
