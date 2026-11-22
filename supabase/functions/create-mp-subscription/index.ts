@@ -115,7 +115,7 @@ Deno.serve(async (req: Request) => {
       && Boolean(subscription.trial_ends_at)
       && Date.parse(subscription.trial_ends_at) > Date.now();
     const remainingTrialDays = trialStillActive
-      ? Math.max(1, Math.min(3, Math.ceil((Date.parse(subscription.trial_ends_at) - Date.now()) / (24 * 60 * 60 * 1000))))
+      ? Math.max(0, Math.min(3, Math.floor((Date.parse(subscription.trial_ends_at) - Date.now()) / (24 * 60 * 60 * 1000))))
       : 0;
 
     // Mercado Pago's associated-plan checkout is the plan's init_point.
