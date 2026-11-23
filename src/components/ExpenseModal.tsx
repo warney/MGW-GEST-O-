@@ -109,17 +109,17 @@ export function ExpenseModal({
       aria-modal="true"
       aria-labelledby="expense-modal-title"
     >
-      <div className="w-full sm:max-w-lg bg-[#12151C] border border-[#232834] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 max-h-[92vh] overflow-y-auto">
+      <div className="w-full sm:max-w-lg bg-[#FFFFFF] border border-[#E5E7EB] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 max-h-[92vh] overflow-y-auto">
         <div className="w-10 h-1 bg-[#333A4A] rounded-full mx-auto mb-4 sm:hidden" />
         <div className="flex items-center justify-between gap-4 mb-5">
           <div>
             <h2
               id="expense-modal-title"
-              className="text-lg font-bold text-[#F3F4F6]"
+              className="text-lg font-bold text-[#111827]"
             >
               {editingExpense ? 'Editar Despesa' : 'Nova Despesa'}
             </h2>
-            <p className="text-xs text-[#9CA3AF]">
+            <p className="text-xs text-[#6B7280]">
               Lançamento de insumos e custos · {establishmentName}
             </p>
           </div>
@@ -127,7 +127,7 @@ export function ExpenseModal({
             type="button"
             onClick={onClose}
             aria-label="Fechar janela de despesa"
-            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#374151] flex items-center justify-center text-[#9CA3AF] hover:text-white transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E5E7EB] hover:border-[#374151] flex items-center justify-center text-[#6B7280] hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -146,7 +146,7 @@ export function ExpenseModal({
           <div>
             <label
               htmlFor="expense-desc"
-              className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+              className="block text-xs font-medium text-[#4B5563] mb-1.5"
             >
               Descrição da despesa
             </label>
@@ -158,7 +158,7 @@ export function ExpenseModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               required
-              className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] placeholder:text-[#6B7280]"
+              className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] placeholder:text-[#6B7280]"
             />
           </div>
 
@@ -166,7 +166,7 @@ export function ExpenseModal({
             <div>
               <label
                 htmlFor="expense-amount"
-                className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                className="block text-xs font-medium text-[#4B5563] mb-1.5"
               >
                 Valor (R$)
               </label>
@@ -180,14 +180,14 @@ export function ExpenseModal({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 required
-                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
+                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono tabular-nums"
               />
             </div>
 
             <div>
               <label
                 htmlFor="expense-date"
-                className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                className="block text-xs font-medium text-[#4B5563] mb-1.5"
               >
                 Data da despesa
               </label>
@@ -197,7 +197,7 @@ export function ExpenseModal({
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 required
-                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono"
+                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono"
               />
             </div>
           </div>
@@ -206,7 +206,7 @@ export function ExpenseModal({
             <div>
               <label
                 htmlFor="expense-category"
-                className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                className="block text-xs font-medium text-[#4B5563] mb-1.5"
               >
                 Categoria
               </label>
@@ -214,7 +214,7 @@ export function ExpenseModal({
                 id="expense-category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
               >
                 {EXPENSE_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -227,7 +227,7 @@ export function ExpenseModal({
             <div>
               <label
                 htmlFor="expense-payment"
-                className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                className="block text-xs font-medium text-[#4B5563] mb-1.5"
               >
                 Forma de pagamento
               </label>
@@ -235,7 +235,7 @@ export function ExpenseModal({
                 id="expense-payment"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
               >
                 {PAYMENT_METHODS.map((pm) => (
                   <option key={pm} value={pm}>
@@ -249,7 +249,7 @@ export function ExpenseModal({
           <div>
             <label
               htmlFor="expense-note"
-              className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+              className="block text-xs font-medium text-[#4B5563] mb-1.5"
             >
               Observação (opcional)
             </label>
@@ -260,7 +260,7 @@ export function ExpenseModal({
               placeholder="Ex.: Fornecedor, nota fiscal..."
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] placeholder:text-[#6B7280]"
+              className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] placeholder:text-[#6B7280]"
             />
           </div>
 
@@ -268,14 +268,14 @@ export function ExpenseModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[46px] px-4 rounded-xl border border-[#232834] hover:border-[#374151] text-sm font-medium text-[#D1D5DB] cursor-pointer transition-colors"
+              className="flex-1 min-h-[46px] px-4 rounded-xl border border-[#E5E7EB] hover:border-[#374151] text-sm font-medium text-[#4B5563] cursor-pointer transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold cursor-pointer transition-colors disabled:opacity-60"
+              className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-sm font-bold cursor-pointer transition-colors disabled:opacity-60"
             >
               {isSaving
                 ? 'Salvando...'
