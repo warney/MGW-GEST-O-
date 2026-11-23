@@ -211,7 +211,7 @@ export function ClientsView({
       </div>
 
       {Boolean(error) && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error instanceof Error ? error.message : String(error)}
         </div>
       )}
@@ -423,12 +423,12 @@ export function ClientsView({
                           >
                             {m.memberActive ? (
                               <>
-                                <UserX className="h-3.5 w-3.5 text-rose-400" />
+                                <UserX className="h-3.5 w-3.5 text-rose-700" />
                                 <span>Suspender vínculo</span>
                               </>
                             ) : (
                               <>
-                                <UserCheck className="h-3.5 w-3.5 text-emerald-400" />
+                                <UserCheck className="h-3.5 w-3.5 text-emerald-700" />
                                 <span>Reativar vínculo</span>
                               </>
                             )}
