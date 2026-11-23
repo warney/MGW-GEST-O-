@@ -29,10 +29,10 @@ export function AdminLoginScreen({ onSuccess, unauthorizedNotice }: AdminLoginSc
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex flex-col justify-center px-4 py-10">
-      <div className="mx-auto w-full max-w-md border border-[#222733] bg-[#12151C] rounded-lg p-7">
-        <div className="flex items-center gap-3 pb-6 border-b border-[#222733]">
-          <div className="h-10 w-10 rounded-md bg-[#F5B731]/12 border border-[#F5B731]/30 flex items-center justify-center text-[#F5B731]">
+    <div className="min-h-screen bg-slate-50 text-[#F3F4F6] flex flex-col justify-center px-4 py-10">
+      <div className="mx-auto w-full max-w-md border border-slate-200 bg-white rounded-xl p-7">
+        <div className="flex items-center gap-3 pb-6 border-b border-slate-200">
+          <div className="h-10 w-10 rounded-lg bg-[#F5B731]/12 border border-[#F5B731]/30 flex items-center justify-center text-[#F5B731]">
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
@@ -43,7 +43,7 @@ export function AdminLoginScreen({ onSuccess, unauthorizedNotice }: AdminLoginSc
 
         <div className="pt-5">
           {!isSupabaseConfigured && (
-            <div className="mb-4 rounded-md border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-start gap-2">
+            <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>
                 Variáveis <code className="font-mono">VITE_SUPABASE_URL</code> e{' '}
@@ -53,14 +53,14 @@ export function AdminLoginScreen({ onSuccess, unauthorizedNotice }: AdminLoginSc
           )}
 
           {unauthorizedNotice && (
-            <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2">
+            <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
               <span>{unauthorizedNotice}</span>
             </div>
           )}
 
           {error && (
-            <div className="mb-4 rounded-md border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-start gap-2">
+            <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -79,7 +79,7 @@ export function AdminLoginScreen({ onSuccess, unauthorizedNotice }: AdminLoginSc
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@suaempresa.com.br"
-                className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-[#F5B731] focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-[#F5B731] focus:outline-none"
               />
             </div>
 
@@ -95,21 +95,21 @@ export function AdminLoginScreen({ onSuccess, unauthorizedNotice }: AdminLoginSc
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-[#F5B731] focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-[#F5B731] focus:outline-none"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || !isSupabaseConfigured}
-              className="w-full flex items-center justify-center gap-2 rounded-md bg-[#F5B731] px-4 py-2.5 text-sm font-semibold text-[#0B0D11] hover:bg-[#e5a824] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#F5B731] px-4 py-2.5 text-sm font-semibold text-[#0B0D11] hover:bg-[#e5a824] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
             >
               <Lock className="h-4 w-4" />
               <span>{loading ? 'Validando credenciais...' : 'Entrar no MGW Admin'}</span>
             </button>
           </form>
 
-          <p className="mt-5 pt-4 border-t border-[#222733] text-[11px] leading-relaxed text-slate-500">
+          <p className="mt-5 pt-4 border-t border-slate-200 text-[11px] leading-relaxed text-slate-500">
             Acesso exclusivo para operadores cadastrados em{' '}
             <code className="font-mono text-slate-400">platform_admins</code> com e-mail verificado no
             Supabase Auth. Auto-cadastro público desabilitado.
