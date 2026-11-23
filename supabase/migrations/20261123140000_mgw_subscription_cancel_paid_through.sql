@@ -52,10 +52,8 @@ $$;
 
 REVOKE ALL ON FUNCTION public.set_subscription_retention_window() FROM PUBLIC, anon, authenticated;
 
-DROP TRIGGER IF EXISTS trg_subscriptions_retention_window ON public.subscriptions;
-CREATE TRIGGER trg_subscriptions_retention_window
-  BEFORE INSERT OR UPDATE ON public.subscriptions
-  FOR EACH ROW EXECUTE FUNCTION public.set_subscription_retention_window();
+-- The existing trg_subscription_retention_window trigger already calls this
+-- function. CREATE OR REPLACE above updates its behavior without duplicating it.
 
 CREATE OR REPLACE FUNCTION public.refresh_subscription_lifecycle()
 RETURNS integer

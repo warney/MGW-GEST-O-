@@ -119,7 +119,7 @@ Deno.serve(async (req: Request) => {
       });
       const { data: subscription, error: subscriptionError } = await supabase
         .from("subscriptions")
-        .select("id,tenant_id,status,plan_amount_cents,currency,mp_preapproval_id,mp_payer_email")
+        .select("id,tenant_id,status,plan_amount_cents,currency,mp_preapproval_id,mp_payer_email,current_period_start,current_period_end,grace_until,last_event_at")
         .eq("mp_preapproval_id", preapprovalId)
         .maybeSingle();
       if (subscriptionError || !subscription) {
@@ -131,13 +131,27 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Invoice amount mismatch" }, 409);
       }
 
+      const preapprovalResponse = await fetch(
+        `https://api.mercadopago.com/preapproval/${encodeURIComponent(preapprovalId)}`,
+        { headers: { "Authorization": `Bearer ${accessToken}` } },
+      );
+      const preapproval = await preapprovalResponse.json().catch(() => ({}));
+      if (
+        !preapprovalResponse.ok ||
+        String(preapproval.id || "") !== preapprovalId ||
+        String(preapproval.external_reference || "") !== subscription.tenant_id
+      ) {
+        console.error("[mp-webhook] Não foi possível validar o vínculo da assinatura na API do Mercado Pago.");
+        return json({ error: "Could not verify subscription ownership" }, 502);
+      }
+
       const paymentObject = authorized.payment && typeof authorized.payment === "object"
         ? authorized.payment as Record<string, unknown>
         : {};
       const payerObject = paymentObject.payer && typeof paymentObject.payer === "object"
         ? paymentObject.payer as Record<string, unknown>
         : {};
-      const rawStatus = String(paymentObject.status || authorized.summarized || authorized.status || "").toLowerCase();
+      const rawStatus = String(paymentObject.status || "").toLowerCase() || "pending";
       const paymentStatus: Record<string, string> = {
         approved: "approved",
         pending: "pending",
@@ -157,6 +171,21 @@ Deno.serve(async (req: Request) => {
       const dueAtValue = authorized.debit_date || paymentObject.date_of_expiration || authorized.date_of_expiration || null;
       const dueAt = dueAtValue ? new Date(String(dueAtValue)) : null;
       const eventId = `authorized_payment:${resourceId}:${rawStatus}:${String(authorized.last_modified || authorized.date_created || "")}`;
+      const paymentEventAt = authorized.last_modified ? new Date(String(authorized.last_modified)) : now;
+      const previousPaymentEventAt = subscription.last_event_at ? new Date(subscription.last_event_at) : null;
+      if (
+        previousPaymentEventAt && !Number.isNaN(previousPaymentEventAt.getTime()) &&
+        !Number.isNaN(paymentEventAt.getTime()) &&
+        paymentEventAt.getTime() < previousPaymentEventAt.getTime()
+      ) {
+        await supabase.from("mp_webhook_events").upsert({
+          id: eventId, event_type: eventType, action: action || null, resource_id: resourceId,
+          tenant_id: subscription.tenant_id, signature_verified: true, processing_status: "processed",
+          processed_at: now.toISOString(),
+          payload: { id: resourceId, status: normalizedStatus, preapproval_id: preapprovalId, stale: true },
+        }, { onConflict: "id" });
+        return json({ received: true, processed: true, stale: true });
+      }
 
       const { error: eventError } = await supabase.from("mp_webhook_events").upsert({
         id: eventId,
@@ -200,9 +229,25 @@ Deno.serve(async (req: Request) => {
       }
 
       if (normalizedStatus === "approved") {
-        const paidStart = paidAt && !Number.isNaN(paidAt.getTime()) ? paidAt : now;
-        const paidEnd = dueAt && !Number.isNaN(dueAt.getTime()) ? dueAt : new Date(paidStart.getTime() + 30 * 24 * 60 * 60 * 1000);
-        const { error: lifecycleError } = await supabase.from("subscriptions").update({ status: "authorized", current_period_start: paidStart.toISOString(), current_period_end: paidEnd.toISOString(), grace_until: null, last_event_at: now.toISOString(), updated_at: now.toISOString() }).eq("id", subscription.id);
+        const paidStart = paidAt && !Number.isNaN(paidAt.getTime())
+          ? paidAt
+          : (subscription.current_period_start ? new Date(subscription.current_period_start) : now);
+        const providerNextPayment = preapproval.next_payment_date ? new Date(preapproval.next_payment_date) : null;
+        const fallbackPaidEnd = new Date(paidStart);
+        fallbackPaidEnd.setMonth(fallbackPaidEnd.getMonth() + 1);
+        const paidEnd = providerNextPayment && !Number.isNaN(providerNextPayment.getTime())
+          ? providerNextPayment
+          : (subscription.current_period_end && Date.parse(subscription.current_period_end) > now.getTime()
+            ? new Date(subscription.current_period_end)
+            : fallbackPaidEnd);
+        const { error: lifecycleError } = await supabase.from("subscriptions").update({
+          status: "authorized",
+          current_period_start: paidStart.toISOString(),
+          current_period_end: paidEnd.toISOString(),
+          grace_until: null,
+          last_event_at: paymentEventAt.toISOString(),
+          updated_at: now.toISOString(),
+        }).eq("id", subscription.id);
         if (lifecycleError) {
           await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: lifecycleError.message, processed_at: now.toISOString() }).eq("id", eventId);
           return json({ error: "Could not activate paid subscription" }, 500);
@@ -265,7 +310,7 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: current, error: currentError } = await supabase
-      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_end")
+      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_start,current_period_end,grace_until,last_event_at")
       .eq("tenant_id", tenantId).maybeSingle();
     if (currentError || !current) return json({ error: "MGW subscription not found" }, 404);
     if (current.mp_preapproval_id && current.mp_preapproval_id !== resourceId) {
@@ -273,6 +318,22 @@ Deno.serve(async (req: Request) => {
     }
 
     const eventId = `preapproval:${resourceId}:${String(mp.status || "unknown")}:${String(mp.last_modified || mp.date_created || "")}`;
+    const providerEventAtValue = mp.last_modified || mp.date_created || "";
+    const providerEventAt = providerEventAtValue ? new Date(String(providerEventAtValue)) : null;
+    const previousPreapprovalEventAt = current.last_event_at ? new Date(current.last_event_at) : null;
+    if (
+      providerEventAt && !Number.isNaN(providerEventAt.getTime()) &&
+      previousPreapprovalEventAt && !Number.isNaN(previousPreapprovalEventAt.getTime()) &&
+      providerEventAt.getTime() < previousPreapprovalEventAt.getTime()
+    ) {
+      await supabase.from("mp_webhook_events").upsert({
+        id: eventId, event_type: eventType, action: action || null, resource_id: resourceId,
+        tenant_id: tenantId, signature_verified: true, processing_status: "processed",
+        processed_at: new Date().toISOString(),
+        payload: { id: resourceId, status: mp.status, external_reference: tenantId, stale: true },
+      }, { onConflict: "id" });
+      return json({ received: true, processed: true, stale: true });
+    }
     // Upsert allows retries to recover events previously marked failed/received.
     // Reapplying a verified provider snapshot is idempotent for this subscription row.
     const { error: eventError } = await supabase.from("mp_webhook_events").upsert({
@@ -293,9 +354,14 @@ Deno.serve(async (req: Request) => {
     }
 
     const now = new Date();
+    const graceStillActive = ["paused", "past_due"].includes(current.status)
+      && current.grace_until && Date.parse(current.grace_until) > now.getTime();
+    const trialStillActive = current.status === "trialing"
+      && current.trial_ends_at && Date.parse(current.trial_ends_at) > now.getTime();
+    const terminalStatus = ["cancelled", "expired", "suspended"].includes(current.status);
     const statusMap: Record<string, string> = {
-      authorized: current.status === "authorized" ? "authorized" : (current.status === "trialing" && current.trial_ends_at && Date.parse(current.trial_ends_at) > Date.now() ? "trialing" : "pending"),
-      pending: current.status === "authorized" ? "authorized" : (current.status === "trialing" && current.trial_ends_at && Date.parse(current.trial_ends_at) > Date.now() ? "trialing" : "pending"),
+      authorized: terminalStatus ? current.status : (current.status === "authorized" ? "authorized" : (graceStillActive ? current.status : (trialStillActive ? "trialing" : "pending"))),
+      pending: terminalStatus ? current.status : (current.status === "authorized" ? "authorized" : (graceStillActive ? current.status : (trialStillActive ? "trialing" : "pending"))),
       paused: "paused",
       cancelled: "cancelled",
       canceled: "cancelled",
@@ -313,18 +379,18 @@ Deno.serve(async (req: Request) => {
     const startDate = mp.date_created ? new Date(mp.date_created) : now;
     const endDate = mp.next_payment_date ? new Date(mp.next_payment_date) : (current.current_period_end ? new Date(current.current_period_end) : null);
     const graceUntil = nextStatus === "paused"
-      ? new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString()
+      ? (graceStillActive ? current.grace_until : new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString())
       : null;
 
     const { error: updateError } = await supabase.from("subscriptions").update({
       status: nextStatus,
       mp_preapproval_id: resourceId,
-      current_period_start: nextStatus === "authorized" ? startDate.toISOString() : undefined,
+      current_period_start: nextStatus === "authorized" ? (current.current_period_start || startDate.toISOString()) : undefined,
       current_period_end: endDate && !Number.isNaN(endDate.getTime()) ? endDate.toISOString() : undefined,
       grace_until: graceUntil,
       ended_at: nextStatus === "cancelled" && (!endDate || endDate.getTime() <= now.getTime()) ? now.toISOString() : undefined,
       cancelled_at: nextStatus === "cancelled" ? now.toISOString() : undefined,
-      last_event_at: now.toISOString(),
+      last_event_at: providerEventAt?.toISOString() || now.toISOString(),
       updated_at: now.toISOString(),
     }).eq("tenant_id", tenantId);
     if (updateError) {
