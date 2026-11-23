@@ -312,7 +312,7 @@ export function EstablishmentsView({
       </div>
 
       {Boolean(error) && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error instanceof Error ? error.message : String(error)}
         </div>
       )}
@@ -466,7 +466,7 @@ export function EstablishmentsView({
                             nextStatus: 'suspended',
                           })
                         }
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-[11px] font-medium text-rose-300 hover:bg-rose-500/15 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-500/15 cursor-pointer"
                       >
                         <PauseCircle className="h-3.5 w-3.5" />
                         <span>Suspender loja</span>
@@ -480,7 +480,7 @@ export function EstablishmentsView({
                             nextStatus: 'active',
                           })
                         }
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/35 px-2.5 py-1.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/15 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/35 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-500/15 cursor-pointer"
                       >
                         <PlayCircle className="h-3.5 w-3.5" />
                         <span>Reativar loja</span>
@@ -546,7 +546,7 @@ export function EstablishmentsView({
                   {selectedTenant.trial_ends_at && (
                     <div className="flex justify-between gap-2">
                       <span className="text-slate-400">Fim do trial</span>
-                      <span className="font-mono text-amber-300 tabular-nums">
+                      <span className="font-mono text-amber-800 tabular-nums">
                         {formatDateTimeBr(selectedTenant.trial_ends_at)}
                       </span>
                     </div>
@@ -577,7 +577,7 @@ export function EstablishmentsView({
               <div className="pt-3 border-t border-slate-200 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <Globe className="h-3.5 w-3.5 text-sky-400" />
+                    <Globe className="h-3.5 w-3.5 text-sky-700" />
                     <span>Cardápio Digital</span>
                   </h3>
                   <StatusIndicator
@@ -621,7 +621,7 @@ export function EstablishmentsView({
                     <div className="h-10 rounded bg-slate-100 animate-pulse" />
                   </div>
                 ) : membersError ? (
-                  <p className="text-[11px] text-amber-300">{membersError}</p>
+                  <p className="text-[11px] text-amber-800">{membersError}</p>
                 ) : members.length === 0 ? (
                   <p className="text-[11px] text-slate-500">
                     Nenhum membro vinculado localizado para este tenant.
@@ -666,12 +666,12 @@ export function EstablishmentsView({
                           >
                             {member.memberActive ? (
                               <>
-                                <UserX className="h-3 w-3 text-rose-400" />
+                                <UserX className="h-3 w-3 text-rose-700" />
                                 <span>Suspender membro</span>
                               </>
                             ) : (
                               <>
-                                <UserCheck className="h-3 w-3 text-emerald-400" />
+                                <UserCheck className="h-3 w-3 text-emerald-700" />
                                 <span>Reativar membro</span>
                               </>
                             )}
@@ -681,7 +681,7 @@ export function EstablishmentsView({
                     ))}
 
                     {membersTruncated && (
-                      <p className="text-[11px] text-amber-300">
+                      <p className="text-[11px] text-amber-800">
                         Listagem limitada aos primeiros 200 clientes; RPC dedicado de membros por
                         tenant pendente para bases maiores.
                       </p>
