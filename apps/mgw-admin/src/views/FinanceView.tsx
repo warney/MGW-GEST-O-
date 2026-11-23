@@ -40,20 +40,20 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Financeiro da Plataforma</h1>
+        <h1 className="text-xl font-bold text-slate-900">Financeiro da Plataforma</h1>
         <p className="text-xs text-slate-400 mt-0.5">
           Receita recorrente contratada (MRR/ARR) e histórico de cobranças registradas em{' '}
           <code className="font-mono">platform_payments</code>.
         </p>
       </div>
 
-      <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-4 text-xs text-amber-100 flex items-start gap-2.5">
+      <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4 text-xs text-amber-800 flex items-start gap-2.5">
         <Info className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
         <div>
-          <p className="font-semibold text-amber-200">
+          <p className="font-semibold text-amber-800">
             Integração automática com Mercado Pago pendente de ativação
           </p>
-          <p className="text-amber-200/85 mt-0.5">
+          <p className="text-amber-800/85 mt-0.5">
             Os cálculos de MRR e ARR refletem as assinaturas ativas reais na tabela{' '}
             <code className="font-mono">subscriptions</code>. O processamento automático de faturas e
             webhooks financeiros será populado quando o módulo Mercado Pago for habilitado.
@@ -62,7 +62,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200 flex items-center gap-2">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700 flex items-center gap-2">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -70,12 +70,12 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
 
       {summary && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="rounded-lg border border-[#222733] bg-[#12151C] p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>MRR Recorrente</span>
-              <DollarSign className="h-4 w-4 text-emerald-400" />
+              <DollarSign className="h-4 w-4 text-emerald-700" />
             </div>
-            <p className="mt-2 text-2xl font-bold font-mono text-white tabular-nums">
+            <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.mrrCents)}
             </p>
             <p className="mt-1 text-xs text-slate-400 tabular-nums">
@@ -83,23 +83,23 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
             </p>
           </div>
 
-          <div className="rounded-lg border border-[#222733] bg-[#12151C] p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>ARR Projetado</span>
               <TrendingUp className="h-4 w-4 text-[#F5B731]" />
             </div>
-            <p className="mt-2 text-2xl font-bold font-mono text-white tabular-nums">
+            <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.arrCents)}
             </p>
             <p className="mt-1 text-xs text-slate-400">Projeção anualizada sobre MRR ativo</p>
           </div>
 
-          <div className="rounded-lg border border-[#222733] bg-[#12151C] p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>Recebido no Mês</span>
-              <Receipt className="h-4 w-4 text-sky-400" />
+              <Receipt className="h-4 w-4 text-sky-700" />
             </div>
-            <p className="mt-2 text-2xl font-bold font-mono text-white tabular-nums">
+            <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.approvedMonthCents)}
             </p>
             <p className="mt-1 text-xs text-slate-400 tabular-nums">
@@ -107,12 +107,12 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
             </p>
           </div>
 
-          <div className="rounded-lg border border-[#222733] bg-[#12151C] p-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>Pendentes / Recusados</span>
               <AlertCircle className="h-4 w-4 text-amber-400" />
             </div>
-            <p className="mt-2 text-2xl font-bold font-mono text-white tabular-nums">
+            <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.pendingCents)}
             </p>
             <p className="mt-1 text-xs text-slate-400 tabular-nums">
@@ -122,13 +122,13 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
         </div>
       )}
 
-      <div className="rounded-lg border border-[#222733] bg-[#12151C] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#222733] flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-white">Histórico de Pagamentos</h2>
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-slate-900">Histórico de Pagamentos</h2>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border border-[#2A3040] bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900"
           >
             <option value="all">Todos</option>
             <option value="approved">Aprovados</option>
@@ -141,7 +141,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
         {loading ? (
           <div className="p-6 space-y-2.5">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-10 rounded bg-[#181C26] animate-pulse" />
+              <div key={i} className="h-10 rounded bg-slate-100 animate-pulse" />
             ))}
           </div>
         ) : payments.length === 0 ? (
@@ -151,7 +151,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#0F1218] text-slate-400 border-b border-[#222733]">
+              <thead className="bg-slate-50 text-slate-400 border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-2.5 font-medium">Estabelecimento</th>
                   <th className="px-4 py-2.5 font-medium">Provedor / ID</th>
@@ -160,11 +160,11 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
                   <th className="px-4 py-2.5 font-medium text-right">Data</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1D222E]">
+              <tbody className="divide-y divide-slate-100">
                 {payments.map((pay) => (
-                  <tr key={pay.id} className="hover:bg-[#161A23]">
+                  <tr key={pay.id} className="hover:bg-slate-50">
                     <td className="px-4 py-2.5">
-                      <p className="font-medium text-white">{pay.tenant_name}</p>
+                      <p className="font-medium text-slate-900">{pay.tenant_name}</p>
                       <p className="font-mono text-[11px] text-slate-400">{pay.payer_email || '—'}</p>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-slate-300">
@@ -173,7 +173,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
                     <td className="px-4 py-2.5">
                       <StatusIndicator status={pay.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-white tabular-nums">
+                    <td className="px-4 py-2.5 text-right font-mono text-slate-900 tabular-nums">
                       {formatCurrencyCents(pay.amount_cents)}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-slate-400 tabular-nums">
