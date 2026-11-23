@@ -1,5 +1,5 @@
 /* Scoped light-theme migration overrides. Only descendants of .mgw-app-theme are affected. */
-.mgw-app-theme { background:var(--mgw-canvas)!important; color:var(--mgw-text-primary)!important; }
+.mgw-app-theme { background:var(--mgw-canvas)!important; color:var(--mgw-text-primary)!important; color-scheme:light; }
 .mgw-app-theme [class~="bg-[#0B0D11]"] { background-color:var(--mgw-canvas)!important; }
 .mgw-app-theme [class~="bg-[#12151C]"] { background-color:var(--mgw-surface)!important; }
 .mgw-app-theme [class~="bg-[#181C24]"] { background-color:var(--mgw-surface-subtle)!important; }
