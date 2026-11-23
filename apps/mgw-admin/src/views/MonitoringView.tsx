@@ -35,7 +35,7 @@ export function MonitoringView({ refreshTrigger }: MonitoringViewProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Monitoramento Técnico</h1>
+        <h1 className="text-xl font-bold text-slate-900">Monitoramento Técnico</h1>
         <p className="text-xs text-slate-400 mt-0.5">
           Auditoria sanitizada de webhooks (<code className="font-mono">mp_webhook_events</code>) e
           status de integrações da plataforma.
@@ -46,7 +46,7 @@ export function MonitoringView({ refreshTrigger }: MonitoringViewProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-white">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
               <Activity className="h-4 w-4 text-[#F5B731]" />
               <span>Edge Functions (Supabase Runtime)</span>
             </div>
@@ -62,7 +62,7 @@ export function MonitoringView({ refreshTrigger }: MonitoringViewProps) {
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-white">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
               <Webhook className="h-4 w-4 text-sky-400" />
               <span>Receptor Mercado Pago</span>
             </div>
@@ -85,11 +85,11 @@ export function MonitoringView({ refreshTrigger }: MonitoringViewProps) {
 
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-white">Eventos Webhook Recebidos</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Eventos Webhook Recebidos</h2>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border border-slate-200 bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900"
           >
             <option value="all">Todos</option>
             <option value="processed">Processados</option>
@@ -127,7 +127,7 @@ export function MonitoringView({ refreshTrigger }: MonitoringViewProps) {
                 {events.map((ev) => (
                   <tr key={ev.id} className="hover:bg-slate-50">
                     <td className="px-4 py-2.5">
-                      <p className="font-mono text-white">{ev.event_type}</p>
+                      <p className="font-mono text-slate-900">{ev.event_type}</p>
                       <p className="font-mono text-[11px] text-slate-400">
                         {ev.action || '—'} · {ev.resource_id || ev.id}
                       </p>
