@@ -82,8 +82,7 @@
   }
 
   /* Legibilidade em superfícies claras, inclusive formulários e tabelas legadas. */
-  [class~="text-[#F3F4F6]"],
-  [class~="text-white"] { color: #202733 !important; }
+  [class~="text-[#F3F4F6]"] { color: #202733 !important; }
   [class~="text-slate-100"] { color: #263140 !important; }
   [class~="text-slate-200"] { color: #344154 !important; }
   [class~="text-slate-300"] { color: #475467 !important; }
