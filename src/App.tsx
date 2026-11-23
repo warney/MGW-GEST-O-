@@ -920,7 +920,7 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <div className="min-h-screen bg-[#0B0D11] text-[#9CA3AF] flex items-center justify-center text-sm">
+      <div className="min-h-screen bg-[#F6F7F9] text-[#6B7280] flex items-center justify-center text-sm">
         Carregando MGW GESTÃO...
       </div>
     );
@@ -1027,14 +1027,14 @@ export default function App() {
     )[visibleNavItems.length] ?? 'grid-cols-6';
 
   return (
-    <div className="mgw-app-theme min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex flex-col lg:flex-row">
+    <div className="mgw-app-theme min-h-screen bg-[#F6F7F9] text-[#111827] flex flex-col lg:flex-row">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-[#12151C] border-r border-[#232834]">
-        <div className="h-16 px-5 flex items-center gap-3 border-b border-[#232834]">
-          <div className="w-9 h-9 rounded-xl bg-[#F5B731]/15 border border-[#F5B731]/30 flex items-center justify-center text-[#F5B731] font-display font-bold">
+      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-[#E5E7EB]">
+        <div className="h-16 px-5 flex items-center gap-3 border-b border-[#E5E7EB]">
+          <div className="w-9 h-9 rounded-xl bg-[#FFF9E8] border border-[#F0DFB1] flex items-center justify-center text-[#A87500] font-display font-bold">
             M
           </div>
-          <span className="font-display font-bold text-base tracking-tight text-[#F3F4F6] whitespace-nowrap">
+          <span className="font-display font-bold text-base tracking-tight text-[#111827] whitespace-nowrap">
             MGW GESTÃO
           </span>
         </div>
@@ -1061,7 +1061,7 @@ export default function App() {
                 className={`w-full min-h-[44px] px-3.5 rounded-xl flex items-center justify-between gap-2 text-sm font-medium whitespace-nowrap cursor-pointer ${
                   active
                     ? 'bg-[#F5B731]/12 text-[#F5B731]'
-                    : 'text-[#9CA3AF] hover:text-[#F3F4F6] hover:bg-[#181C24]'
+                    : 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6]'
                 }`}
               >
                 <span className="inline-flex items-center gap-3">
@@ -1092,7 +1092,7 @@ export default function App() {
                 id="desktop-tenant-select"
                 value={activeTenant?.tenantId ?? ''}
                 onChange={(e) => handleSelectTenant(e.target.value)}
-                className="w-full min-h-[38px] px-2.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-xs text-[#F3F4F6]"
+                className="w-full min-h-[38px] px-2.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-xs text-[#111827]"
               >
                 {tenants.map((t) => (
                   <option key={t.tenantId} value={t.tenantId}>
@@ -1109,7 +1109,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => void handleLogout()}
-            className="w-full min-h-[42px] px-3 rounded-xl border border-[#232834] hover:border-[#374151] text-xs font-medium text-[#D1D5DB] hover:text-[#111827] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            className="w-full min-h-[42px] px-3 rounded-xl border border-[#E5E7EB] hover:border-[#D1D5DB] text-xs font-medium text-[#4B5563] hover:text-[#111827] flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             Sair
@@ -1120,7 +1120,7 @@ export default function App() {
       {/* Main Content Shell */}
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         {/* Top Bar (Desktop 64px / Mobile 52px) */}
-        <header className="sticky top-0 z-30 h-[52px] lg:h-16 bg-[#0B0D11]/95 backdrop-blur-md border-b border-[#232834] px-4 lg:px-8 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-30 h-[52px] lg:h-16 bg-[#0B0D11]/95 backdrop-blur-md border-b border-[#E5E7EB] px-4 lg:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <span className="lg:hidden font-display font-bold text-sm text-[#F5B731] whitespace-nowrap shrink-0">
               MGW GESTÃO
@@ -1130,7 +1130,7 @@ export default function App() {
                 aria-label="Selecionar estabelecimento"
                 value={activeTenant?.tenantId ?? ''}
                 onChange={(e) => handleSelectTenant(e.target.value)}
-                className="lg:hidden max-w-[120px] min-h-[34px] px-2 rounded-lg bg-[#12151C] border border-[#232834] text-[11px] text-[#F3F4F6]"
+                className="lg:hidden max-w-[120px] min-h-[34px] px-2 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] text-[11px] text-[#111827]"
               >
                 {tenants.map((t) => (
                   <option key={t.tenantId} value={t.tenantId}>
@@ -1139,7 +1139,7 @@ export default function App() {
                 ))}
               </select>
             )}
-            <h1 className="hidden lg:block text-lg font-bold text-[#F3F4F6] whitespace-nowrap truncate">
+            <h1 className="hidden lg:block text-lg font-bold text-[#111827] whitespace-nowrap truncate">
               {currentNav.label}
             </h1>
           </div>
@@ -1153,7 +1153,7 @@ export default function App() {
                   setEditingExpense(null);
                   setExpenseModalOpen(true);
                 }}
-                className="min-h-[40px] lg:min-h-[42px] px-3 lg:px-4 rounded-xl border border-[#F5B731]/40 hover:border-[#F5B731] bg-[#12151C] text-[#F5B731] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+                className="min-h-[40px] lg:min-h-[42px] px-3 lg:px-4 rounded-xl border border-[#F5B731]/40 hover:border-[#F5B731] bg-white text-[#A87500] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Nova Despesa</span>
@@ -1187,19 +1187,19 @@ export default function App() {
             <div
               role="alert"
               data-testid="live-order-alert"
-              className="mx-4 lg:mx-8 mt-4 rounded-2xl border border-[#F5B731] bg-[#181C24] px-4 py-3.5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              className="mx-4 lg:mx-8 mt-4 rounded-2xl border border-[#F5B731] bg-[#FFFBEB] px-4 py-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
             >
               <div className="flex items-start sm:items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-[#F5B731]/15 border border-[#F5B731]/40 text-[#F5B731] flex items-center justify-center shrink-0">
                   <BellRing className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-[#F3F4F6] truncate">
+                  <p className="text-xs sm:text-sm font-bold text-[#111827] truncate">
                     {liveOrderBanner.length === 1
                       ? `Novo Pedido ${formatOrderNumber(liveOrderBanner[0].orderNumber)} — ${liveOrderBanner[0].customerName}`
                       : `${liveOrderBanner.length} novos pedidos online recebidos!`}
                   </p>
-                  <p className="text-[11px] sm:text-xs text-[#D1D5DB] truncate">
+                  <p className="text-[11px] sm:text-xs text-[#4B5563] truncate">
                     {liveOrderBanner.length === 1
                       ? `${
                           liveOrderBanner[0].fulfillmentType === 'delivery'
@@ -1231,7 +1231,7 @@ export default function App() {
                   type="button"
                   onClick={() => setLiveOrderBanner(null)}
                   aria-label="Dispensar alerta de novo pedido"
-                  className="w-9 h-9 rounded-xl border border-[#232834] text-[#9CA3AF] hover:text-[#F3F4F6] flex items-center justify-center cursor-pointer"
+                  className="w-9 h-9 rounded-xl border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] flex items-center justify-center cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1269,7 +1269,7 @@ export default function App() {
               {[1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className="h-32 bg-[#12151C] border border-[#232834] rounded-2xl animate-pulse"
+                  className="h-32 bg-white border border-[#E5E7EB] rounded-2xl animate-pulse"
                 />
               ))}
             </div>
@@ -1400,7 +1400,7 @@ export default function App() {
       {/* Mobile Bottom Navigation (64px) */}
       <nav
         aria-label="Menu inferior"
-        className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-[#12151C]/95 backdrop-blur-md border-t border-[#232834] grid ${mobileNavGridClass} items-center`}
+        className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-white/95 backdrop-blur-md border-t border-[#E5E7EB] grid ${mobileNavGridClass} items-center`}
       >
         {visibleNavItems.map((item) => {
           const Icon = item.icon;
