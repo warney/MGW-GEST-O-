@@ -126,7 +126,7 @@ export function PlansSubscriptionsView({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Planos &amp; Assinaturas</h1>
+        <h1 className="text-xl font-bold text-slate-900">Planos &amp; Assinaturas</h1>
         <p className="text-xs text-slate-400 mt-0.5">
           Catálogo oficial MGW Gestão (R$ 49,90/mês, trial de 3 dias, isenção fundadora e retenção de 6 meses).
         </p>
@@ -153,13 +153,13 @@ export function PlansSubscriptionsView({
                   labelOverride={plan.active ? 'Ativo' : 'Desativado'}
                 />
               </div>
-              <h2 className="text-sm font-semibold text-white">{plan.name}</h2>
+              <h2 className="text-sm font-semibold text-slate-900">{plan.name}</h2>
               <p className="text-xs text-slate-400 leading-relaxed">{plan.description}</p>
             </div>
 
             <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
               <div>
-                <p className="text-base font-bold font-mono text-white tabular-nums">
+                <p className="text-base font-bold font-mono text-slate-900 tabular-nums">
                   {formatCurrencyCents(plan.amount_cents)}
                 </p>
                 <p className="text-[11px] text-slate-500 tabular-nums">
@@ -170,7 +170,7 @@ export function PlansSubscriptionsView({
                 <button
                   type="button"
                   onClick={() => openPlanEditor(plan)}
-                  className="inline-flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-slate-100 cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-slate-100 cursor-pointer"
                 >
                   <Edit3 className="h-3 w-3" />
                   <span>Editar</span>
@@ -185,7 +185,7 @@ export function PlansSubscriptionsView({
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-white">
+            <h2 className="text-sm font-semibold text-slate-900">
               Assinaturas por Estabelecimento ({subscriptions.length})
             </h2>
             <p className="text-xs text-slate-400">
@@ -197,7 +197,7 @@ export function PlansSubscriptionsView({
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-md border border-slate-200 bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white focus:border-[#F5B731] focus:outline-none"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
             >
               <option value="all">Todos os status</option>
               <option value="trialing">Em Trial</option>
@@ -222,11 +222,11 @@ export function PlansSubscriptionsView({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar loja..."
-                className="w-44 rounded-md border border-slate-200 bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white placeholder:text-slate-500 focus:border-[#F5B731] focus:outline-none"
+                className="w-44 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
               />
               <button
                 type="submit"
-                className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-100 cursor-pointer"
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-100 cursor-pointer"
               >
                 Filtrar
               </button>
@@ -261,7 +261,7 @@ export function PlansSubscriptionsView({
                 {subscriptions.map((sub) => (
                   <tr key={sub.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-white">
+                      <p className="font-medium text-slate-900">
                         {sub.tenant_name}
                         {sub.is_founder_account && (
                           <span className="ml-1.5 font-mono text-[11px] text-[#F5B731]">· Fundador</span>
@@ -300,7 +300,7 @@ export function PlansSubscriptionsView({
                                 tone: 'accent',
                               })
                             }
-                            className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
                           >
                             <CalendarPlus className="h-3 w-3 text-[#F5B731]" />
                             <span>+7d Trial</span>
@@ -318,7 +318,7 @@ export function PlansSubscriptionsView({
                                   tone: 'warning',
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
                             >
                               <ShieldCheck className="h-3 w-3 text-emerald-400" />
                               <span>Isentar</span>
@@ -337,7 +337,7 @@ export function PlansSubscriptionsView({
                                   tone: 'accent',
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded border border-emerald-500/35 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/15 cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/35 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/15 cursor-pointer whitespace-nowrap"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               <span>Ativar 30d</span>
@@ -356,7 +356,7 @@ export function PlansSubscriptionsView({
                                   tone: 'danger',
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded border border-rose-500/35 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-500/15 cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-500/35 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-500/15 cursor-pointer whitespace-nowrap"
                             >
                               <ShieldAlert className="h-3 w-3" />
                               <span>Suspender</span>
@@ -378,25 +378,25 @@ export function PlansSubscriptionsView({
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h2 className="text-sm font-bold text-white">
+              <h2 className="text-sm font-bold text-slate-900">
                 Editar Plano <code className="font-mono text-[#F5B731]">{editingPlan.code}</code>
               </h2>
               <button
                 type="button"
                 onClick={() => setEditingPlan(null)}
-                className="rounded p-1 text-slate-400 hover:text-white"
+                className="rounded p-1 text-slate-400 hover:text-slate-900"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {!mfaVerified && (
-              <div className="rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-center justify-between gap-2">
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-center justify-between gap-2">
                 <span>Requer MFA AAL2 ativo.</span>
                 <button
                   type="button"
                   onClick={onRequestMfa}
-                  className="rounded border border-amber-400/40 px-2 py-1 text-[11px] font-semibold cursor-pointer"
+                  className="rounded-lg border border-amber-400/40 px-2 py-1 text-[11px] font-semibold cursor-pointer"
                 >
                   Validar MFA
                 </button>
@@ -410,7 +410,7 @@ export function PlansSubscriptionsView({
                   type="text"
                   value={planForm.name}
                   onChange={(e) => setPlanForm((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full rounded border border-slate-200 bg-[#0B0D11] px-3 py-2 text-white"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -420,7 +420,7 @@ export function PlansSubscriptionsView({
                     type="text"
                     value={planForm.amountReais}
                     onChange={(e) => setPlanForm((f) => ({ ...f, amountReais: e.target.value }))}
-                    className="w-full rounded border border-slate-200 bg-[#0B0D11] px-3 py-2 font-mono text-white"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-slate-900"
                   />
                 </div>
                 <div>
@@ -431,7 +431,7 @@ export function PlansSubscriptionsView({
                     max={100}
                     value={planForm.maxMembers}
                     onChange={(e) => setPlanForm((f) => ({ ...f, maxMembers: e.target.value }))}
-                    className="w-full rounded border border-slate-200 bg-[#0B0D11] px-3 py-2 font-mono text-white"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-slate-900"
                   />
                 </div>
               </div>
@@ -450,7 +450,7 @@ export function PlansSubscriptionsView({
                   value={planForm.reason}
                   onChange={(e) => setPlanForm((f) => ({ ...f, reason: e.target.value }))}
                   placeholder="Ex.: Ajuste de limite de usuários..."
-                  className="w-full rounded border border-slate-200 bg-[#0B0D11] px-3 py-2 text-white"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900"
                 />
               </div>
             </div>
@@ -459,7 +459,7 @@ export function PlansSubscriptionsView({
               <button
                 type="button"
                 onClick={() => setEditingPlan(null)}
-                className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-300"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-300"
               >
                 Cancelar
               </button>
@@ -467,7 +467,7 @@ export function PlansSubscriptionsView({
                 type="button"
                 disabled={savingPlan || !mfaVerified || planForm.reason.trim().length < 3}
                 onClick={handleSavePlan}
-                className="rounded bg-[#F5B731] px-4 py-1.5 text-xs font-semibold text-[#0B0D11] disabled:opacity-50 cursor-pointer"
+                className="rounded bg-[#F5B731] px-4 py-1.5 text-xs font-semibold text-slate-900 disabled:opacity-50 cursor-pointer"
               >
                 {savingPlan ? 'Salvando...' : 'Salvar plano'}
               </button>
