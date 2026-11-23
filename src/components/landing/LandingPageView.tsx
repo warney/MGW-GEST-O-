@@ -591,7 +591,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 <button
                   type="button"
                   onClick={() => onNavigate('/cadastro')}
-                  className="min-h-[48px] px-6 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                  className="min-h-[48px] px-6 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#111827] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap shrink-0"
                 >
                   Começar meu teste grátis
                   <ArrowRight className="w-4 h-4 shrink-0" />
@@ -770,7 +770,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 3 — CARDÁPIO DIGITAL INTERATIVO (7 ETAPAS REAIS) */}
         <section
           id="cardapio"
-          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-[#0E1117]"
+          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-10">
             <div className="max-w-3xl space-y-3">
@@ -982,7 +982,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 5 — TUDO ORGANIZADO EM UM SÓ SISTEMA */}
         <section
           id="sistema"
-          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-[#0E1117]"
+          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-12">
             <div className="max-w-3xl space-y-3">
@@ -1197,7 +1197,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 7 — PREÇO */}
         <section
           id="preco"
-          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-[#0E1117]"
+          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
         >
           <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-8">
             <div className="text-center space-y-3">
@@ -1234,7 +1234,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   <button
                     type="button"
                     onClick={() => onNavigate('/cadastro')}
-                    className="w-full min-h-[48px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
+                    className="w-full min-h-[48px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#111827] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
                   >
                     Começar meu teste grátis
                     <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1293,7 +1293,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                       type="button"
                       aria-expanded={isOpen}
                       onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
-                      className="w-full min-h-[54px] px-5 py-4 text-left flex items-center justify-between gap-4 cursor-pointer hover:bg-[#161A23] transition-colors"
+                      className="w-full min-h-[54px] px-5 py-4 text-left flex items-center justify-between gap-4 cursor-pointer hover:bg-[#F9FAFB] transition-colors"
                     >
                       <span className="font-display text-sm sm:text-base font-bold text-[#111827]">
                         {item.question}
@@ -1317,7 +1317,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 9 — CHAMADA FINAL */}
-        <section className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-[#0E1117]">
+        <section className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-6">
             <h2 className="font-display text-2xl sm:text-4xl font-extrabold tracking-tight text-[#111827]">
               Chegou a hora de simplificar a gestão da sua lanchonete.
@@ -1339,7 +1339,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               <button
                 type="button"
                 onClick={() => onNavigate('/cadastro')}
-                className="w-full sm:w-auto min-h-[48px] px-7 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                className="w-full sm:w-auto min-h-[48px] px-7 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#111827] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
                 Começar meu teste grátis
                 <ArrowRight className="w-4 h-4" />
