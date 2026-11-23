@@ -83,7 +83,7 @@ export function AdminUsersView({
       </div>
 
       {!mfaVerified && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-200 flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
             <span>Operações de criação/edição de administradores exigem sessão MFA AAL2.</span>
@@ -99,7 +99,7 @@ export function AdminUsersView({
       )}
 
       {error && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error}
         </div>
       )}
