@@ -1083,7 +1083,7 @@ export default function App() {
             <div>
               <label
                 htmlFor="desktop-tenant-select"
-                className="flex items-center gap-1.5 text-[11px] font-medium text-[#9CA3AF] mb-1.5"
+                className="flex items-center gap-1.5 text-[11px] font-medium text-[#6B7280] mb-1.5"
               >
                 <Building2 className="w-3.5 h-3.5 text-[#F5B731]" />
                 Estabelecimento
@@ -1103,7 +1103,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="text-xs text-[#9CA3AF] truncate">
+          <div className="text-xs text-[#6B7280] truncate">
             {user.email}
           </div>
           <button
@@ -1120,7 +1120,7 @@ export default function App() {
       {/* Main Content Shell */}
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         {/* Top Bar (Desktop 64px / Mobile 52px) */}
-        <header className="sticky top-0 z-30 h-[52px] lg:h-16 bg-[#0B0D11]/95 backdrop-blur-md border-b border-[#E5E7EB] px-4 lg:px-8 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-30 h-[52px] lg:h-16 bg-white/95 backdrop-blur-md border-b border-[#E5E7EB] px-4 lg:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <span className="lg:hidden font-display font-bold text-sm text-[#F5B731] whitespace-nowrap shrink-0">
               MGW GESTÃO
