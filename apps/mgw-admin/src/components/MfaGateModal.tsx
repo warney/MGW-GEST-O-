@@ -116,7 +116,7 @@ export function MfaGateModal({ open, onClose, onVerified }: MfaGateModalProps) {
 
         <div className="pt-4 space-y-4">
           {error && (
-            <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-start gap-2">
+            <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-700 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
