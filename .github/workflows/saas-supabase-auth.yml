@@ -5,6 +5,7 @@ on:
     branches:
       - feat/saas-supabase-auth
       - fix/supabase-only-remove-firebase
+      - fix/security-hardening-2026-11
   pull_request:
     branches:
       - main
@@ -29,5 +30,17 @@ jobs:
         run: npm run lint
       - name: Unit tests
         run: npm test
+      - name: Install admin dependencies
+        working-directory: apps/mgw-admin
+        run: npm install --no-audit --no-fund
+      - name: Admin TypeScript check
+        working-directory: apps/mgw-admin
+        run: npm run lint
+      - name: Admin unit tests
+        working-directory: apps/mgw-admin
+        run: npm test
+      - name: Admin production build
+        working-directory: apps/mgw-admin
+        run: npm run build
       - name: Production build
         run: npm run build
