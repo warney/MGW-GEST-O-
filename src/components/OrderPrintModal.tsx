@@ -95,21 +95,21 @@ export function OrderPrintModal({
 
       <div
         id="mgw-print-dialog-card"
-        className="max-w-2xl w-full max-h-[92vh] bg-[#12151C] border border-[#232834] rounded-2xl flex flex-col overflow-hidden"
+        className="max-w-2xl w-full max-h-[92vh] bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl flex flex-col overflow-hidden"
       >
         {/* Top Controls Toolbar (hidden during printing) */}
-        <div className="no-print px-4 py-3 sm:px-5 border-b border-[#232834] flex items-start justify-between gap-3 shrink-0">
+        <div className="no-print px-4 py-3 sm:px-5 border-b border-[#E5E7EB] flex items-start justify-between gap-3 shrink-0">
           <div className="min-w-0">
             <h2
               id="order-print-modal-title"
-              className="text-sm font-bold text-[#F3F4F6] flex items-center gap-2"
+              className="text-sm font-bold text-[#111827] flex items-center gap-2"
             >
-              <Printer className="w-4 h-4 text-[#F5B731] shrink-0" />
+              <Printer className="w-4 h-4 text-[#EAB308] shrink-0" />
               <span className="truncate">
                 Imprimir Pedido {doc.orderNumberFormatted}
               </span>
             </h2>
-            <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+            <p className="text-[11px] text-[#6B7280] mt-0.5">
               Escolha o formato da impressora térmica ou A4 e clique em imprimir.
             </p>
           </div>
@@ -118,14 +118,14 @@ export function OrderPrintModal({
             type="button"
             onClick={onClose}
             aria-label="Fechar janela de impressão"
-            className="w-9 h-9 rounded-lg border border-[#232834] text-[#9CA3AF] hover:text-[#F3F4F6] flex items-center justify-center shrink-0 cursor-pointer"
+            className="w-9 h-9 rounded-lg border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] flex items-center justify-center shrink-0 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Format & Copy Mode Bar (hidden during printing) */}
-        <div className="no-print px-4 py-2.5 sm:px-5 bg-[#0B0D11]/60 border-b border-[#232834] flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div className="no-print px-4 py-2.5 sm:px-5 bg-[#F9FAFB]/60 border-b border-[#E5E7EB] flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div
             role="group"
             aria-label="Formato do papel da impressora"
@@ -139,8 +139,8 @@ export function OrderPrintModal({
                 onClick={() => handleSelectPaper(opt.id)}
                 className={`min-h-[36px] px-2.5 rounded-lg text-xs font-semibold cursor-pointer ${
                   paperFormat === opt.id
-                    ? 'bg-[#F5B731] text-[#0B0D11]'
-                    : 'bg-[#12151C] border border-[#232834] text-[#D1D5DB] hover:border-[#374151]'
+                    ? 'bg-[#EAB308] text-[#F9FAFB]'
+                    : 'bg-[#FFFFFF] border border-[#E5E7EB] text-[#4B5563] hover:border-[#374151]'
                 }`}
               >
                 {opt.label}
@@ -160,8 +160,8 @@ export function OrderPrintModal({
                 onClick={() => setCopyMode('complete')}
                 className={`min-h-[36px] px-2.5 rounded-lg text-xs font-semibold cursor-pointer ${
                   copyMode === 'complete'
-                    ? 'bg-[#F5B731]/20 border border-[#F5B731] text-[#F5B731]'
-                    : 'bg-[#12151C] border border-[#232834] text-[#9CA3AF]'
+                    ? 'bg-[#EAB308]/20 border border-[#EAB308] text-[#EAB308]'
+                    : 'bg-[#FFFFFF] border border-[#E5E7EB] text-[#6B7280]'
                 }`}
               >
                 Via Completa
@@ -172,8 +172,8 @@ export function OrderPrintModal({
                 onClick={() => setCopyMode('kitchen')}
                 className={`min-h-[36px] px-2.5 rounded-lg text-xs font-semibold cursor-pointer ${
                   copyMode === 'kitchen'
-                    ? 'bg-[#F5B731]/20 border border-[#F5B731] text-[#F5B731]'
-                    : 'bg-[#12151C] border border-[#232834] text-[#9CA3AF]'
+                    ? 'bg-[#EAB308]/20 border border-[#EAB308] text-[#EAB308]'
+                    : 'bg-[#FFFFFF] border border-[#E5E7EB] text-[#6B7280]'
                 }`}
               >
                 Via Cozinha
@@ -183,13 +183,13 @@ export function OrderPrintModal({
         </div>
 
         {/* Receipt Paper Preview Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#0B0D11]/90 flex justify-center items-start">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#F9FAFB]/90 flex justify-center items-start">
           <article
             id="mgw-printable-receipt"
             data-testid="printable-receipt"
             data-paper-format={paperFormat}
             data-copy-mode={copyMode}
-            className={`w-full ${receiptWidthClass} bg-white text-black font-mono rounded-lg border border-[#D1D5DB] shadow-xl p-4 sm:p-5 space-y-3 leading-snug`}
+            className={`w-full ${receiptWidthClass} bg-white text-black font-mono rounded-lg border border-[#4B5563] shadow-xl p-4 sm:p-5 space-y-3 leading-snug`}
           >
             {/* Header */}
             <header className="text-center border-b border-dashed border-black pb-2.5 space-y-0.5">
@@ -339,18 +339,18 @@ export function OrderPrintModal({
         </div>
 
         {/* Bottom Print Actions (hidden during printing) */}
-        <div className="no-print px-4 py-3 sm:px-5 border-t border-[#232834] flex flex-wrap items-center justify-end gap-2 shrink-0">
+        <div className="no-print px-4 py-3 sm:px-5 border-t border-[#E5E7EB] flex flex-wrap items-center justify-end gap-2 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[42px] px-4 rounded-xl border border-[#232834] text-xs font-semibold text-[#D1D5DB] hover:text-[#F3F4F6] cursor-pointer"
+            className="min-h-[42px] px-4 rounded-xl border border-[#E5E7EB] text-xs font-semibold text-[#4B5563] hover:text-[#111827] cursor-pointer"
           >
             Fechar
           </button>
           <button
             type="button"
             onClick={handlePrint}
-            className="min-h-[42px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-2 cursor-pointer"
+            className="min-h-[42px] px-5 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold inline-flex items-center gap-2 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             Imprimir agora
