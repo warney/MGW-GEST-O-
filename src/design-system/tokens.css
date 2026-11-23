@@ -1,6 +1,5 @@
 /* MGW Gestão — visual foundation v1. Tokens are opt-in during migration. */
 :root {
-  color-scheme: light;
   --mgw-brand-50:#fff9e8; --mgw-brand-100:#fff0c2; --mgw-brand-200:#ffe28a;
   --mgw-brand-300:#ffd34d; --mgw-brand-400:#f5c342; --mgw-brand-500:#eab308; --mgw-brand-600:#ca8a04;
   --mgw-canvas:#f6f7f9; --mgw-surface:#fff; --mgw-surface-subtle:#f9fafb; --mgw-surface-muted:#f1f3f5;
@@ -24,6 +23,7 @@
   --mgw-sidebar-width:248px; --mgw-header-height:64px; --mgw-content-max:1600px;
 }
 .mgw-app-theme {
+  color-scheme: light;
   color:var(--mgw-text-primary); background:var(--mgw-canvas); font-family:var(--mgw-font-sans);
   font-synthesis:none; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased;
   -moz-osx-font-smoothing:grayscale;
