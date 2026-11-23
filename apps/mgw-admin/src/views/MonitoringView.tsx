@@ -63,7 +63,7 @@ export function MonitoringView({ refreshTrigger }: MonitoringViewProps) {
         <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
-              <Webhook className="h-4 w-4 text-sky-400" />
+              <Webhook className="h-4 w-4 text-sky-700" />
               <span>Receptor Mercado Pago</span>
             </div>
             <span className="text-[11px] font-mono text-amber-400">Integração pendente</span>
@@ -77,7 +77,7 @@ export function MonitoringView({ refreshTrigger }: MonitoringViewProps) {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200 flex items-center gap-2">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700 flex items-center gap-2">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -142,7 +142,7 @@ export function MonitoringView({ refreshTrigger }: MonitoringViewProps) {
                     <td className="px-4 py-2.5">
                       <StatusIndicator status={ev.processing_status} />
                     </td>
-                    <td className="px-4 py-2.5 text-rose-300 max-w-xs truncate">
+                    <td className="px-4 py-2.5 text-rose-700 max-w-xs truncate">
                       {ev.error_message || '—'}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-slate-400 tabular-nums">
