@@ -1213,14 +1213,14 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               </p>
             </div>
 
-            <div className="bg-white border border-[#F5B731]/55 rounded-2xl p-6 sm:p-10 grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-              <div className="md:col-span-6 space-y-4 md:border-r md:border-[#E5E7EB] md:pr-8">
+            <div className="bg-white border border-[#F5B731]/55 rounded-2xl p-5 sm:p-8 lg:p-10 grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-center shadow-[0_8px_30px_rgba(17,24,39,0.04)]">
+              <div className="md:col-span-6 min-w-0 space-y-4 md:border-r md:border-[#E5E7EB] md:pr-8">
                 <p className="font-display text-lg font-bold text-[#111827]">
                   MGW Gestão
                 </p>
 
-                <div className="flex items-baseline gap-2 whitespace-nowrap">
-                  <span className="font-display text-4xl sm:text-[42px] font-extrabold font-mono tabular-nums text-[#A87500]">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span className="font-display text-3xl sm:text-[42px] font-extrabold font-mono tabular-nums text-[#A87500]">
                     R$ 49,90
                   </span>
                   <span className="text-sm text-[#6B7280]">/ mês</span>
@@ -1249,15 +1249,15 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 </div>
               </div>
 
-              <div className="md:col-span-6 space-y-3">
+              <div className="md:col-span-6 min-w-0 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
                   O que está incluído na assinatura
                 </p>
-                <ul className="space-y-3 text-sm text-[#E5E7EB]">
+                <ul className="space-y-3 text-sm leading-relaxed text-[#4B5563]">
                   {PLAN_BENEFITS.map((benefit) => (
                     <li key={benefit} className="flex items-start gap-2.5">
                       <Check className="w-4 h-4 text-[#22C55E] shrink-0 mt-0.5" />
-                      <span>{benefit}</span>
+                      <span className="min-w-0">{benefit}</span>
                     </li>
                   ))}
                 </ul>
