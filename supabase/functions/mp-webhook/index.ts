@@ -59,7 +59,12 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const mpEnvironment = Deno.env.get("MP_ENVIRONMENT") === "production" ? "production" : "test";
+  const configuredEnvironment = Deno.env.get("MP_ENVIRONMENT");
+  if (configuredEnvironment !== "production" && configuredEnvironment !== "test") {
+    console.error("[mp-webhook] MP_ENVIRONMENT ausente ou inválido; webhook bloqueado.");
+    return json({ error: "Webhook environment not configured" }, 503);
+  }
+  const mpEnvironment = configuredEnvironment;
   const accessToken = (Deno.env.get(mpEnvironment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
   const webhookSecret = (Deno.env.get(mpEnvironment === "production" ? "MP_WEBHOOK_SECRET" : "MP_WEBHOOK_SECRET_TEST") || "").trim();
   if (!supabaseUrl || !serviceRoleKey || !accessToken) {
@@ -78,6 +83,10 @@ Deno.serve(async (req: Request) => {
     const resourceId = String(data.id || url.searchParams.get("data.id") || url.searchParams.get("id") || "");
     const eventType = String(body.type || url.searchParams.get("type") || body.topic || url.searchParams.get("topic") || "");
     const action = String(body.action || "");
+    if (typeof body.live_mode !== "boolean" || body.live_mode !== (mpEnvironment === "production")) {
+      console.warn("[mp-webhook] Evento live_mode incompatível com o ambiente configurado; evento recusado.");
+      return json({ error: "Webhook environment mismatch" }, 409);
+    }
     if (!resourceId || !["subscription_preapproval", "subscription_authorized_payment"].includes(eventType)) {
       return json({ received: true, ignored: true });
     }
@@ -120,7 +129,7 @@ Deno.serve(async (req: Request) => {
       });
       const { data: subscription, error: subscriptionError } = await supabase
         .from("subscriptions")
-        .select("id,tenant_id,status,plan_amount_cents,currency,mp_preapproval_id,mp_payer_email,current_period_start,current_period_end,grace_until,last_event_at")
+        .select("id,tenant_id,status,plan_amount_cents,currency,mp_preapproval_id,mp_payer_email,current_period_start,current_period_end,grace_until,last_event_at,mp_environment")
         .eq("mp_preapproval_id", preapprovalId)
         .maybeSingle();
       if (subscriptionError || !subscription) {
@@ -316,7 +325,7 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: current, error: currentError } = await supabase
-      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_start,current_period_end,grace_until,last_event_at")
+      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_start,current_period_end,grace_until,last_event_at,mp_environment")
       .eq("tenant_id", tenantId).maybeSingle();
     if (currentError || !current) return json({ error: "MGW subscription not found" }, 404);
     if (current.mp_environment !== mpEnvironment) {
