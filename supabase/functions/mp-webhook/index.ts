@@ -83,10 +83,6 @@ Deno.serve(async (req: Request) => {
     const resourceId = String(data.id || url.searchParams.get("data.id") || url.searchParams.get("id") || "");
     const eventType = String(body.type || url.searchParams.get("type") || body.topic || url.searchParams.get("topic") || "");
     const action = String(body.action || "");
-    if (typeof body.live_mode !== "boolean" || body.live_mode !== (mpEnvironment === "production")) {
-      console.warn("[mp-webhook] Evento live_mode incompatível com o ambiente configurado; evento recusado.");
-      return json({ error: "Webhook environment mismatch" }, 409);
-    }
     if (!resourceId || !["subscription_preapproval", "subscription_authorized_payment"].includes(eventType)) {
       return json({ received: true, ignored: true });
     }
@@ -97,6 +93,10 @@ Deno.serve(async (req: Request) => {
     if (resourceId === "123456" && eventType === "subscription_preapproval" && action === "updated") {
       console.info("[mp-webhook] Simulação do painel recebida e confirmada; nenhum dado de assinatura foi alterado.");
       return json({ received: true, simulated: true, ignored: true });
+    }
+    if (typeof body.live_mode !== "boolean" || body.live_mode !== (mpEnvironment === "production")) {
+      console.warn("[mp-webhook] Evento live_mode incompatível com o ambiente configurado; evento recusado.");
+      return json({ error: "Webhook environment mismatch" }, 409);
     }
 
     if (eventType === "subscription_authorized_payment") {
