@@ -1109,7 +1109,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => void handleLogout()}
-            className="w-full min-h-[42px] px-3 rounded-xl border border-[#232834] hover:border-[#374151] text-xs font-medium text-[#D1D5DB] hover:text-white flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            className="w-full min-h-[42px] px-3 rounded-xl border border-[#232834] hover:border-[#374151] text-xs font-medium text-[#D1D5DB] hover:text-[#111827] flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             Sair
