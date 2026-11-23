@@ -770,7 +770,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 3 — CARDÁPIO DIGITAL INTERATIVO (7 ETAPAS REAIS) */}
         <section
           id="cardapio"
-          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
+          className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-10">
             <div className="max-w-3xl space-y-3">
@@ -790,7 +790,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Step selector list */}
-              <div className="lg:col-span-6 space-y-2.5">
+              <div className="order-2 lg:order-1 lg:col-span-6 space-y-2.5">
                 {DIGITAL_MENU_STEPS.map((item, index) => {
                   const isActive = index === activeMenuStep;
                   return (
@@ -834,9 +834,9 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               </div>
 
               {/* Active real screenshot preview */}
-              <div className="lg:col-span-6 lg:sticky lg:top-24 bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 space-y-5">
-                <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] pb-3.5">
-                  <div>
+              <div className="order-1 lg:order-2 min-w-0 lg:col-span-6 lg:sticky lg:top-24 bg-white border border-[#E5E7EB] rounded-2xl p-4 sm:p-6 space-y-5">
+                <div className="flex items-start sm:items-center justify-between gap-3 border-b border-[#E5E7EB] pb-3.5">
+                  <div className="min-w-0">
                     <p className="text-xs font-mono text-[#A87500]">
                       Etapa {currentMenuStep.step} de 07
                     </p>
@@ -982,7 +982,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 5 — TUDO ORGANIZADO EM UM SÓ SISTEMA */}
         <section
           id="sistema"
-          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
+          className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-12">
             <div className="max-w-3xl space-y-3">
@@ -1004,7 +1004,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               <div
                 role="tablist"
                 aria-label="Módulos do MGW Gestão"
-                className="flex flex-wrap gap-2"
+                className="flex flex-wrap gap-2.5"
               >
                 {SYSTEM_MODULES.map((mod) => {
                   const Icon = mod.icon;
@@ -1016,7 +1016,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                       role="tab"
                       aria-selected={active}
                       onClick={() => setActiveModuleId(mod.id)}
-                      className={`min-h-[40px] px-3.5 rounded-xl border text-xs sm:text-sm font-semibold inline-flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap ${
+                      className={`min-h-[40px] max-w-full px-3 sm:px-3.5 rounded-xl border text-xs sm:text-sm font-semibold inline-flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap ${
                         active
                           ? 'bg-[#F5B731] border-[#F5B731] text-[#0B0D11]'
                           : 'bg-white border-[#E5E7EB] text-[#4B5563] hover:border-[#F5B731]/50 hover:text-[#111827]'
@@ -1197,7 +1197,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 7 — PREÇO */}
         <section
           id="preco"
-          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
+          className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB] bg-white"
         >
           <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-8">
             <div className="text-center space-y-3">
@@ -1269,7 +1269,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 8 — PERGUNTAS FREQUENTES */}
         <section
           id="duvidas"
-          className="py-14 sm:py-20 border-b border-[#E5E7EB]"
+          className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB]"
         >
           <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
             <div className="space-y-2">
