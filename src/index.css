@@ -1,18 +1,27 @@
+@import "./design-system/tokens.css";
+@import "./design-system/app-shell.css";
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
-    --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+    --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   }
 
   html {
     font-family: var(--font-sans);
-    background-color: #0B0D11;
-    color: #F3F4F6;
-    color-scheme: dark;
+    background-color: #F6F7F9;
+    color: #111827;
+    color-scheme: light;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    background-color: #F6F7F9;
+    color: #111827;
   }
 
   h1, h2, h3, h4, .font-display {
@@ -25,23 +34,23 @@
   }
 }
 
-/* Custom scrollbar subtle dark styling */
+/* Custom scrollbar subtle light styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0B0D11;
+  background: #F6F7F9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #232834;
+  background: #D1D5DB;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #333A4A;
+  background: #9CA3AF;
 }
 
 @media (prefers-reduced-motion: reduce) {
