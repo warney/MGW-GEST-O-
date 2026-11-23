@@ -43,9 +43,9 @@ export function DashboardView({
 
     const message = error instanceof Error ? error.message : String(error);
     return (
-      <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-5 text-sm text-rose-200 space-y-3">
+      <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-5 text-sm text-rose-700 space-y-3">
         <p className="font-semibold">Não foi possível carregar os indicadores da plataforma</p>
-        <p className="text-xs text-rose-300">{message}</p>
+        <p className="text-xs text-rose-700">{message}</p>
         <button
           type="button"
           onClick={onRetry}
@@ -116,7 +116,7 @@ export function DashboardView({
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Clientes Cadastrados</span>
-            <Users className="h-4 w-4 text-sky-400" />
+            <Users className="h-4 w-4 text-sky-700" />
           </div>
           <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">{data.totalClients}</p>
           <p className="mt-1 text-xs text-slate-500 tabular-nums">
@@ -147,7 +147,7 @@ export function DashboardView({
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Assinaturas &amp; Trials</span>
-            <TrendingUp className="h-4 w-4 text-emerald-400" />
+            <TrendingUp className="h-4 w-4 text-emerald-700" />
           </div>
           <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums font-mono">
             {formatCurrencyCents(data.mrrCents)}
@@ -160,7 +160,7 @@ export function DashboardView({
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Novos Cadastros (Mês)</span>
-            <UserPlus className="h-4 w-4 text-emerald-400" />
+            <UserPlus className="h-4 w-4 text-emerald-700" />
           </div>
           <p className="mt-2 text-2xl font-bold text-slate-900 tabular-nums">{newTenantsThisMonth}</p>
           <p className="mt-1 text-xs text-slate-500 tabular-nums">
@@ -276,8 +276,8 @@ export function DashboardView({
                   <tr key={point.month_key}>
                     <td className="py-1.5 text-slate-600">{point.label}</td>
                     <td className="py-1.5 text-right text-[#F5B731]">{point.new_tenants}</td>
-                    <td className="py-1.5 text-right text-emerald-400">{point.new_paid}</td>
-                    <td className="py-1.5 text-right text-sky-400">{point.sales_count}</td>
+                    <td className="py-1.5 text-right text-emerald-700">{point.new_paid}</td>
+                    <td className="py-1.5 text-right text-sky-700">{point.sales_count}</td>
                   </tr>
                 ))}
               </tbody>
@@ -308,11 +308,11 @@ export function DashboardView({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600">Carência / Atraso</span>
-                  <span className="font-mono text-amber-300 tabular-nums">{data.pastDue}</span>
+                  <span className="font-mono text-amber-800 tabular-nums">{data.pastDue}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600">Cancelados / Expirados / Suspensos</span>
-                  <span className="font-mono text-rose-400 tabular-nums">{data.cancelledOrExpired}</span>
+                  <span className="font-mono text-rose-700 tabular-nums">{data.cancelledOrExpired}</span>
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-slate-200">
                   <span className="text-slate-600">Retenção Ativa (6 meses)</span>
@@ -350,7 +350,7 @@ export function DashboardView({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-600">Webhooks com falha</span>
-                <span className="font-mono text-rose-400 tabular-nums">{data.webhookFailedCount}</span>
+                <span className="font-mono text-rose-700 tabular-nums">{data.webhookFailedCount}</span>
               </div>
             </div>
           </div>
