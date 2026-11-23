@@ -23,9 +23,9 @@ export function OfflineIndicator() {
   return (
     <div
       role="status"
-      className="fixed bottom-20 lg:bottom-4 left-4 z-50 flex items-center gap-2 rounded-xl bg-[#181C24] border border-[#F5B731]/50 px-3.5 py-2 text-xs font-semibold text-[#FCD34D] shadow-lg"
+      className="fixed bottom-20 lg:bottom-4 left-4 z-50 flex items-center gap-2 rounded-xl bg-[#F1F3F5] border border-[#EAB308]/50 px-3.5 py-2 text-xs font-semibold text-[#F5C842] shadow-lg"
     >
-      <WifiOff className="w-3.5 h-3.5 text-[#F5B731]" />
+      <WifiOff className="w-3.5 h-3.5 text-[#EAB308]" />
       <span>Sem internet — aguardando reconexão para novos pedidos</span>
     </div>
   );
