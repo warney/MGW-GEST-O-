@@ -40,7 +40,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Financeiro da Plataforma</h1>
+        <h1 className="text-xl font-bold text-slate-900">Financeiro da Plataforma</h1>
         <p className="text-xs text-slate-400 mt-0.5">
           Receita recorrente contratada (MRR/ARR) e histórico de cobranças registradas em{' '}
           <code className="font-mono">platform_payments</code>.
@@ -75,7 +75,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
               <span>MRR Recorrente</span>
               <DollarSign className="h-4 w-4 text-emerald-400" />
             </div>
-            <p className="mt-2 text-2xl font-bold font-mono text-white tabular-nums">
+            <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.mrrCents)}
             </p>
             <p className="mt-1 text-xs text-slate-400 tabular-nums">
@@ -88,7 +88,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
               <span>ARR Projetado</span>
               <TrendingUp className="h-4 w-4 text-[#F5B731]" />
             </div>
-            <p className="mt-2 text-2xl font-bold font-mono text-white tabular-nums">
+            <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.arrCents)}
             </p>
             <p className="mt-1 text-xs text-slate-400">Projeção anualizada sobre MRR ativo</p>
@@ -99,7 +99,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
               <span>Recebido no Mês</span>
               <Receipt className="h-4 w-4 text-sky-400" />
             </div>
-            <p className="mt-2 text-2xl font-bold font-mono text-white tabular-nums">
+            <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.approvedMonthCents)}
             </p>
             <p className="mt-1 text-xs text-slate-400 tabular-nums">
@@ -112,7 +112,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
               <span>Pendentes / Recusados</span>
               <AlertCircle className="h-4 w-4 text-amber-400" />
             </div>
-            <p className="mt-2 text-2xl font-bold font-mono text-white tabular-nums">
+            <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.pendingCents)}
             </p>
             <p className="mt-1 text-xs text-slate-400 tabular-nums">
@@ -124,11 +124,11 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
 
       <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-white">Histórico de Pagamentos</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Histórico de Pagamentos</h2>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-md border border-slate-200 bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900"
           >
             <option value="all">Todos</option>
             <option value="approved">Aprovados</option>
@@ -164,7 +164,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
                 {payments.map((pay) => (
                   <tr key={pay.id} className="hover:bg-slate-50">
                     <td className="px-4 py-2.5">
-                      <p className="font-medium text-white">{pay.tenant_name}</p>
+                      <p className="font-medium text-slate-900">{pay.tenant_name}</p>
                       <p className="font-mono text-[11px] text-slate-400">{pay.payer_email || '—'}</p>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-slate-300">
@@ -173,7 +173,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
                     <td className="px-4 py-2.5">
                       <StatusIndicator status={pay.status} />
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-white tabular-nums">
+                    <td className="px-4 py-2.5 text-right font-mono text-slate-900 tabular-nums">
                       {formatCurrencyCents(pay.amount_cents)}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-slate-400 tabular-nums">
