@@ -60,15 +60,15 @@ export function StoreOnboardingScreen({
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex flex-col items-center justify-center p-4 sm:p-6">
-      <main className="w-full max-w-md bg-[#12151C] border border-[#232834] rounded-2xl p-6 sm:p-8 space-y-6">
+    <div className="min-h-screen bg-[#F9FAFB] text-[#111827] flex flex-col items-center justify-center p-4 sm:p-6">
+      <main className="w-full max-w-md bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-6 sm:p-8 space-y-6">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-[#F5B731]/15 border border-[#F5B731]/30 flex items-center justify-center text-[#F5B731] font-display font-bold text-lg">
+          <div className="w-11 h-11 rounded-xl bg-[#EAB308]/15 border border-[#EAB308]/30 flex items-center justify-center text-[#EAB308] font-display font-bold text-lg">
             M
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight">MGW Gestão</h1>
-            <p className="text-xs text-[#9CA3AF]">
+            <p className="text-xs text-[#6B7280]">
               Finalize o cadastro do seu estabelecimento
             </p>
           </div>
@@ -78,7 +78,7 @@ export function StoreOnboardingScreen({
           <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="font-semibold">Teste grátis de 3 dias ativado</p>
-            <p className="text-[#D1D5DB]">
+            <p className="text-[#4B5563]">
               Conta autenticada: <span className="font-medium text-white break-all">{accountEmail}</span>.
               Não é necessário cartão de crédito para começar.
             </p>
@@ -99,12 +99,12 @@ export function StoreOnboardingScreen({
           <div>
             <label
               htmlFor="onboarding-store-name"
-              className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+              className="block text-xs font-medium text-[#4B5563] mb-1.5"
             >
               Nome do estabelecimento *
             </label>
             <div className="relative">
-              <Store className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Store className="w-4 h-4 text-[#6B7280] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 id="onboarding-store-name"
                 type="text"
@@ -114,7 +114,7 @@ export function StoreOnboardingScreen({
                 value={storeName}
                 onChange={(e) => setStoreName(e.target.value)}
                 placeholder="Ex: Lanchonete do Centro"
-                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
               />
             </div>
           </div>
@@ -122,12 +122,12 @@ export function StoreOnboardingScreen({
           <div>
             <label
               htmlFor="onboarding-owner-name"
-              className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+              className="block text-xs font-medium text-[#4B5563] mb-1.5"
             >
               Seu nome (opcional)
             </label>
             <div className="relative">
-              <User className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <User className="w-4 h-4 text-[#6B7280] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 id="onboarding-owner-name"
                 type="text"
@@ -135,7 +135,7 @@ export function StoreOnboardingScreen({
                 value={ownerName}
                 onChange={(e) => setOwnerName(e.target.value)}
                 placeholder="Nome do responsável"
-                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
               />
             </div>
           </div>
@@ -143,7 +143,7 @@ export function StoreOnboardingScreen({
           <button
             type="submit"
             disabled={submitting}
-            className="w-full min-h-[46px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
+            className="w-full min-h-[46px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
           >
             {submitting ? (
               <>
@@ -156,15 +156,15 @@ export function StoreOnboardingScreen({
           </button>
         </form>
 
-        <div className="pt-4 border-t border-[#232834] flex items-center justify-between gap-3">
-          <span className="text-[11px] text-[#9CA3AF]">
+        <div className="pt-4 border-t border-[#E5E7EB] flex items-center justify-between gap-3">
+          <span className="text-[11px] text-[#6B7280]">
             Dados salvos apenas neste estabelecimento.
           </span>
           <button
             type="button"
             onClick={() => void handleLogoutClick()}
             disabled={signingOut || submitting}
-            className="min-h-[38px] px-3 rounded-xl border border-[#232834] hover:border-[#374151] text-xs font-medium text-[#D1D5DB] inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+            className="min-h-[38px] px-3 rounded-xl border border-[#E5E7EB] hover:border-[#374151] text-xs font-medium text-[#4B5563] inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
           >
             <LogOut className="w-3.5 h-3.5" />
             {signingOut ? 'Saindo...' : 'Sair'}
