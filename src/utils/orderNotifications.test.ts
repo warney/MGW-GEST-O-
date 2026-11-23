@@ -47,6 +47,7 @@ function makeOrder(num: number, name: string, total: number): OnlineOrderRecord 
         quantity: 1,
         unitPrice: total,
         lineTotal: total,
+        selectedAddons: [],
         estimatedUnitCost: 11,
         xSaladasPerUnit: 1,
         components: [],

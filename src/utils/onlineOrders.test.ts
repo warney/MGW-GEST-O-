@@ -119,6 +119,7 @@ function makeOrder(
         quantity: 1,
         unitPrice: 25,
         lineTotal: 25,
+        selectedAddons: [],
         estimatedUnitCost: 12,
         xSaladasPerUnit: 1,
         components: [
@@ -147,6 +148,7 @@ function makeOrder(
         quantity: 1,
         unitPrice: 22,
         lineTotal: 22,
+        selectedAddons: [],
         estimatedUnitCost: 0,
         xSaladasPerUnit: 1,
         components: [
@@ -433,6 +435,7 @@ test('computeOnlineOrdersDashboardStats keeps unaccepted/rejected orders out of 
           quantity: 1,
           unitPrice: 25,
           lineTotal: 25,
+          selectedAddons: [],
           estimatedUnitCost: 12,
           xSaladasPerUnit: 1,
           components: [
@@ -447,6 +450,7 @@ test('computeOnlineOrdersDashboardStats keeps unaccepted/rejected orders out of 
           quantity: 1,
           unitPrice: 22,
           lineTotal: 22,
+          selectedAddons: [],
           estimatedUnitCost: 0,
           xSaladasPerUnit: 1,
           components: [

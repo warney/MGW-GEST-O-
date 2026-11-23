@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/saas-supabase-auth
+      - fix/supabase-only-remove-firebase
   pull_request:
     branches:
       - main

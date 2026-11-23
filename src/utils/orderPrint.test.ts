@@ -45,6 +45,7 @@ const SAMPLE_DELIVERY_ORDER: OnlineOrderRecord = {
       quantity: 2,
       unitPrice: 24,
       lineTotal: 48,
+      selectedAddons: [],
       estimatedUnitCost: 11,
       xSaladasPerUnit: 1,
       components: [],

@@ -12,7 +12,6 @@ import {
   ShoppingBag,
   X,
 } from 'lucide-react';
-import { getActiveDataProvider } from './lib/supabase';
 import { registerOrderPushSubscription, setOrderPushSubscriptionEnabled } from './services/orderPushNotifications';
 import {
   addCombo,
@@ -106,39 +105,29 @@ import { StoreOnboardingScreen } from './components/StoreOnboardingScreen';
 import { SubscriptionBlockedScreen } from './components/SubscriptionBlockedScreen';
 import { PWAInstallButton } from './components/PWAInstallButton';
 
+import { LandingPageView } from './components/landing/LandingPageView';
+import { LegalDocumentView } from './components/landing/LegalDocumentView';
+import { isDemoSandboxActive } from './services/demoSandbox';
+import {
+  hasAuthCallbackParams,
+  isAuthShellRoute,
+  parsePublicUrlRoute,
+  type PublicUrlRoute,
+} from './utils/publicRoutes';
+
 const TENANT_PREF_KEY = 'mgw_active_tenant_id';
 const SOUND_PREF_KEY = 'mgw_order_sound_enabled';
 const PUSH_PREF_KEY = 'mgw_order_push_enabled';
 
-type PublicUrlRoute =
-  | { kind: 'admin' }
-  | { kind: 'menu'; slug?: string }
-  | { kind: 'tracking'; token: string };
-
-function parsePublicUrlRoute(pathname: string): PublicUrlRoute {
-  const normalized = pathname.replace(/\/+$/, '') || '/';
-  if (normalized === '/cardapio') {
-    let lastPublicMenuSlug = '';
-    try {
-      lastPublicMenuSlug = window.localStorage.getItem('mgw_public_menu_last_slug') || '';
-    } catch {
-      lastPublicMenuSlug = '';
-    }
-    return { kind: 'menu', slug: lastPublicMenuSlug || undefined };
+function resolveCurrentPublicRoute(): PublicUrlRoute {
+  if (typeof window === 'undefined') return { kind: 'landing' };
+  let lastPublicMenuSlug = '';
+  try {
+    lastPublicMenuSlug = window.localStorage.getItem('mgw_public_menu_last_slug') || '';
+  } catch {
+    lastPublicMenuSlug = '';
   }
-  if (normalized.startsWith('/cardapio/pedido/')) {
-    const token = decodeURIComponent(normalized.slice('/cardapio/pedido/'.length));
-    if (token) return { kind: 'tracking', token };
-  }
-  if (normalized.startsWith('/cardapio/')) {
-    const slug = decodeURIComponent(normalized.slice('/cardapio/'.length));
-    return slug ? { kind: 'menu', slug } : { kind: 'menu' };
-  }
-  if (normalized.startsWith('/pedido/')) {
-    const token = decodeURIComponent(normalized.slice('/pedido/'.length));
-    if (token) return { kind: 'tracking', token };
-  }
-  return { kind: 'admin' };
+  return parsePublicUrlRoute(window.location.pathname, lastPublicMenuSlug);
 }
 
 const NAV_ITEMS: Array<{
@@ -156,17 +145,13 @@ const NAV_ITEMS: Array<{
 ];
 
 export default function App() {
-  const activeProvider = getActiveDataProvider();
-
   const [publicRoute, setPublicRoute] = useState<PublicUrlRoute>(() =>
-    typeof window !== 'undefined'
-      ? parsePublicUrlRoute(window.location.pathname)
-      : { kind: 'admin' },
+    resolveCurrentPublicRoute(),
   );
 
   useEffect(() => {
     const onPopState = () => {
-      setPublicRoute(parsePublicUrlRoute(window.location.pathname));
+      setPublicRoute(resolveCurrentPublicRoute());
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -202,7 +187,13 @@ export default function App() {
     const isDemo = new URLSearchParams(window.location.search).get('demo') === '1';
     const nextUrl = isDemo && !path.includes('demo=') ? `${path}?demo=1` : path;
     window.history.pushState({}, '', nextUrl);
-    setPublicRoute(parsePublicUrlRoute(path));
+    let lastSlug = '';
+    try {
+      lastSlug = window.localStorage.getItem('mgw_public_menu_last_slug') || '';
+    } catch {
+      lastSlug = '';
+    }
+    setPublicRoute(parsePublicUrlRoute(path, lastSlug));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -415,8 +406,10 @@ export default function App() {
     );
   }
 
+  const isShellRoute = isAuthShellRoute(publicRoute);
+
   useEffect(() => {
-    if (publicRoute.kind !== 'admin') return;
+    if (!isShellRoute) return;
     const syncPermission = () => {
       setNotificationPermission(getBrowserNotificationPermission());
     };
@@ -447,10 +440,10 @@ export default function App() {
       document.removeEventListener('visibilitychange', onFocusOrVisibility);
       cleanupSwListener?.();
     };
-  }, [publicRoute.kind]);
+  }, [isShellRoute]);
 
   useEffect(() => {
-    if (!soundEnabled || publicRoute.kind !== 'admin') return;
+    if (!soundEnabled || !isShellRoute) return;
     const unlock = () => {
       void unlockAlertAudio();
     };
@@ -460,11 +453,11 @@ export default function App() {
       window.removeEventListener('pointerdown', unlock);
       window.removeEventListener('keydown', unlock);
     };
-  }, [soundEnabled, publicRoute.kind]);
+  }, [soundEnabled, isShellRoute]);
 
-  // Autenticacao e resolucao de estabelecimentos autorizados (apenas rota administrativa)
+  // Autenticacao e resolucao de estabelecimentos autorizados (rotas da landing, login, cadastro e painel)
   useEffect(() => {
-    if (publicRoute.kind !== 'admin') return;
+    if (!isShellRoute) return;
     const unsub = subscribeAuthSession((state) => {
       setUser(state.user);
       setTenants(state.tenants);
@@ -493,7 +486,7 @@ export default function App() {
       setAuthReady(true);
     });
     return unsub;
-  }, [publicRoute.kind]);
+  }, [isShellRoute]);
 
   const activeTenant = useMemo<TenantContext | null>(
     () => selectAuthorizedTenant(tenants, selectedTenantId),
@@ -501,7 +494,7 @@ export default function App() {
   );
 
   const dataContext = useMemo<DataExecutionContext | null>(() => {
-    if (publicRoute.kind !== 'admin') return null;
+    if (!isShellRoute) return null;
     if (!user || !user.emailVerified || !activeTenant) return null;
     if (activeTenant.accessAllowed === false) return null;
     if (activeTenant.onboardingCompleted === false) return null;
@@ -510,7 +503,7 @@ export default function App() {
       tenant: activeTenant,
       workspace: legacyWorkspace,
     };
-  }, [publicRoute.kind, user, activeTenant, legacyWorkspace]);
+  }, [isShellRoute, user, activeTenant, legacyWorkspace]);
 
   // Assinatura reativa dos dados do tenant selecionado
   useEffect(() => {
@@ -577,20 +570,41 @@ export default function App() {
 
   // Atualiza titulo da aba e badge no icone do app instalado (PWA)
   useEffect(() => {
-    if (publicRoute.kind !== 'admin') return;
-    document.title = formatPendingOrdersDocumentTitle(
-      unviewedOrdersCount,
-      BASE_APP_TITLE,
-    );
-    updateAppUnreadBadge(unviewedOrdersCount);
-    if (unviewedOrdersCount === 0) {
-      setLiveOrderBanner(null);
+    if (publicRoute.kind === 'terms') {
+      document.title = 'Termos de Uso — MGW Gestão';
+      return;
     }
-  }, [publicRoute.kind, unviewedOrdersCount]);
+    if (publicRoute.kind === 'privacy') {
+      document.title = 'Política de Privacidade — MGW Gestão';
+      return;
+    }
+    if (publicRoute.kind === 'menu' || publicRoute.kind === 'tracking') {
+      return;
+    }
+    if (dataContext) {
+      document.title = formatPendingOrdersDocumentTitle(
+        unviewedOrdersCount,
+        BASE_APP_TITLE,
+      );
+      updateAppUnreadBadge(unviewedOrdersCount);
+      if (unviewedOrdersCount === 0) {
+        setLiveOrderBanner(null);
+      }
+      return;
+    }
+    if (publicRoute.kind === 'login') {
+      document.title = 'Entrar no sistema — MGW Gestão';
+    } else if (publicRoute.kind === 'register') {
+      document.title = 'Criar conta e testar grátis — MGW Gestão';
+    } else if (publicRoute.kind === 'landing') {
+      document.title =
+        'MGW Gestão — Sistema para Lanchonetes e Cardápio Digital';
+    }
+  }, [publicRoute.kind, dataContext, unviewedOrdersCount]);
 
   // Alerta imediato (notificacao mobile, vibracao, banner e som) na chegada de novos pedidos
   useEffect(() => {
-    if (publicRoute.kind !== 'admin') return;
+    if (!dataContext) return;
     if (!ordersInitializedRef.current) {
       if (!dataLoading) {
         knownOrderIdsRef.current = new Set(onlineOrders.map((o) => o.id));
@@ -623,25 +637,25 @@ export default function App() {
       }
     }
   }, [
+    dataContext,
     onlineOrders,
     dataLoading,
     soundEnabled,
     pushEnabled,
-    publicRoute.kind,
     digitalMenuSettings.storeName,
     settings.establishmentName,
   ]);
 
   // Reforco sonoro sutil enquanto houver pedido aguardando visualizacao
   useEffect(() => {
-    if (publicRoute.kind !== 'admin' || !soundEnabled || unviewedOrdersCount === 0) {
+    if (!dataContext || !soundEnabled || unviewedOrdersCount === 0) {
       return;
     }
     const timer = window.setInterval(() => {
       void playNewOrderAlertChime();
     }, 15000);
     return () => window.clearInterval(timer);
-  }, [publicRoute.kind, soundEnabled, unviewedOrdersCount]);
+  }, [dataContext, soundEnabled, unviewedOrdersCount]);
 
   function handleSelectTenant(nextTenantId: string) {
     if (!tenants.some((t) => t.tenantId === nextTenantId)) return;
@@ -856,6 +870,54 @@ export default function App() {
     );
   }
 
+  if (publicRoute.kind === 'terms') {
+    return (
+      <LegalDocumentView kind="terms" onNavigate={navigatePublicPath} />
+    );
+  }
+
+  if (publicRoute.kind === 'privacy') {
+    return (
+      <LegalDocumentView kind="privacy" onNavigate={navigatePublicPath} />
+    );
+  }
+
+  const demoActive = isDemoSandboxActive();
+  const callbackPending =
+    typeof window !== 'undefined' &&
+    hasAuthCallbackParams(window.location.search, window.location.hash);
+
+  if (publicRoute.kind === 'landing' && !demoActive && !callbackPending) {
+    if (!authReady) {
+      return <LandingPageView onNavigate={navigatePublicPath} />;
+    }
+    if (passwordRecovery) {
+      return (
+        <PasswordRecoveryScreen
+          onSave={handleUpdatePassword}
+          errorMessage={authError}
+        />
+      );
+    }
+    if (authError && (!user || !user.emailVerified || !activeTenant)) {
+      return (
+        <LoginScreen
+          onGoogleLogin={handleGoogleLogin}
+          onEmailLogin={handleEmailLogin}
+          onRegister={handleRegister}
+          onPasswordReset={handlePasswordReset}
+          supportsEmailAuth={true}
+          isSigningIn={isSigningIn}
+          errorMessage={authError}
+          onBackToHome={() => navigatePublicPath('/')}
+        />
+      );
+    }
+    if (!user || !user.emailVerified || !activeTenant) {
+      return <LandingPageView onNavigate={navigatePublicPath} />;
+    }
+  }
+
   if (!authReady) {
     return (
       <div className="min-h-screen bg-[#0B0D11] text-[#9CA3AF] flex items-center justify-center text-sm">
@@ -876,11 +938,21 @@ export default function App() {
   if (!user || !user.emailVerified || !activeTenant) {
     return (
       <LoginScreen
+        initialMode={publicRoute.kind === 'register' ? 'register' : 'login'}
+        onModeChange={(nextMode) => {
+          if (typeof window === 'undefined') return;
+          if (nextMode === 'register' && window.location.pathname !== '/cadastro') {
+            window.history.replaceState({}, '', '/cadastro');
+          } else if (nextMode === 'login' && window.location.pathname !== '/login') {
+            window.history.replaceState({}, '', '/login');
+          }
+        }}
+        onBackToHome={() => navigatePublicPath('/')}
         onGoogleLogin={handleGoogleLogin}
         onEmailLogin={handleEmailLogin}
         onRegister={handleRegister}
         onPasswordReset={handlePasswordReset}
-        supportsEmailAuth={activeProvider === 'supabase'}
+        supportsEmailAuth={true}
         isSigningIn={isSigningIn}
         errorMessage={authError}
       />

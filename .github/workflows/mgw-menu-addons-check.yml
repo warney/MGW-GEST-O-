@@ -1,0 +1,30 @@
+name: MGW menu addons validation
+
+on:
+  push:
+    branches:
+      - feat/menu-categories-addons
+  pull_request:
+    branches:
+      - main
+      - feat/menu-categories-addons
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript check
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Production build
+        run: npm run build
