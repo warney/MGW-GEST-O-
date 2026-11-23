@@ -65,7 +65,7 @@ export function AuditReportsView({ refreshTrigger }: AuditReportsViewProps) {
             onClick={() => exportAuditLogsToExcel(logs)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
           >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-700" />
             <span>Excel (.xlsx)</span>
           </button>
 
@@ -82,7 +82,7 @@ export function AuditReportsView({ refreshTrigger }: AuditReportsViewProps) {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error}
         </div>
       )}
