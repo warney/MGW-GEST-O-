@@ -79,7 +79,7 @@ export function AdminLayout({
             className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-left text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
               isActive
                 ? 'bg-[#F5B731]/12 text-[#F5B731] border border-[#F5B731]/25'
-                : 'text-slate-300 hover:bg-[#171B24] hover:text-white border border-transparent'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-transparent'
             }`}
           >
             <Icon className="h-4 w-4 shrink-0" />
@@ -91,21 +91,21 @@ export function AdminLayout({
   );
 
   return (
-    <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex">
+    <div className="min-h-screen bg-[#f6f7f9] text-slate-900 flex">
       {/* Desktop Sidebar */}
       <aside
-        className={`hidden lg:flex flex-col border-r border-[#222733] bg-[#0F1218] transition-all duration-150 shrink-0 ${
+        className={`hidden lg:flex flex-col border-r border-slate-200 bg-white transition-all duration-150 shrink-0 ${
           collapsed ? 'w-[72px]' : 'w-[252px]'
         }`}
       >
-        <div className="h-14 px-3.5 border-b border-[#222733] flex items-center justify-between gap-2">
+        <div className="h-14 px-3.5 border-b border-slate-200 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="h-8 w-8 rounded-md bg-[#F5B731]/12 border border-[#F5B731]/30 flex items-center justify-center text-[#F5B731] shrink-0">
               <ShieldCheck className="h-4 w-4" />
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-sm font-bold text-white truncate">MGW Admin</p>
+                <p className="text-sm font-bold text-slate-900 truncate">MGW Admin</p>
                 <p className="text-[11px] text-slate-500 truncate">Plataforma SaaS</p>
               </div>
             )}
@@ -113,7 +113,7 @@ export function AdminLayout({
           <button
             type="button"
             onClick={() => setCollapsed((prev) => !prev)}
-            className="rounded p-1.5 text-slate-400 hover:bg-[#171B24] hover:text-white cursor-pointer shrink-0"
+            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 cursor-pointer shrink-0"
             aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -122,13 +122,13 @@ export function AdminLayout({
 
         {renderSidebarNav(false)}
 
-        <div className="border-t border-[#222733] p-3 space-y-2.5">
+        <div className="border-t border-slate-200 p-3 space-y-2.5">
           {!collapsed ? (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-white truncate">
+              <p className="text-xs font-medium text-slate-900 truncate">
                 {profile.fullName || profile.email}
               </p>
-              <p className="text-[11px] text-slate-400 truncate">
+              <p className="text-[11px] text-slate-500 truncate">
                 {formatRoleLabel(profile.role)} · <span className="font-mono">{profile.email}</span>
               </p>
             </div>
@@ -137,7 +137,7 @@ export function AdminLayout({
             type="button"
             onClick={onSignOut}
             title="Sair"
-            className="w-full flex items-center justify-center gap-2 rounded-md border border-[#222733] bg-[#12151C] px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-[#1B202C] hover:text-white cursor-pointer whitespace-nowrap"
+            className="w-full flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer whitespace-nowrap"
           >
             <LogOut className="h-3.5 w-3.5 shrink-0" />
             {!collapsed && <span>Encerrar sessão</span>}
@@ -149,33 +149,33 @@ export function AdminLayout({
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
           <div
-            className="fixed inset-0 bg-black/70"
+            className="fixed inset-0 bg-slate-950/45"
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          <aside className="relative z-10 w-64 max-w-[85vw] bg-[#0F1218] border-r border-[#222733] flex flex-col">
-            <div className="h-14 px-4 border-b border-[#222733] flex items-center justify-between">
+          <aside className="relative z-10 w-64 max-w-[85vw] bg-white border-r border-slate-200 flex flex-col">
+            <div className="h-14 px-4 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-[#F5B731]" />
-                <span className="text-sm font-bold text-white">MGW Admin</span>
+                <span className="text-sm font-bold text-slate-900">MGW Admin</span>
               </div>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="rounded p-1 text-slate-400 hover:text-white"
+                className="rounded p-1 text-slate-500 hover:text-slate-900"
                 aria-label="Fechar menu"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             {renderSidebarNav(true)}
-            <div className="border-t border-[#222733] p-3">
-              <p className="text-xs font-medium text-white truncate">{profile.email}</p>
-              <p className="text-[11px] text-slate-400 mb-2">{formatRoleLabel(profile.role)}</p>
+            <div className="border-t border-slate-200 p-3">
+              <p className="text-xs font-medium text-slate-900 truncate">{profile.email}</p>
+              <p className="text-[11px] text-slate-500 mb-2">{formatRoleLabel(profile.role)}</p>
               <button
                 type="button"
                 onClick={onSignOut}
-                className="w-full flex items-center justify-center gap-2 rounded-md border border-[#222733] bg-[#12151C] px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white"
+                className="w-full flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900"
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span>Encerrar sessão</span>
@@ -187,21 +187,21 @@ export function AdminLayout({
 
       {/* Main Content */}
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-14 border-b border-[#222733] bg-[#0F1218]/90 backdrop-blur px-4 lg:px-6 flex items-center justify-between gap-3 sticky top-0 z-20">
+        <header className="h-14 border-b border-slate-200 bg-white/90 backdrop-blur px-4 lg:px-6 flex items-center justify-between gap-3 sticky top-0 z-20">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden rounded p-1.5 text-slate-300 hover:bg-[#171B24]"
+              className="lg:hidden rounded p-1.5 text-slate-600 hover:bg-slate-100"
               aria-label="Abrir navegação"
             >
               <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xs text-slate-400 truncate">
-                <span className="font-medium text-slate-300">MGW Admin</span>
+              <div className="flex items-center gap-2 text-xs text-slate-500 truncate">
+                <span className="font-medium text-slate-600">MGW Admin</span>
                 <span>/</span>
-                <span className="text-white font-semibold truncate">{currentModule?.label}</span>
+                <span className="text-slate-900 font-semibold truncate">{currentModule?.label}</span>
               </div>
             </div>
           </div>
@@ -210,7 +210,7 @@ export function AdminLayout({
             <button
               type="button"
               onClick={onOpenMfaModal}
-              className="rounded-md border border-[#222733] bg-[#12151C] px-2.5 py-1.5 hover:bg-[#1B202C] cursor-pointer whitespace-nowrap shrink-0"
+              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 hover:bg-slate-100 cursor-pointer whitespace-nowrap shrink-0"
               title="Gerenciar verificação MFA (AAL2)"
             >
               <MfaBadgeIndicator verified={profile.mfaVerified} />
@@ -220,7 +220,7 @@ export function AdminLayout({
               type="button"
               onClick={onRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 rounded-md border border-[#222733] bg-[#12151C] px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-[#1B202C] disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Atualizar</span>
