@@ -85,38 +85,38 @@ export function ExpensesView({
     <div className="space-y-5">
       {/* Top Totals */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5">
-          <p className="text-xs text-[#9CA3AF]">Total de despesas de hoje</p>
+        <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5">
+          <p className="text-xs text-[#6B7280]">Total de despesas de hoje</p>
           <p className="text-2xl font-bold text-[#F87171] font-mono tabular-nums mt-1">
             {formatCurrencyBRL(totals.todayTotal)}
           </p>
-          <p className="text-xs text-[#9CA3AF] mt-1">
+          <p className="text-xs text-[#6B7280] mt-1">
             Lançamentos realizados em {formatDateBR(today)}
           </p>
         </div>
 
-        <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5">
-          <p className="text-xs text-[#9CA3AF]">Total de despesas do mês</p>
-          <p className="text-2xl font-bold text-[#F3F4F6] font-mono tabular-nums mt-1">
+        <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5">
+          <p className="text-xs text-[#6B7280]">Total de despesas do mês</p>
+          <p className="text-2xl font-bold text-[#111827] font-mono tabular-nums mt-1">
             {formatCurrencyBRL(totals.monthTotal)}
           </p>
-          <p className="text-xs text-[#9CA3AF] mt-1">
+          <p className="text-xs text-[#6B7280] mt-1">
             Insumos e custos operacionais do mês
           </p>
         </div>
 
         {canCreateExpenses && (
-          <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 flex items-center justify-between gap-4 sm:col-span-2 lg:col-span-1">
+          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 flex items-center justify-between gap-4 sm:col-span-2 lg:col-span-1">
             <div>
-              <p className="text-xs text-[#9CA3AF]">Novo gasto ou compra</p>
-              <p className="text-sm font-semibold text-[#F3F4F6] mt-1">
+              <p className="text-xs text-[#6B7280]">Novo gasto ou compra</p>
+              <p className="text-sm font-semibold text-[#111827] mt-1">
                 Mantenha o lucro real atualizado
               </p>
             </div>
             <button
               type="button"
               onClick={onOpenNewExpense}
-              className="min-h-[44px] px-4 py-2 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-sm font-bold inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Nova Despesa
@@ -126,20 +126,20 @@ export function ExpensesView({
       </div>
 
       {/* Expenses by Category (Month) */}
-      <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-4">
+      <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold text-[#F3F4F6]">
+            <h3 className="text-sm font-bold text-[#111827]">
               Despesas por categoria (mês atual)
             </h3>
-            <p className="text-xs text-[#9CA3AF]">
+            <p className="text-xs text-[#6B7280]">
               Distribuição dos custos por tipo de insumo
             </p>
           </div>
         </div>
 
         {monthCategoryBreakdown.length === 0 ? (
-          <p className="text-xs text-[#9CA3AF]">
+          <p className="text-xs text-[#6B7280]">
             Nenhuma despesa registrada neste mês ainda.
           </p>
         ) : (
@@ -147,14 +147,14 @@ export function ExpensesView({
             {monthCategoryBreakdown.map((item) => (
               <div key={item.category} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#D1D5DB] font-medium">
+                  <span className="text-[#4B5563] font-medium">
                     {item.category} · {item.count}x
                   </span>
-                  <span className="text-[#F3F4F6] font-mono tabular-nums font-semibold">
+                  <span className="text-[#111827] font-mono tabular-nums font-semibold">
                     {formatCurrencyBRL(item.amount)} ({item.sharePercent.toFixed(1)}%)
                   </span>
                 </div>
-                <div className="h-2 w-full bg-[#181C24] rounded-full overflow-hidden">
+                <div className="h-2 w-full bg-[#F1F3F5] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-[#EF4444]/85 rounded-full"
                     style={{ width: `${Math.min(100, item.sharePercent)}%` }}
@@ -167,16 +167,16 @@ export function ExpensesView({
       </section>
 
       {/* Filters */}
-      <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 flex flex-col md:flex-row gap-3">
+      <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-4 flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-[#6B7280] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="search"
             aria-label="Buscar despesas"
             placeholder="Buscar por descrição, categoria ou observação..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] placeholder:text-[#6B7280]"
+            className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] placeholder:text-[#6B7280]"
           />
         </div>
 
@@ -185,7 +185,7 @@ export function ExpensesView({
             aria-label="Filtrar por categoria de despesa"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+            className="min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
           >
             <option value="all">Todas as categorias</option>
             {EXPENSE_CATEGORIES.map((cat) => (
@@ -202,7 +202,7 @@ export function ExpensesView({
                 setCategoryFilter('all');
                 setSearchTerm('');
               }}
-              className="min-h-[44px] px-3.5 rounded-xl border border-[#232834] hover:border-[#374151] text-xs font-medium text-[#D1D5DB] cursor-pointer"
+              className="min-h-[44px] px-3.5 rounded-xl border border-[#E5E7EB] hover:border-[#374151] text-xs font-medium text-[#4B5563] cursor-pointer"
             >
               Limpar filtros
             </button>
@@ -211,24 +211,24 @@ export function ExpensesView({
       </div>
 
       {/* Expense History */}
-      <section className="bg-[#12151C] border border-[#232834] rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#232834] flex items-center justify-between">
-          <h3 className="text-sm font-bold text-[#F3F4F6]">
+      <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#E5E7EB] flex items-center justify-between">
+          <h3 className="text-sm font-bold text-[#111827]">
             Histórico de Despesas
           </h3>
-          <span className="text-xs text-[#9CA3AF] font-mono tabular-nums">
+          <span className="text-xs text-[#6B7280] font-mono tabular-nums">
             {filteredExpenses.length} registro{filteredExpenses.length === 1 ? '' : 's'}
           </span>
         </div>
 
         {filteredExpenses.length === 0 ? (
           <div className="p-10 text-center space-y-3">
-            <p className="text-sm font-medium text-[#D1D5DB]">
+            <p className="text-sm font-medium text-[#4B5563]">
               {expenses.length === 0
                 ? 'Nenhuma despesa registrada ainda.'
                 : 'Nenhuma despesa encontrada para os filtros atuais.'}
             </p>
-            <p className="text-xs text-[#9CA3AF]">
+            <p className="text-xs text-[#6B7280]">
               {expenses.length === 0
                 ? 'Registre compras de carne, pães, queijos, bebidas, gás e outras despesas.'
                 : 'Limpe os filtros para visualizar todas as despesas.'}
@@ -237,7 +237,7 @@ export function ExpensesView({
               <button
                 type="button"
                 onClick={onOpenNewExpense}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 cursor-pointer"
+                className="min-h-[44px] px-4 py-2 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-sm font-bold inline-flex items-center gap-2 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 Registrar primeira despesa
@@ -245,17 +245,17 @@ export function ExpensesView({
             )}
           </div>
         ) : (
-          <div className="divide-y divide-[#232834]">
+          <div className="divide-y divide-[#E5E7EB]">
             {filteredExpenses.map((expense) => (
               <div
                 key={expense.id}
-                className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#181C24]/50 transition-colors"
+                className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#F1F3F5]/50 transition-colors"
               >
                 <div className="space-y-1 min-w-0">
-                  <p className="text-sm font-semibold text-[#F3F4F6] truncate">
+                  <p className="text-sm font-semibold text-[#111827] truncate">
                     {expense.description}
                   </p>
-                  <p className="text-xs text-[#9CA3AF] truncate">
+                  <p className="text-xs text-[#6B7280] truncate">
                     <span>{expense.category}</span>
                     <span aria-hidden="true"> · </span>
                     <span>{expense.paymentMethod}</span>
@@ -285,7 +285,7 @@ export function ExpensesView({
                       <button
                         type="button"
                         onClick={() => setConfirmDeleteId(null)}
-                        className="min-h-[40px] px-3 rounded-lg border border-[#232834] text-xs text-[#D1D5DB] cursor-pointer"
+                        className="min-h-[40px] px-3 rounded-lg border border-[#E5E7EB] text-xs text-[#4B5563] cursor-pointer"
                       >
                         Cancelar
                       </button>
@@ -298,7 +298,7 @@ export function ExpensesView({
                             type="button"
                             onClick={() => onEditExpense(expense)}
                             aria-label={`Editar despesa ${expense.description}`}
-                            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#F5B731]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F5B731] transition-colors cursor-pointer"
+                            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/50 flex items-center justify-center text-[#6B7280] hover:text-[#EAB308] transition-colors cursor-pointer"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
@@ -308,7 +308,7 @@ export function ExpensesView({
                             type="button"
                             onClick={() => setConfirmDeleteId(expense.id)}
                             aria-label={`Excluir despesa ${expense.description}`}
-                            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] hover:border-[#EF4444]/50 flex items-center justify-center text-[#9CA3AF] hover:text-[#F87171] transition-colors cursor-pointer"
+                            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E5E7EB] hover:border-[#EF4444]/50 flex items-center justify-center text-[#6B7280] hover:text-[#F87171] transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
