@@ -49,7 +49,7 @@ export function DashboardView({
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-md border border-rose-400/40 px-3 py-1.5 text-xs font-medium hover:bg-rose-500/20 cursor-pointer"
+          className="rounded-lg border border-rose-400/40 px-3 py-1.5 text-xs font-medium hover:bg-rose-500/20 cursor-pointer"
         >
           Tentar novamente
         </button>
@@ -200,7 +200,7 @@ export function DashboardView({
           <button
             type="button"
             onClick={() => onNavigate('finance')}
-            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 cursor-pointer"
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 cursor-pointer"
           >
             Ver Financeiro
           </button>
@@ -324,7 +324,7 @@ export function DashboardView({
             <button
               type="button"
               onClick={() => onNavigate('plans')}
-              className="mt-4 w-full rounded-md border border-slate-200 bg-[#0B0D11] py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+              className="mt-4 w-full rounded-lg border border-slate-200 bg-white py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
             >
               Gerenciar Planos e Assinaturas
             </button>
