@@ -56,6 +56,7 @@
 @layer base {
   html {
     color-scheme: light;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     background: #f6f7f9;
     color: #202733;
   }
@@ -64,6 +65,12 @@
     min-width: 320px;
     background: #f6f7f9;
     color: #202733;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.025em;
   }
 
   ::selection {
@@ -72,24 +79,25 @@
   }
 }
 
+/* Compatibilidade visual para as classes legadas das telas existentes.
+   Os componentes, estados, permissões e integrações permanecem intactos. */
 @layer utilities {
-  .bg-\\[\\#0B0D11\\] { background-color: #f6f7f9 !important; }
-  .bg-\\[\\#0F1218\\] { background-color: #f0f2f5 !important; }
-  .bg-\\[\\#12151C\\] { background-color: #ffffff !important; }
-  .bg-\\[\\#171B24\\] { background-color: #edf0f4 !important; }
-  .bg-\\[\\#181C26\\] { background-color: #e9edf2 !important; }
-  .bg-\\[\\#1B202C\\] { background-color: #e9edf2 !important; }
-  .border-\\[\\#222733\\] { border-color: #e1e5eb !important; }
-  .border-\\[\\#2A3040\\] { border-color: #d8dee7 !important; }
-  .divide-\\[\\#1D222E\\] > :not([hidden]) ~ :not([hidden]) { border-color: #e8ebf0 !important; }
-  .text-\\[\\#F3F4F6\\] { color: #202733 !important; }
-  .text-white { color: #202733 !important; }
-  .text-slate-100 { color: #263140 !important; }
-  .text-slate-200 { color: #344154 !important; }
-  .text-slate-300 { color: #465366 !important; }
-  .text-slate-400 { color: #69778a !important; }
-  .text-slate-500 { color: #8490a0 !important; }
-  .text-slate-600 { color: #98a2b0 !important; }
-  .hover\\:bg-\\[\\#171B24\\] :hover { background-color: #edf0f4 !important; }
-  .hover\\:bg-\\[\\#1B202C\\] :hover { background-color: #edf0f4 !important; }
+  [class~="bg-[#0B0D11]"] { background-color: #f6f7f9 !important; }
+  [class~="bg-[#0F1218]"] { background-color: #f0f2f5 !important; }
+  [class~="bg-[#12151C]"] { background-color: #ffffff !important; }
+  [class~="bg-[#171B24]"] { background-color: #edf0f4 !important; }
+  [class~="bg-[#181C26]"] { background-color: #e9edf2 !important; }
+  [class~="bg-[#1B202C]"] { background-color: #e9edf2 !important; }
+  [class~="border-[#222733]"] { border-color: #e1e5eb !important; }
+  [class~="border-[#2A3040]"] { border-color: #d8dee7 !important; }
+  [class~="divide-[#1D222E]"] > :not([hidden]) ~ :not([hidden]) { border-color: #e8ebf0 !important; }
+  [class~="text-[#F3F4F6]"], [class~="text-white"] { color: #202733 !important; }
+  [class~="text-slate-100"] { color: #263140 !important; }
+  [class~="text-slate-200"] { color: #344154 !important; }
+  [class~="text-slate-300"] { color: #465366 !important; }
+  [class~="text-slate-400"] { color: #69778a !important; }
+  [class~="text-slate-500"] { color: #8490a0 !important; }
+  [class~="text-slate-600"] { color: #98a2b0 !important; }
+  [class~="hover:bg-[#171B24]"]:hover,
+  [class~="hover:bg-[#1B202C]"]:hover { background-color: #edf0f4 !important; }
 }
