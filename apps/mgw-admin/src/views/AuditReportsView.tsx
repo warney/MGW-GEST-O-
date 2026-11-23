@@ -36,7 +36,7 @@ export function AuditReportsView({ refreshTrigger }: AuditReportsViewProps) {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Auditoria &amp; Relatórios</h1>
+          <h1 className="text-xl font-bold text-slate-900">Auditoria &amp; Relatórios</h1>
           <p className="text-xs text-slate-400 mt-0.5">
             Trilha imutável (append-only) de ações administrativas em{' '}
             <code className="font-mono">platform_audit_logs</code>.
@@ -47,7 +47,7 @@ export function AuditReportsView({ refreshTrigger }: AuditReportsViewProps) {
           <select
             value={targetTypeFilter}
             onChange={(e) => setTargetTypeFilter(e.target.value)}
-            className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-white"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900"
           >
             <option value="all">Todos os alvos</option>
             <option value="tenant">Estabelecimentos</option>
@@ -63,7 +63,7 @@ export function AuditReportsView({ refreshTrigger }: AuditReportsViewProps) {
             type="button"
             disabled={logs.length === 0}
             onClick={() => exportAuditLogsToExcel(logs)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
           >
             <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
             <span>Excel (.xlsx)</span>
@@ -73,7 +73,7 @@ export function AuditReportsView({ refreshTrigger }: AuditReportsViewProps) {
             type="button"
             disabled={logs.length === 0}
             onClick={() => exportAuditLogsToPdf(logs)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
           >
             <FileDown className="h-3.5 w-3.5 text-[#F5B731]" />
             <span>PDF</span>
@@ -118,7 +118,7 @@ export function AuditReportsView({ refreshTrigger }: AuditReportsViewProps) {
                       {formatDateTimeBr(log.created_at)}
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="font-mono text-white">{log.admin_email}</span>
+                      <span className="font-mono text-slate-900">{log.admin_email}</span>
                       <span className="text-slate-500"> · {log.admin_role}</span>
                     </td>
                     <td className="px-4 py-2.5 font-mono text-[#F5B731]">{log.action}</td>
