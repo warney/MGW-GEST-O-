@@ -47,13 +47,13 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
         </p>
       </div>
 
-      <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4 text-xs text-amber-100 flex items-start gap-2.5">
+      <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4 text-xs text-amber-800 flex items-start gap-2.5">
         <Info className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
         <div>
-          <p className="font-semibold text-amber-200">
+          <p className="font-semibold text-amber-800">
             Integração automática com Mercado Pago pendente de ativação
           </p>
-          <p className="text-amber-200/85 mt-0.5">
+          <p className="text-amber-800/85 mt-0.5">
             Os cálculos de MRR e ARR refletem as assinaturas ativas reais na tabela{' '}
             <code className="font-mono">subscriptions</code>. O processamento automático de faturas e
             webhooks financeiros será populado quando o módulo Mercado Pago for habilitado.
@@ -62,7 +62,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200 flex items-center gap-2">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700 flex items-center gap-2">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -73,7 +73,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>MRR Recorrente</span>
-              <DollarSign className="h-4 w-4 text-emerald-400" />
+              <DollarSign className="h-4 w-4 text-emerald-700" />
             </div>
             <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.mrrCents)}
@@ -97,7 +97,7 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>Recebido no Mês</span>
-              <Receipt className="h-4 w-4 text-sky-400" />
+              <Receipt className="h-4 w-4 text-sky-700" />
             </div>
             <p className="mt-2 text-2xl font-bold font-mono text-slate-900 tabular-nums">
               {formatCurrencyCents(summary.approvedMonthCents)}
