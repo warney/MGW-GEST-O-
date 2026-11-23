@@ -74,7 +74,7 @@ export function AdminUsersView({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Equipe Administrativa (MGW Admin)</h1>
+        <h1 className="text-xl font-bold text-slate-900">Equipe Administrativa (MGW Admin)</h1>
         <p className="text-xs text-slate-400 mt-0.5">
           Controle de operadores em <code className="font-mono">platform_admins</code>. O banco
           bloqueia auto-escalação de privilégio e protege o último{' '}
@@ -83,7 +83,7 @@ export function AdminUsersView({
       </div>
 
       {!mfaVerified && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-200 flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
             <span>Operações de criação/edição de administradores exigem sessão MFA AAL2.</span>
@@ -91,7 +91,7 @@ export function AdminUsersView({
           <button
             type="button"
             onClick={onRequestMfa}
-            className="rounded border border-amber-400/50 px-3 py-1 font-semibold hover:bg-amber-500/20 cursor-pointer whitespace-nowrap"
+            className="rounded-lg border border-amber-400/50 px-3 py-1 font-semibold hover:bg-amber-500/20 cursor-pointer whitespace-nowrap"
           >
             Validar MFA
           </button>
@@ -99,23 +99,23 @@ export function AdminUsersView({
       )}
 
       {error && (
-        <div className="rounded-lg border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error}
         </div>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        <div className="xl:col-span-2 rounded-lg border border-[#222733] bg-[#12151C] overflow-hidden">
+        <div className="xl:col-span-2 rounded-xl border border-slate-200 bg-white overflow-hidden">
           {loading ? (
             <div className="p-6 space-y-2.5">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="h-10 rounded bg-[#181C26] animate-pulse" />
+                <div key={i} className="h-10 rounded bg-slate-100 animate-pulse" />
               ))}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#0F1218] text-slate-400 border-b border-[#222733]">
+                <thead className="bg-slate-50 text-slate-400 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Administrador</th>
                     <th className="px-4 py-2.5 font-medium">Papel</th>
@@ -123,11 +123,11 @@ export function AdminUsersView({
                     <th className="px-4 py-2.5 font-medium text-right">Criado em</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#1D222E]">
+                <tbody className="divide-y divide-slate-100">
                   {admins.map((adm) => (
-                    <tr key={adm.id} className="hover:bg-[#161A23]">
+                    <tr key={adm.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3">
-                        <p className="font-medium text-white">
+                        <p className="font-medium text-slate-900">
                           {adm.full_name || adm.email}
                           {adm.user_id === currentAdminUserId && (
                             <span className="ml-2 font-mono text-[11px] text-[#F5B731]">· Você</span>
@@ -158,10 +158,10 @@ export function AdminUsersView({
           )}
         </div>
 
-        <div className="rounded-lg border border-[#222733] bg-[#12151C] p-5 h-fit">
-          <div className="flex items-center gap-2 pb-3 border-b border-[#222733]">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 h-fit">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
             <UserPlus className="h-4 w-4 text-[#F5B731]" />
-            <h2 className="text-sm font-semibold text-white">Autorizar / Atualizar Admin</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Autorizar / Atualizar Admin</h2>
           </div>
 
           <form onSubmit={handleSubmit} className="pt-4 space-y-3 text-xs">
@@ -177,7 +177,7 @@ export function AdminUsersView({
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 placeholder="operador@empresa.com.br"
-                className="w-full rounded border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900"
               />
             </div>
 
@@ -187,7 +187,7 @@ export function AdminUsersView({
                 type="text"
                 value={form.fullName}
                 onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))}
-                className="w-full rounded border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900"
               />
             </div>
 
@@ -196,7 +196,7 @@ export function AdminUsersView({
               <select
                 value={form.role}
                 onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as PlatformRole }))}
-                className="w-full rounded border border-[#2A3040] bg-[#0B0D11] px-2.5 py-2 text-white"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-slate-900"
               >
                 <option value="support">Suporte (visualização + chamados)</option>
                 <option value="finance">Financeiro (visualização + cobrança)</option>
@@ -222,14 +222,14 @@ export function AdminUsersView({
                 value={form.reason}
                 onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
                 placeholder="Ex.: Integração de operador de suporte..."
-                className="w-full rounded border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900"
               />
             </div>
 
             <button
               type="submit"
               disabled={saving || !mfaVerified || form.reason.trim().length < 3}
-              className="w-full rounded bg-[#F5B731] px-4 py-2 text-xs font-semibold text-[#0B0D11] hover:bg-[#e5a824] disabled:opacity-50 cursor-pointer"
+              className="w-full rounded bg-[#F5B731] px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-amber-500 disabled:opacity-50 cursor-pointer"
             >
               {saving ? 'Salvando...' : 'Salvar operador administrativo'}
             </button>
