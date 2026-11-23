@@ -50,3 +50,46 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* MGW Admin — identidade clara compartilhada com o novo MGW Gestão. */
+@layer base {
+  html {
+    color-scheme: light;
+    background: #f6f7f9;
+    color: #202733;
+  }
+
+  body {
+    min-width: 320px;
+    background: #f6f7f9;
+    color: #202733;
+  }
+
+  ::selection {
+    background: rgb(245 183 49 / 28%);
+    color: #202733;
+  }
+}
+
+@layer utilities {
+  .bg-\\[\\#0B0D11\\] { background-color: #f6f7f9 !important; }
+  .bg-\\[\\#0F1218\\] { background-color: #f0f2f5 !important; }
+  .bg-\\[\\#12151C\\] { background-color: #ffffff !important; }
+  .bg-\\[\\#171B24\\] { background-color: #edf0f4 !important; }
+  .bg-\\[\\#181C26\\] { background-color: #e9edf2 !important; }
+  .bg-\\[\\#1B202C\\] { background-color: #e9edf2 !important; }
+  .border-\\[\\#222733\\] { border-color: #e1e5eb !important; }
+  .border-\\[\\#2A3040\\] { border-color: #d8dee7 !important; }
+  .divide-\\[\\#1D222E\\] > :not([hidden]) ~ :not([hidden]) { border-color: #e8ebf0 !important; }
+  .text-\\[\\#F3F4F6\\] { color: #202733 !important; }
+  .text-white { color: #202733 !important; }
+  .text-slate-100 { color: #263140 !important; }
+  .text-slate-200 { color: #344154 !important; }
+  .text-slate-300 { color: #465366 !important; }
+  .text-slate-400 { color: #69778a !important; }
+  .text-slate-500 { color: #8490a0 !important; }
+  .text-slate-600 { color: #98a2b0 !important; }
+  .hover\\:bg-\\[\\#171B24\\] :hover { background-color: #edf0f4 !important; }
+  .hover\\:bg-\\[\\#1B202C\\] :hover { background-color: #edf0f4 !important; }
+}
