@@ -9,7 +9,7 @@ interface ChartBaseProps {
 
 function EmptyChart({ message }: { message: string }) {
   return (
-    <div className="h-56 flex items-center justify-center text-sm text-[#9CA3AF] border border-dashed border-[#232834] rounded-xl">
+    <div className="h-56 flex items-center justify-center text-sm text-[#6B7280] border border-dashed border-[#E5E7EB] rounded-xl">
       {message}
     </div>
   );
@@ -55,14 +55,14 @@ export function Revenue7DaysChart({ data }: ChartBaseProps) {
                 x2={width - padRight}
                 y1={y}
                 y2={y}
-                stroke="#232834"
+                stroke="#E5E7EB"
                 strokeDasharray={t === 0 ? undefined : '3 3'}
               />
               <text
                 x={padLeft - 8}
                 y={y + 4}
                 textAnchor="end"
-                className="fill-[#9CA3AF] text-[10px] font-mono tabular-nums"
+                className="fill-[#6B7280] text-[10px] font-mono tabular-nums"
               >
                 {val >= 1000 ? `R$${(val / 1000).toFixed(1)}k` : `R$${Math.round(val)}`}
               </text>
@@ -95,14 +95,14 @@ export function Revenue7DaysChart({ data }: ChartBaseProps) {
                 width={barW}
                 height={Math.max(2, barH)}
                 rx={6}
-                fill={isHovered ? '#FCD34D' : '#F5B731'}
+                fill={isHovered ? '#F5C842' : '#EAB308'}
                 className="transition-colors duration-150"
               />
               <text
                 x={padLeft + idx * stepX + stepX / 2}
                 y={height - 10}
                 textAnchor="middle"
-                className="fill-[#9CA3AF] text-[11px] font-mono tabular-nums"
+                className="fill-[#6B7280] text-[11px] font-mono tabular-nums"
               >
                 {point.label}
               </text>
@@ -112,9 +112,9 @@ export function Revenue7DaysChart({ data }: ChartBaseProps) {
       </svg>
 
       {hoveredIdx !== null && data[hoveredIdx] && (
-        <div className="mt-2 flex items-center justify-between text-xs text-[#D1D5DB] border-t border-[#232834] pt-2 font-mono tabular-nums">
+        <div className="mt-2 flex items-center justify-between text-xs text-[#4B5563] border-t border-[#E5E7EB] pt-2 font-mono tabular-nums">
           <span>{data[hoveredIdx].label}</span>
-          <span className="text-[#F5B731] font-semibold">
+          <span className="text-[#EAB308] font-semibold">
             {formatCurrencyBRL(data[hoveredIdx].revenue)} · {data[hoveredIdx].qty} X-Saladas
           </span>
         </div>
@@ -160,14 +160,14 @@ export function XSaladaDailyChart({ data }: ChartBaseProps) {
                 x2={width - padRight}
                 y1={y}
                 y2={y}
-                stroke="#232834"
+                stroke="#E5E7EB"
                 strokeDasharray={t === 0 ? undefined : '3 3'}
               />
               <text
                 x={padLeft - 8}
                 y={y + 4}
                 textAnchor="end"
-                className="fill-[#9CA3AF] text-[10px] font-mono tabular-nums"
+                className="fill-[#6B7280] text-[10px] font-mono tabular-nums"
               >
                 {Math.round(maxQty * t)}
               </text>
@@ -200,7 +200,7 @@ export function XSaladaDailyChart({ data }: ChartBaseProps) {
                 width={barW}
                 height={Math.max(2, barH)}
                 rx={6}
-                fill={isHovered ? '#FDE68A' : '#D97706'}
+                fill={isHovered ? '#FBE7A2' : '#D97706'}
                 className="transition-colors duration-150"
               />
               {point.qty > 0 && (
@@ -208,7 +208,7 @@ export function XSaladaDailyChart({ data }: ChartBaseProps) {
                   x={x + barW / 2}
                   y={Math.max(12, y - 6)}
                   textAnchor="middle"
-                  className="fill-[#F3F4F6] text-[10px] font-mono font-semibold tabular-nums"
+                  className="fill-[#111827] text-[10px] font-mono font-semibold tabular-nums"
                 >
                   {point.qty}
                 </text>
@@ -217,7 +217,7 @@ export function XSaladaDailyChart({ data }: ChartBaseProps) {
                 x={padLeft + idx * stepX + stepX / 2}
                 y={height - 10}
                 textAnchor="middle"
-                className="fill-[#9CA3AF] text-[11px] font-mono tabular-nums"
+                className="fill-[#6B7280] text-[11px] font-mono tabular-nums"
               >
                 {point.label}
               </text>
@@ -227,9 +227,9 @@ export function XSaladaDailyChart({ data }: ChartBaseProps) {
       </svg>
 
       {hoveredIdx !== null && data[hoveredIdx] && (
-        <div className="mt-2 flex items-center justify-between text-xs text-[#D1D5DB] border-t border-[#232834] pt-2 font-mono tabular-nums">
+        <div className="mt-2 flex items-center justify-between text-xs text-[#4B5563] border-t border-[#E5E7EB] pt-2 font-mono tabular-nums">
           <span>{data[hoveredIdx].label}</span>
-          <span className="text-[#FCD34D] font-semibold">
+          <span className="text-[#F5C842] font-semibold">
             {data[hoveredIdx].qty} X-Saladas · {formatCurrencyBRL(data[hoveredIdx].revenue)}
           </span>
         </div>
@@ -264,9 +264,9 @@ export function RevenueVsExpensesChart({ data }: ChartBaseProps) {
 
   return (
     <div className="relative">
-      <div className="flex items-center gap-5 mb-2 text-xs text-[#9CA3AF]">
+      <div className="flex items-center gap-5 mb-2 text-xs text-[#6B7280]">
         <span className="inline-flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-xs bg-[#F5B731]" aria-hidden="true" />
+          <span className="w-2.5 h-2.5 rounded-xs bg-[#EAB308]" aria-hidden="true" />
           Faturamento
         </span>
         <span className="inline-flex items-center gap-2">
@@ -291,14 +291,14 @@ export function RevenueVsExpensesChart({ data }: ChartBaseProps) {
                 x2={width - padRight}
                 y1={y}
                 y2={y}
-                stroke="#232834"
+                stroke="#E5E7EB"
                 strokeDasharray={t === 0 ? undefined : '3 3'}
               />
               <text
                 x={padLeft - 8}
                 y={y + 4}
                 textAnchor="end"
-                className="fill-[#9CA3AF] text-[10px] font-mono tabular-nums"
+                className="fill-[#6B7280] text-[10px] font-mono tabular-nums"
               >
                 {val >= 1000 ? `R$${(val / 1000).toFixed(1)}k` : `R$${Math.round(val)}`}
               </text>
@@ -332,7 +332,7 @@ export function RevenueVsExpensesChart({ data }: ChartBaseProps) {
                 width={barW}
                 height={Math.max(2, revH)}
                 rx={3}
-                fill={hoveredIdx === idx ? '#FCD34D' : '#F5B731'}
+                fill={hoveredIdx === idx ? '#F5C842' : '#EAB308'}
               />
               <rect
                 x={groupX + barW + 4}
@@ -347,7 +347,7 @@ export function RevenueVsExpensesChart({ data }: ChartBaseProps) {
                   x={padLeft + idx * stepX + stepX / 2}
                   y={height - 10}
                   textAnchor="middle"
-                  className="fill-[#9CA3AF] text-[10px] font-mono tabular-nums"
+                  className="fill-[#6B7280] text-[10px] font-mono tabular-nums"
                 >
                   {point.label}
                 </text>
@@ -358,10 +358,10 @@ export function RevenueVsExpensesChart({ data }: ChartBaseProps) {
       </svg>
 
       {hoveredIdx !== null && data[hoveredIdx] && (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[#D1D5DB] border-t border-[#232834] pt-2 font-mono tabular-nums">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[#4B5563] border-t border-[#E5E7EB] pt-2 font-mono tabular-nums">
           <span>{data[hoveredIdx].label}</span>
           <span>
-            Fat: <strong className="text-[#F5B731]">{formatCurrencyBRL(data[hoveredIdx].revenue)}</strong>
+            Fat: <strong className="text-[#EAB308]">{formatCurrencyBRL(data[hoveredIdx].revenue)}</strong>
             {' · '}
             Desp: <strong className="text-[#F87171]">{formatCurrencyBRL(data[hoveredIdx].expenses)}</strong>
             {' · '}
@@ -440,14 +440,14 @@ export function MonthlyProfitEvolutionChart({ data }: ChartBaseProps) {
                 x2={width - padRight}
                 y1={y}
                 y2={y}
-                stroke={val === 0 ? '#334155' : '#232834'}
+                stroke={val === 0 ? '#334155' : '#E5E7EB'}
                 strokeDasharray={val === 0 ? undefined : '3 3'}
               />
               <text
                 x={padLeft - 8}
                 y={y + 4}
                 textAnchor="end"
-                className="fill-[#9CA3AF] text-[10px] font-mono tabular-nums"
+                className="fill-[#6B7280] text-[10px] font-mono tabular-nums"
               >
                 {Math.abs(val) >= 1000
                   ? `R$${(val / 1000).toFixed(1)}k`
@@ -481,14 +481,14 @@ export function MonthlyProfitEvolutionChart({ data }: ChartBaseProps) {
               cy={p.y}
               r={hoveredIdx === idx ? 6 : 4}
               fill={p.profit >= 0 ? '#22C55E' : '#EF4444'}
-              stroke="#0B0D11"
+              stroke="#F9FAFB"
               strokeWidth={2}
             />
             <text
               x={p.x}
               y={height - 10}
               textAnchor="middle"
-              className="fill-[#9CA3AF] text-[10px] font-mono tabular-nums"
+              className="fill-[#6B7280] text-[10px] font-mono tabular-nums"
             >
               {p.label}
             </text>
@@ -497,7 +497,7 @@ export function MonthlyProfitEvolutionChart({ data }: ChartBaseProps) {
       </svg>
 
       {hoveredIdx !== null && points[hoveredIdx] && (
-        <div className="mt-2 flex items-center justify-between text-xs text-[#D1D5DB] border-t border-[#232834] pt-2 font-mono tabular-nums">
+        <div className="mt-2 flex items-center justify-between text-xs text-[#4B5563] border-t border-[#E5E7EB] pt-2 font-mono tabular-nums">
           <span>{points[hoveredIdx].label}</span>
           <span
             className={
@@ -568,9 +568,9 @@ export function FinancialHealthChart({
     <div className="space-y-2">
       {/* Compact Revenue vs Expenses Proportion Bar */}
       <div className="space-y-1">
-        <div className="flex items-center justify-between text-[11px] text-[#9CA3AF]">
+        <div className="flex items-center justify-between text-[11px] text-[#6B7280]">
           <span>Composição ({periodCaption})</span>
-          <span className="font-mono tabular-nums text-[#D1D5DB]">
+          <span className="font-mono tabular-nums text-[#4B5563]">
             {totalFlow === 0
               ? 'Sem valores no período'
               : netProfit >= 0
@@ -579,7 +579,7 @@ export function FinancialHealthChart({
           </span>
         </div>
         <div
-          className="h-2 w-full bg-[#181C24] rounded-full overflow-hidden flex"
+          className="h-2 w-full bg-[#F1F3F5] rounded-full overflow-hidden flex"
           aria-label="Proporção entre lucro líquido e despesas"
         >
           {totalFlow > 0 && (
@@ -614,7 +614,7 @@ export function FinancialHealthChart({
             x2={width - padRight}
             y1={zeroY}
             y2={zeroY}
-            stroke="#232834"
+            stroke="#E5E7EB"
             strokeWidth={1}
           />
 
@@ -630,7 +630,7 @@ export function FinancialHealthChart({
             const y = isPositive ? zeroY - rawH : zeroY;
             const fill =
               d.revenue === 0 && d.expenses === 0
-                ? '#232834'
+                ? '#E5E7EB'
                 : isPositive
                   ? hoveredIdx === idx
                     ? '#4ADE80'
@@ -668,7 +668,7 @@ export function FinancialHealthChart({
                   x={x + barW / 2}
                   y={height - 3}
                   textAnchor="middle"
-                  className="fill-[#9CA3AF] text-[9px] font-mono tabular-nums"
+                  className="fill-[#6B7280] text-[9px] font-mono tabular-nums"
                 >
                   {d.label}
                 </text>
@@ -677,10 +677,10 @@ export function FinancialHealthChart({
           })}
         </svg>
 
-        <div className="flex items-center justify-between text-[11px] text-[#9CA3AF] pt-0.5 font-mono tabular-nums">
+        <div className="flex items-center justify-between text-[11px] text-[#6B7280] pt-0.5 font-mono tabular-nums">
           {activePoint ? (
             <>
-              <span className="text-[#D1D5DB]">{activePoint.label}</span>
+              <span className="text-[#4B5563]">{activePoint.label}</span>
               <span
                 className={
                   activePoint.profit >= 0
