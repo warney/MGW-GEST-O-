@@ -410,9 +410,9 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] overflow-x-hidden">
+    <div className="min-h-screen bg-[#F6F7F9] text-[#111827] overflow-x-hidden">
       {/* Sticky Navigation Header (Clean 3-Zone Contract) */}
-      <header className="sticky top-0 z-40 border-b border-[#232834] bg-[#0B0D11]/92 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-[#E5E7EB] bg-white/95 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4 sm:gap-8">
           <a
             href="#topo"
@@ -422,50 +422,50 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
             }}
             className="flex items-center gap-2.5 shrink-0"
           >
-            <div className="w-9 h-9 rounded-xl bg-[#F5B731]/15 border border-[#F5B731]/35 flex items-center justify-center text-[#F5B731] font-display font-bold text-base">
+            <div className="w-9 h-9 rounded-xl bg-[#F5B731]/15 border border-[#F5B731]/35 flex items-center justify-center text-[#A87500] font-display font-bold text-base">
               M
             </div>
-            <span className="font-display font-bold text-base sm:text-lg tracking-tight text-[#F9FAFB] whitespace-nowrap">
+            <span className="font-display font-bold text-base sm:text-lg tracking-tight text-[#111827] whitespace-nowrap">
               MGW GESTÃO
             </span>
           </a>
 
           <nav
             aria-label="Navegação principal"
-            className="hidden md:flex items-center gap-7 text-sm font-medium text-[#D1D5DB]"
+            className="hidden md:flex items-center gap-7 text-sm font-medium text-[#4B5563]"
           >
             <button
               type="button"
               onClick={() => scrollToSection('sistema')}
-              className="hover:text-[#F5B731] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               Sistema
             </button>
             <button
               type="button"
               onClick={() => scrollToSection('cardapio')}
-              className="hover:text-[#F5B731] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               Cardápio
             </button>
             <button
               type="button"
               onClick={() => scrollToSection('preco')}
-              className="hover:text-[#F5B731] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               Preço
             </button>
             <button
               type="button"
               onClick={() => scrollToSection('duvidas')}
-              className="hover:text-[#F5B731] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               Dúvidas
             </button>
             <button
               type="button"
               onClick={() => onNavigate('/login')}
-              className="hover:text-[#F5B731] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               Entrar
             </button>
@@ -475,7 +475,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
             <button
               type="button"
               onClick={() => onNavigate('/cadastro')}
-              className="hidden sm:inline-flex min-h-[42px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs sm:text-sm font-bold items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+              className="hidden sm:inline-flex min-h-[42px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#0B0D11] text-xs sm:text-sm font-bold items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
             >
               Começar teste grátis
               <ArrowRight className="w-4 h-4 shrink-0" />
@@ -486,7 +486,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               onClick={() => setMobileMenuOpen((prev) => !prev)}
               aria-expanded={mobileMenuOpen}
               aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
-              className="md:hidden min-w-[44px] min-h-[44px] rounded-xl border border-[#232834] bg-[#12151C] text-[#F3F4F6] flex items-center justify-center cursor-pointer"
+              className="md:hidden min-w-[44px] min-h-[44px] rounded-xl border border-[#E5E7EB] bg-white text-[#111827] flex items-center justify-center cursor-pointer"
             >
               {mobileMenuOpen ? (
                 <X className="w-5 h-5" />
@@ -499,43 +499,43 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
 
         {/* Mobile Drawer Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-[#232834] bg-[#12151C] px-4 py-4 space-y-2">
+          <div className="md:hidden border-t border-[#E5E7EB] bg-white px-4 py-4 space-y-2">
             <button
               type="button"
               onClick={() => scrollToSection('sistema')}
-              className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#D1D5DB] hover:bg-[#171B24] hover:text-[#F5B731] cursor-pointer"
+              className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#A87500] cursor-pointer"
             >
               Sistema e funcionalidades
             </button>
             <button
               type="button"
               onClick={() => scrollToSection('cardapio')}
-              className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#D1D5DB] hover:bg-[#171B24] hover:text-[#F5B731] cursor-pointer"
+              className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#A87500] cursor-pointer"
             >
               Cardápio Digital
             </button>
             <button
               type="button"
               onClick={() => scrollToSection('preco')}
-              className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#D1D5DB] hover:bg-[#171B24] hover:text-[#F5B731] cursor-pointer"
+              className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#A87500] cursor-pointer"
             >
               Preço e teste grátis
             </button>
             <button
               type="button"
               onClick={() => scrollToSection('duvidas')}
-              className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#D1D5DB] hover:bg-[#171B24] hover:text-[#F5B731] cursor-pointer"
+              className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#A87500] cursor-pointer"
             >
               Perguntas frequentes
             </button>
-            <div className="pt-2 border-t border-[#232834] grid grid-cols-2 gap-2.5">
+            <div className="pt-2 border-t border-[#E5E7EB] grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
                   onNavigate('/login');
                 }}
-                className="min-h-[44px] px-3 rounded-xl border border-[#232834] bg-[#0B0D11] text-sm font-semibold text-[#F3F4F6] cursor-pointer"
+                className="min-h-[44px] px-3 rounded-xl border border-[#E5E7EB] bg-[#F6F7F9] text-sm font-semibold text-[#111827] cursor-pointer"
               >
                 Entrar
               </button>
@@ -556,25 +556,25 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
 
       <main id="topo">
         {/* SEÇÃO 1 — HERO */}
-        <section className="relative pt-10 pb-14 sm:pt-16 sm:pb-20 lg:pt-20 lg:pb-24 border-b border-[#232834]/70">
+        <section className="relative pt-10 pb-14 sm:pt-16 sm:pb-20 lg:pt-20 lg:pb-24 border-b border-[#E5E7EB]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-10 items-center">
             <div className="lg:col-span-6 space-y-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5B731]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
                 Sistema de gestão para lanchonetes · Painel + Cardápio Digital
               </p>
 
-              <h1 className="font-display text-3xl sm:text-4xl lg:text-[46px] font-extrabold tracking-[-0.025em] leading-[1.12] text-[#F9FAFB]">
+              <h1 className="font-display text-3xl sm:text-4xl lg:text-[46px] font-extrabold tracking-[-0.025em] leading-[1.12] text-[#111827]">
                 Você cuida da sua lanchonete. O MGW cuida da gestão.
               </h1>
 
-              <p className="text-base sm:text-lg text-[#9CA3AF] leading-relaxed max-w-xl">
+              <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-xl">
                 Controle vendas no balcão, pedidos pelo celular, cardápio digital,
                 produtos, combos, despesas e resultados do mês em um único painel
                 simples para o dia a dia.
               </p>
 
-              <p className="text-sm sm:text-base font-semibold text-[#F3F4F6] flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <span className="text-[#F5B731] font-mono tabular-nums font-bold whitespace-nowrap">
+              <p className="text-sm sm:text-base font-semibold text-[#111827] flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <span className="text-[#A87500] font-mono tabular-nums font-bold whitespace-nowrap">
                   R$ 49,90 por mês
                 </span>
                 <span className="text-[#6B7280]" aria-hidden="true">
@@ -591,7 +591,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 <button
                   type="button"
                   onClick={() => onNavigate('/cadastro')}
-                  className="min-h-[48px] px-6 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                  className="min-h-[48px] px-6 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap shrink-0"
                 >
                   Começar meu teste grátis
                   <ArrowRight className="w-4 h-4 shrink-0" />
@@ -600,18 +600,18 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 <button
                   type="button"
                   onClick={() => scrollToSection('sistema')}
-                  className="min-h-[48px] px-5 rounded-xl border border-[#232834] hover:border-[#F5B731]/60 bg-[#12151C] text-[#F3F4F6] text-sm sm:text-base font-semibold inline-flex items-center justify-center cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                  className="min-h-[48px] px-5 rounded-xl border border-[#E5E7EB] hover:border-[#F5B731]/60 bg-white text-[#111827] text-sm sm:text-base font-semibold inline-flex items-center justify-center cursor-pointer transition-colors whitespace-nowrap shrink-0"
                 >
                   Conhecer o sistema
                 </button>
               </div>
 
-              <div className="text-xs sm:text-sm text-[#9CA3AF] flex flex-wrap items-center gap-2">
+              <div className="text-xs sm:text-sm text-[#6B7280] flex flex-wrap items-center gap-2">
                 <span>Já utiliza o sistema?</span>
                 <button
                   type="button"
                   onClick={() => onNavigate('/login')}
-                  className="text-[#F5B731] hover:underline font-semibold cursor-pointer"
+                  className="text-[#A87500] hover:underline font-semibold cursor-pointer"
                 >
                   Entrar no sistema
                 </button>
@@ -645,13 +645,13 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   priority
                   className="w-full"
                 />
-                <div className="rounded-2xl border border-[#232834] bg-[#12151C] p-4 flex flex-col justify-between">
+                <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 flex flex-col justify-between">
                   <div className="space-y-2">
-                    <Smartphone className="w-5 h-5 text-[#F5B731]" />
-                    <p className="font-display text-sm font-bold text-[#F3F4F6]">
+                    <Smartphone className="w-5 h-5 text-[#A87500]" />
+                    <p className="font-display text-sm font-bold text-[#111827]">
                       Cardápio Digital integrado
                     </p>
-                    <p className="text-xs text-[#9CA3AF] leading-relaxed">
+                    <p className="text-xs text-[#6B7280] leading-relaxed">
                       O cliente pede pelo celular e o pedido aparece na fila do
                       seu painel.
                     </p>
@@ -659,7 +659,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   <button
                     type="button"
                     onClick={() => scrollToSection('cardapio')}
-                    className="mt-3 text-left text-xs font-semibold text-[#F5B731] inline-flex items-center gap-1 cursor-pointer"
+                    className="mt-3 text-left text-xs font-semibold text-[#A87500] inline-flex items-center gap-1 cursor-pointer"
                   >
                     Ver passo a passo
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -671,16 +671,16 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 2 — FEITO PARA A CORRERIA DA SUA LANCHONETE */}
-        <section className="py-14 sm:py-20 border-b border-[#232834]/70">
+        <section className="py-14 sm:py-20 border-b border-[#E5E7EB]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-10">
             <div className="max-w-2xl space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5B731]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
                 Feito para a correria da sua lanchonete
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#F9FAFB]">
+              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#111827]">
                 Menos complicação. Mais agilidade no atendimento.
               </h2>
-              <p className="text-sm sm:text-base text-[#9CA3AF] leading-relaxed">
+              <p className="text-sm sm:text-base text-[#6B7280] leading-relaxed">
                 Quando o balcão enche e os pedidos chegam ao mesmo tempo, cada
                 pessoa da operação precisa ver exatamente o que fazer, sem telas
                 confusas.
@@ -688,20 +688,20 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <article className="bg-[#12151C] border border-[#232834] rounded-2xl p-6 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-[#F5B731]/12 border border-[#F5B731]/25 flex items-center justify-center text-[#F5B731]">
+              <article className="bg-white border border-[#E5E7EB] rounded-2xl p-6 space-y-4">
+                <div className="w-10 h-10 rounded-xl bg-[#F5B731]/12 border border-[#F5B731]/25 flex items-center justify-center text-[#A87500]">
                   <Store className="w-5 h-5" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-display text-lg font-bold text-[#F3F4F6]">
+                  <h3 className="font-display text-lg font-bold text-[#111827]">
                     Proprietário
                   </h3>
-                  <p className="text-sm text-[#9CA3AF] leading-relaxed">
+                  <p className="text-sm text-[#6B7280] leading-relaxed">
                     Enxerga o caixa do dia, gastos com insumos, margem líquida e
                     combos mais vendidos no celular ou no computador.
                   </p>
                 </div>
-                <ul className="space-y-2 pt-2 border-t border-[#232834] text-xs sm:text-sm text-[#D1D5DB]">
+                <ul className="space-y-2 pt-2 border-t border-[#E5E7EB] text-xs sm:text-sm text-[#4B5563]">
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-[#22C55E] shrink-0" />
                     Saúde financeira em tempo real
@@ -713,20 +713,20 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 </ul>
               </article>
 
-              <article className="bg-[#12151C] border border-[#232834] rounded-2xl p-6 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-[#F5B731]/12 border border-[#F5B731]/25 flex items-center justify-center text-[#F5B731]">
+              <article className="bg-white border border-[#E5E7EB] rounded-2xl p-6 space-y-4">
+                <div className="w-10 h-10 rounded-xl bg-[#F5B731]/12 border border-[#F5B731]/25 flex items-center justify-center text-[#A87500]">
                   <ShoppingBag className="w-5 h-5" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-display text-lg font-bold text-[#F3F4F6]">
+                  <h3 className="font-display text-lg font-bold text-[#111827]">
                     Quem atende
                   </h3>
-                  <p className="text-sm text-[#9CA3AF] leading-relaxed">
+                  <p className="text-sm text-[#6B7280] leading-relaxed">
                     Lança combos no balcão em poucos cliques e recebe pedidos do
                     cardápio digital com aviso sonoro e endereço conferido.
                   </p>
                 </div>
-                <ul className="space-y-2 pt-2 border-t border-[#232834] text-xs sm:text-sm text-[#D1D5DB]">
+                <ul className="space-y-2 pt-2 border-t border-[#E5E7EB] text-xs sm:text-sm text-[#4B5563]">
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-[#22C55E] shrink-0" />
                     Venda rápida por combo ou produto
@@ -738,21 +738,21 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 </ul>
               </article>
 
-              <article className="bg-[#12151C] border border-[#232834] rounded-2xl p-6 space-y-4">
-                <div className="w-10 h-10 rounded-xl bg-[#F5B731]/12 border border-[#F5B731]/25 flex items-center justify-center text-[#F5B731]">
+              <article className="bg-white border border-[#E5E7EB] rounded-2xl p-6 space-y-4">
+                <div className="w-10 h-10 rounded-xl bg-[#F5B731]/12 border border-[#F5B731]/25 flex items-center justify-center text-[#A87500]">
                   <ChefHat className="w-5 h-5" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="font-display text-lg font-bold text-[#F3F4F6]">
+                  <h3 className="font-display text-lg font-bold text-[#111827]">
                     Quem prepara
                   </h3>
-                  <p className="text-sm text-[#9CA3AF] leading-relaxed">
+                  <p className="text-sm text-[#6B7280] leading-relaxed">
                     Recebe os itens organizados com quantidade, adicionais e
                     observações do cliente, além de impressão simples para
                     comanda.
                   </p>
                 </div>
-                <ul className="space-y-2 pt-2 border-t border-[#232834] text-xs sm:text-sm text-[#D1D5DB]">
+                <ul className="space-y-2 pt-2 border-t border-[#E5E7EB] text-xs sm:text-sm text-[#4B5563]">
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-[#22C55E] shrink-0" />
                     Status claro: Aceito, Em preparo e Pronto
@@ -770,17 +770,17 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 3 — CARDÁPIO DIGITAL INTERATIVO (7 ETAPAS REAIS) */}
         <section
           id="cardapio"
-          className="py-14 sm:py-20 border-b border-[#232834]/70 bg-[#0E1117]"
+          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-[#0E1117]"
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-10">
             <div className="max-w-3xl space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5B731]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
                 Cardápio Digital integrado
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#F9FAFB]">
+              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#111827]">
                 Seu cliente escolhe, personaliza e faz o pedido pelo celular.
               </h2>
-              <p className="text-sm sm:text-base text-[#9CA3AF] leading-relaxed">
+              <p className="text-sm sm:text-base text-[#6B7280] leading-relaxed">
                 Compartilhe o link da sua loja no WhatsApp ou no Instagram. O
                 cliente navega sem baixar nenhum aplicativo, escolhe entrega ou
                 retirada, define pagamento em Pix, Dinheiro ou Cartão na entrega
@@ -801,8 +801,8 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                       aria-pressed={isActive}
                       className={`w-full text-left rounded-2xl border p-4 transition-colors cursor-pointer ${
                         isActive
-                          ? 'bg-[#12151C] border-[#F5B731]'
-                          : 'bg-[#12151C]/50 border-[#232834] hover:border-[#374151]'
+                          ? 'bg-white border-[#F5B731]'
+                          : 'bg-white/50 border-[#E5E7EB] hover:border-[#D1D5DB]'
                       }`}
                     >
                       <div className="flex items-start gap-3.5">
@@ -810,7 +810,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                           className={`font-mono text-xs font-bold px-2 py-1 rounded-lg shrink-0 ${
                             isActive
                               ? 'bg-[#F5B731] text-[#0B0D11]'
-                              : 'bg-[#181C24] text-[#9CA3AF]'
+                              : 'bg-[#F9FAFB] text-[#6B7280]'
                           }`}
                         >
                           {item.step}
@@ -818,12 +818,12 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                         <div className="min-w-0 space-y-1">
                           <h3
                             className={`font-display text-sm sm:text-base font-bold leading-snug ${
-                              isActive ? 'text-[#F3F4F6]' : 'text-[#D1D5DB]'
+                              isActive ? 'text-[#111827]' : 'text-[#4B5563]'
                             }`}
                           >
                             {item.title}
                           </h3>
-                          <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+                          <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
                             {item.description}
                           </p>
                         </div>
@@ -834,13 +834,13 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               </div>
 
               {/* Active real screenshot preview */}
-              <div className="lg:col-span-6 lg:sticky lg:top-24 bg-[#12151C] border border-[#232834] rounded-2xl p-5 sm:p-6 space-y-5">
-                <div className="flex items-center justify-between gap-3 border-b border-[#232834] pb-3.5">
+              <div className="lg:col-span-6 lg:sticky lg:top-24 bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 space-y-5">
+                <div className="flex items-center justify-between gap-3 border-b border-[#E5E7EB] pb-3.5">
                   <div>
-                    <p className="text-xs font-mono text-[#F5B731]">
+                    <p className="text-xs font-mono text-[#A87500]">
                       Etapa {currentMenuStep.step} de 07
                     </p>
-                    <p className="font-display text-sm sm:text-base font-bold text-[#F3F4F6]">
+                    <p className="font-display text-sm sm:text-base font-bold text-[#111827]">
                       {currentMenuStep.title}
                     </p>
                   </div>
@@ -854,7 +854,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                         )
                       }
                       aria-label="Etapa anterior do cardápio"
-                      className="min-w-[40px] min-h-[40px] rounded-xl border border-[#232834] hover:border-[#F5B731] bg-[#0B0D11] text-[#F3F4F6] flex items-center justify-center cursor-pointer"
+                      className="min-w-[40px] min-h-[40px] rounded-xl border border-[#E5E7EB] hover:border-[#F5B731] bg-[#F6F7F9] text-[#111827] flex items-center justify-center cursor-pointer"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
@@ -866,7 +866,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                         )
                       }
                       aria-label="Próxima etapa do cardápio"
-                      className="min-w-[40px] min-h-[40px] rounded-xl border border-[#232834] hover:border-[#F5B731] bg-[#0B0D11] text-[#F3F4F6] flex items-center justify-center cursor-pointer"
+                      className="min-w-[40px] min-h-[40px] rounded-xl border border-[#E5E7EB] hover:border-[#F5B731] bg-[#F6F7F9] text-[#111827] flex items-center justify-center cursor-pointer"
                     >
                       <ChevronRight className="w-4 h-4" />
                     </button>
@@ -892,7 +892,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   )}
                 </div>
 
-                <p className="text-xs text-center text-[#9CA3AF]">
+                <p className="text-xs text-center text-[#6B7280]">
                   {currentMenuStep.caption}
                 </p>
               </div>
@@ -901,25 +901,25 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 4 — REGISTRO DE VENDAS EM MENOS DE 30 SEGUNDOS */}
-        <section className="py-14 sm:py-20 border-b border-[#232834]/70">
+        <section className="py-14 sm:py-20 border-b border-[#E5E7EB]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-10">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
               <div className="max-w-2xl space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5B731]">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
                   Agilidade no balcão
                 </p>
-                <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#F9FAFB]">
+                <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#111827]">
                   Uma venda de combo pode ser registrada em menos de 30
                   segundos.
                 </h2>
-                <p className="text-sm sm:text-base text-[#9CA3AF] leading-relaxed">
+                <p className="text-sm sm:text-base text-[#6B7280] leading-relaxed">
                   Veja o fluxo ilustrativo completo em 4 passos simples dentro
                   do painel: selecione o combo, confira a forma de pagamento e
                   confirme direto para o caixa do dia.
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-mono text-[#F5B731] shrink-0">
+              <div className="flex items-center gap-2 text-xs font-mono text-[#A87500] shrink-0">
                 <Timer className="w-4 h-4 shrink-0" />
                 <span>Ilustração do fluxo em 4 passos · Operação direta</span>
               </div>
@@ -937,22 +937,22 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                       aria-pressed={selected}
                       className={`text-left rounded-2xl border p-4 transition-colors cursor-pointer ${
                         selected
-                          ? 'bg-[#12151C] border-[#F5B731]'
-                          : 'bg-[#12151C]/50 border-[#232834] hover:border-[#374151]'
+                          ? 'bg-white border-[#F5B731]'
+                          : 'bg-white/50 border-[#E5E7EB] hover:border-[#D1D5DB]'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="text-xs font-mono font-bold text-[#F5B731]">
+                        <span className="text-xs font-mono font-bold text-[#A87500]">
                           {step.step}
                         </span>
                         <span className="text-[11px] font-mono text-[#6B7280]">
                           0{idx + 1}/04
                         </span>
                       </div>
-                      <h3 className="font-display text-sm sm:text-base font-bold text-[#F3F4F6]">
+                      <h3 className="font-display text-sm sm:text-base font-bold text-[#111827]">
                         {step.title}
                       </h3>
-                      <p className="text-xs sm:text-sm text-[#9CA3AF] mt-1 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-[#6B7280] mt-1 leading-relaxed">
                         {step.description}
                       </p>
                     </button>
@@ -966,11 +966,11 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   alt={currentFastStep.title}
                   urlLabel={currentFastStep.urlLabel}
                 />
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#9CA3AF] px-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#6B7280] px-1">
                   <span>
                     {currentFastStep.step}: {currentFastStep.title}
                   </span>
-                  <span className="font-mono text-[#D1D5DB]">
+                  <span className="font-mono text-[#4B5563]">
                     Pix · Dinheiro · Cartão
                   </span>
                 </div>
@@ -982,17 +982,17 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 5 — TUDO ORGANIZADO EM UM SÓ SISTEMA */}
         <section
           id="sistema"
-          className="py-14 sm:py-20 border-b border-[#232834]/70 bg-[#0E1117]"
+          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-[#0E1117]"
         >
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-12">
             <div className="max-w-3xl space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5B731]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
                 Tudo organizado em um só sistema
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#F9FAFB]">
+              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#111827]">
                 Mais controle sobre tudo que acontece na sua lanchonete.
               </h2>
-              <p className="text-sm sm:text-base text-[#9CA3AF] leading-relaxed">
+              <p className="text-sm sm:text-base text-[#6B7280] leading-relaxed">
                 Explore cada módulo real do MGW Gestão. Clique em qualquer área
                 abaixo para ver a tela verdadeira e o que você controla no dia a
                 dia.
@@ -1019,7 +1019,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                       className={`min-h-[40px] px-3.5 rounded-xl border text-xs sm:text-sm font-semibold inline-flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap ${
                         active
                           ? 'bg-[#F5B731] border-[#F5B731] text-[#0B0D11]'
-                          : 'bg-[#12151C] border-[#232834] text-[#D1D5DB] hover:border-[#F5B731]/50 hover:text-[#F3F4F6]'
+                          : 'bg-white border-[#E5E7EB] text-[#4B5563] hover:border-[#F5B731]/50 hover:text-[#111827]'
                       }`}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
@@ -1029,21 +1029,21 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 })}
               </div>
 
-              <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 sm:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                 <div className="lg:col-span-5 space-y-5">
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[#F5B731]">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#A87500]">
                       Módulo: {currentModule.name}
                     </p>
-                    <h3 className="font-display text-xl sm:text-2xl font-bold text-[#F9FAFB] leading-snug">
+                    <h3 className="font-display text-xl sm:text-2xl font-bold text-[#111827] leading-snug">
                       {currentModule.headline}
                     </h3>
-                    <p className="text-sm text-[#9CA3AF] leading-relaxed">
+                    <p className="text-sm text-[#6B7280] leading-relaxed">
                       {currentModule.description}
                     </p>
                   </div>
 
-                  <ul className="space-y-2.5 text-sm text-[#D1D5DB]">
+                  <ul className="space-y-2.5 text-sm text-[#4B5563]">
                     {currentModule.highlights.map((item) => (
                       <li key={item} className="flex items-start gap-2.5">
                         <Check className="w-4 h-4 text-[#22C55E] shrink-0 mt-0.5" />
@@ -1055,7 +1055,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   <button
                     type="button"
                     onClick={() => onNavigate('/cadastro')}
-                    className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 cursor-pointer transition-colors"
+                    className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 cursor-pointer transition-colors"
                   >
                     Testar na prática por 3 dias
                     <ArrowRight className="w-4 h-4" />
@@ -1074,17 +1074,17 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
 
             {/* Editorial Showcase Highlights for Key Pillar Pairs */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
-              <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-4">
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-4">
                 <DesktopFrame
                   src="/assets/screenshots/gestao-produtos-categorias.webp"
                   alt="Tela de produtos, categorias personalizadas e grupos de adicionais"
                   urlLabel="Produtos · Categorias · Adicionais"
                 />
                 <div className="space-y-1.5">
-                  <h3 className="font-display text-base font-bold text-[#F3F4F6]">
+                  <h3 className="font-display text-base font-bold text-[#111827]">
                     Produtos, Categorias e Adicionais
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+                  <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
                     Crie categorias como Pastéis, Kikão e Porções, cadastre
                     grupos de adicionais e ative ou pause itens sem apagar o
                     histórico.
@@ -1092,34 +1092,34 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 </div>
               </div>
 
-              <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-4">
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-4">
                 <DesktopFrame
                   src="/assets/screenshots/gestao-despesas.webp"
                   alt="Tela de lançamento e controle de despesas da lanchonete"
                   urlLabel="Despesas e Custos Operacionais"
                 />
                 <div className="space-y-1.5">
-                  <h3 className="font-display text-base font-bold text-[#F3F4F6]">
+                  <h3 className="font-display text-base font-bold text-[#111827]">
                     Despesas e Saúde Financeira
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+                  <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
                     Lance insumos, entregas e contas fixas para saber o saldo
                     real da operação e não confundir faturamento bruto com lucro.
                   </p>
                 </div>
               </div>
 
-              <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-4">
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-4">
                 <DesktopFrame
                   src="/assets/screenshots/gestao-relatorios.webp"
                   alt="Tela de relatórios por período com ranking de combos e pagamentos"
                   urlLabel="Relatórios por Período"
                 />
                 <div className="space-y-1.5">
-                  <h3 className="font-display text-base font-bold text-[#F3F4F6]">
+                  <h3 className="font-display text-base font-bold text-[#111827]">
                     Relatórios e Cardápio Digital
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+                  <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
                     Compare datas, identifique os combos campeões e ajuste taxa
                     de entrega, Pix e horários direto na aba do Cardápio Digital.
                   </p>
@@ -1130,16 +1130,16 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 6 — SEGURANÇA E CONTROLE */}
-        <section className="py-14 sm:py-20 border-b border-[#232834]/70">
+        <section className="py-14 sm:py-20 border-b border-[#E5E7EB]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-5 space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5B731]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
                 Segurança e controle
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#F9FAFB]">
+              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#111827]">
                 Seu estabelecimento, seus dados e seu controle.
               </h2>
-              <p className="text-sm sm:text-base text-[#9CA3AF] leading-relaxed">
+              <p className="text-sm sm:text-base text-[#6B7280] leading-relaxed">
                 Construído sobre banco PostgreSQL com autenticação dedicada e
                 regras de isolamento para que cada loja veja exclusivamente a
                 própria operação.
@@ -1147,45 +1147,45 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
             </div>
 
             <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-2">
-                <Lock className="w-5 h-5 text-[#F5B731]" />
-                <h3 className="font-display text-base font-bold text-[#F3F4F6]">
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-2">
+                <Lock className="w-5 h-5 text-[#A87500]" />
+                <h3 className="font-display text-base font-bold text-[#111827]">
                   Acesso autenticado individual
                 </h3>
-                <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
                   Entrada protegida via conta Google ou e-mail verificado e
                   senha, com recuperação direta quando necessário.
                 </p>
               </div>
 
-              <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-2">
-                <ShieldCheck className="w-5 h-5 text-[#F5B731]" />
-                <h3 className="font-display text-base font-bold text-[#F3F4F6]">
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-2">
+                <ShieldCheck className="w-5 h-5 text-[#A87500]" />
+                <h3 className="font-display text-base font-bold text-[#111827]">
                   Isolamento entre estabelecimentos
                 </h3>
-                <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
                   Políticas Row Level Security (RLS) no banco garantem que
                   vendas, despesas e pedidos não se misturem entre contas.
                 </p>
               </div>
 
-              <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-2">
-                <Users className="w-5 h-5 text-[#F5B731]" />
-                <h3 className="font-display text-base font-bold text-[#F3F4F6]">
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-2">
+                <Users className="w-5 h-5 text-[#A87500]" />
+                <h3 className="font-display text-base font-bold text-[#111827]">
                   Controle por papéis na equipe
                 </h3>
-                <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
                   Permissões distintas por perfil (proprietário, administrador,
                   gerente e equipe) para proteger ações sensíveis e caixa.
                 </p>
               </div>
 
-              <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-2">
-                <Smartphone className="w-5 h-5 text-[#F5B731]" />
-                <h3 className="font-display text-base font-bold text-[#F3F4F6]">
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl p-5 space-y-2">
+                <Smartphone className="w-5 h-5 text-[#A87500]" />
+                <h3 className="font-display text-base font-bold text-[#111827]">
                   Sincronizado na nuvem
                 </h3>
-                <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
                   Acesse pelo notebook no balcão ou pelo celular onde estiver,
                   mantendo os registros salvos no mesmo estabelecimento.
                 </p>
@@ -1197,33 +1197,33 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 7 — PREÇO */}
         <section
           id="preco"
-          className="py-14 sm:py-20 border-b border-[#232834]/70 bg-[#0E1117]"
+          className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-[#0E1117]"
         >
           <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-8">
             <div className="text-center space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5B731]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
                 Preço simples e transparente
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#F9FAFB]">
+              <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#111827]">
                 Um único plano com tudo incluído.
               </h2>
-              <p className="text-sm sm:text-base text-[#9CA3AF]">
+              <p className="text-sm sm:text-base text-[#6B7280]">
                 Comece com 3 dias gratuitos para testar com os seus produtos, sem
                 precisar cadastrar cartão de crédito.
               </p>
             </div>
 
-            <div className="bg-[#12151C] border border-[#F5B731]/55 rounded-2xl p-6 sm:p-10 grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-              <div className="md:col-span-6 space-y-4 md:border-r md:border-[#232834] md:pr-8">
-                <p className="font-display text-lg font-bold text-[#F3F4F6]">
+            <div className="bg-white border border-[#F5B731]/55 rounded-2xl p-6 sm:p-10 grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+              <div className="md:col-span-6 space-y-4 md:border-r md:border-[#E5E7EB] md:pr-8">
+                <p className="font-display text-lg font-bold text-[#111827]">
                   MGW Gestão
                 </p>
 
                 <div className="flex items-baseline gap-2 whitespace-nowrap">
-                  <span className="font-display text-4xl sm:text-[42px] font-extrabold font-mono tabular-nums text-[#F5B731]">
+                  <span className="font-display text-4xl sm:text-[42px] font-extrabold font-mono tabular-nums text-[#A87500]">
                     R$ 49,90
                   </span>
-                  <span className="text-sm text-[#9CA3AF]">/ mês</span>
+                  <span className="text-sm text-[#6B7280]">/ mês</span>
                 </div>
 
                 <p className="text-sm font-semibold text-[#22C55E]">
@@ -1234,7 +1234,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   <button
                     type="button"
                     onClick={() => onNavigate('/cadastro')}
-                    className="w-full min-h-[48px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
+                    className="w-full min-h-[48px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
                   >
                     Começar meu teste grátis
                     <ArrowRight className="w-4 h-4 shrink-0" />
@@ -1242,7 +1242,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   <button
                     type="button"
                     onClick={() => onNavigate('/login')}
-                    className="w-full min-h-[42px] px-4 rounded-xl border border-[#232834] hover:border-[#F5B731]/50 text-xs sm:text-sm font-semibold text-[#D1D5DB] cursor-pointer transition-colors whitespace-nowrap"
+                    className="w-full min-h-[42px] px-4 rounded-xl border border-[#E5E7EB] hover:border-[#F5B731]/50 text-xs sm:text-sm font-semibold text-[#4B5563] cursor-pointer transition-colors whitespace-nowrap"
                   >
                     Já tenho conta · Entrar no sistema
                   </button>
@@ -1250,7 +1250,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               </div>
 
               <div className="md:col-span-6 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#9CA3AF]">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
                   O que está incluído na assinatura
                 </p>
                 <ul className="space-y-3 text-sm text-[#E5E7EB]">
@@ -1269,14 +1269,14 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         {/* SEÇÃO 8 — PERGUNTAS FREQUENTES */}
         <section
           id="duvidas"
-          className="py-14 sm:py-20 border-b border-[#232834]/70"
+          className="py-14 sm:py-20 border-b border-[#E5E7EB]"
         >
           <div className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5B731]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
                 Perguntas frequentes
               </p>
-              <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-[#F9FAFB]">
+              <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-[#111827]">
                 Dúvidas comuns antes de começar
               </h2>
             </div>
@@ -1287,7 +1287,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 return (
                   <div
                     key={item.question}
-                    className="bg-[#12151C] border border-[#232834] rounded-2xl overflow-hidden"
+                    className="bg-white border border-[#E5E7EB] rounded-2xl overflow-hidden"
                   >
                     <button
                       type="button"
@@ -1295,17 +1295,17 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                       onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
                       className="w-full min-h-[54px] px-5 py-4 text-left flex items-center justify-between gap-4 cursor-pointer hover:bg-[#161A23] transition-colors"
                     >
-                      <span className="font-display text-sm sm:text-base font-bold text-[#F3F4F6]">
+                      <span className="font-display text-sm sm:text-base font-bold text-[#111827]">
                         {item.question}
                       </span>
                       <ChevronDown
-                        className={`w-4 h-4 text-[#F5B731] shrink-0 transition-transform duration-200 ${
+                        className={`w-4 h-4 text-[#A87500] shrink-0 transition-transform duration-200 ${
                           isOpen ? 'rotate-180' : ''
                         }`}
                       />
                     </button>
                     {isOpen && (
-                      <div className="px-5 pb-4 pt-1 text-sm text-[#9CA3AF] leading-relaxed border-t border-[#232834]/60">
+                      <div className="px-5 pb-4 pt-1 text-sm text-[#6B7280] leading-relaxed border-t border-[#E5E7EB]/60">
                         {item.answer}
                       </div>
                     )}
@@ -1317,19 +1317,19 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 9 — CHAMADA FINAL */}
-        <section className="py-14 sm:py-20 border-b border-[#232834]/70 bg-[#0E1117]">
+        <section className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-[#0E1117]">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-6">
-            <h2 className="font-display text-2xl sm:text-4xl font-extrabold tracking-tight text-[#F9FAFB]">
+            <h2 className="font-display text-2xl sm:text-4xl font-extrabold tracking-tight text-[#111827]">
               Chegou a hora de simplificar a gestão da sua lanchonete.
             </h2>
 
-            <p className="text-sm sm:text-base text-[#9CA3AF] max-w-xl mx-auto leading-relaxed">
+            <p className="text-sm sm:text-base text-[#6B7280] max-w-xl mx-auto leading-relaxed">
               Organize suas vendas, pedidos online, cardápio digital e
               financeiro em um só painel feito para quem trabalha na operação.
             </p>
 
-            <p className="text-sm sm:text-base font-semibold text-[#F3F4F6]">
-              <span className="text-[#F5B731] font-mono tabular-nums font-bold">
+            <p className="text-sm sm:text-base font-semibold text-[#111827]">
+              <span className="text-[#A87500] font-mono tabular-nums font-bold">
                 R$ 49,90 por mês
               </span>{' '}
               · 3 dias grátis · Sem cartão de crédito
@@ -1339,7 +1339,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               <button
                 type="button"
                 onClick={() => onNavigate('/cadastro')}
-                className="w-full sm:w-auto min-h-[48px] px-7 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                className="w-full sm:w-auto min-h-[48px] px-7 rounded-xl bg-[#F5B731] hover:bg-[#F0C85A] text-[#0B0D11] text-sm sm:text-base font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors"
               >
                 Começar meu teste grátis
                 <ArrowRight className="w-4 h-4" />
@@ -1347,7 +1347,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               <button
                 type="button"
                 onClick={() => onNavigate('/login')}
-                className="w-full sm:w-auto min-h-[48px] px-6 rounded-xl border border-[#232834] hover:border-[#F5B731]/60 bg-[#12151C] text-sm font-semibold text-[#F3F4F6] cursor-pointer transition-colors"
+                className="w-full sm:w-auto min-h-[48px] px-6 rounded-xl border border-[#E5E7EB] hover:border-[#F5B731]/60 bg-white text-sm font-semibold text-[#111827] cursor-pointer transition-colors"
               >
                 Entrar no sistema
               </button>
@@ -1357,56 +1357,56 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
       </main>
 
       {/* SEÇÃO 10 — RODAPÉ */}
-      <footer className="bg-[#0B0D11] py-10 sm:py-12">
+      <footer className="bg-[#F6F7F9] py-10 sm:py-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row md:items-center justify-between gap-8">
           <div className="space-y-2 max-w-md">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#F5B731]/15 border border-[#F5B731]/35 flex items-center justify-center text-[#F5B731] font-display font-bold text-sm">
+              <div className="w-8 h-8 rounded-lg bg-[#F5B731]/15 border border-[#F5B731]/35 flex items-center justify-center text-[#A87500] font-display font-bold text-sm">
                 M
               </div>
-              <span className="font-display font-bold text-base text-[#F9FAFB]">
+              <span className="font-display font-bold text-base text-[#111827]">
                 MGW GESTÃO
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-[#9CA3AF] leading-relaxed">
+            <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
               Plataforma de gestão e cardápio digital para lanchonetes,
               hamburguerias, pastelarias e operações rápidas de alimentação.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-xs sm:text-sm text-[#D1D5DB]">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-xs sm:text-sm text-[#4B5563]">
             <button
               type="button"
               onClick={() => onNavigate('/login')}
-              className="hover:text-[#F5B731] cursor-pointer transition-colors"
+              className="hover:text-[#A87500] cursor-pointer transition-colors"
             >
               Entrar no sistema
             </button>
             <button
               type="button"
               onClick={() => onNavigate('/cadastro')}
-              className="hover:text-[#F5B731] cursor-pointer transition-colors"
+              className="hover:text-[#A87500] cursor-pointer transition-colors"
             >
               Criar conta
             </button>
             <button
               type="button"
               onClick={() => onNavigate('/termos')}
-              className="hover:text-[#F5B731] cursor-pointer transition-colors"
+              className="hover:text-[#A87500] cursor-pointer transition-colors"
             >
               Termos de uso
             </button>
             <button
               type="button"
               onClick={() => onNavigate('/privacidade')}
-              className="hover:text-[#F5B731] cursor-pointer transition-colors"
+              className="hover:text-[#A87500] cursor-pointer transition-colors"
             >
               Política de privacidade
             </button>
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 pt-6 border-t border-[#232834]/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[#6B7280]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 pt-6 border-t border-[#E5E7EB] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[#6B7280]">
           <span>© {new Date().getFullYear()} MGW Gestão. Todos os direitos reservados.</span>
           <span>Plano mensal de R$ 49,90 · 3 dias grátis para começar</span>
         </div>
