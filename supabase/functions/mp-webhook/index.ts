@@ -59,20 +59,12 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const configuredEnvironment = Deno.env.get("MP_ENVIRONMENT");
-  if (configuredEnvironment !== "production" && configuredEnvironment !== "test") {
-    console.error("[mp-webhook] MP_ENVIRONMENT ausente ou inválido; webhook bloqueado.");
-    return json({ error: "Webhook environment not configured" }, 503);
-  }
-  const mpEnvironment = configuredEnvironment;
-  const accessToken = (Deno.env.get(mpEnvironment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
-  const webhookSecret = (Deno.env.get(mpEnvironment === "production" ? "MP_WEBHOOK_SECRET" : "MP_WEBHOOK_SECRET_TEST") || "").trim();
-  if (!supabaseUrl || !serviceRoleKey || !accessToken) {
-    console.error("[mp-webhook] Configuração obrigatória ausente.", {
-      supabaseUrl: Boolean(supabaseUrl),
-      serviceRoleKey: Boolean(serviceRoleKey),
-      accessTokenPresent: Boolean(accessToken),
-    });
+  const productionToken = (Deno.env.get("MP_ACCESS_TOKEN") || "").trim();
+  const testToken = (Deno.env.get("MP_ACCESS_TOKEN_TEST") || "").trim();
+  const productionSecret = (Deno.env.get("MP_WEBHOOK_SECRET") || "").trim();
+  const testSecret = (Deno.env.get("MP_WEBHOOK_SECRET_TEST") || "").trim();
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error("[mp-webhook] Configuração Supabase obrigatória ausente.");
     return json({ error: "Webhook not configured" }, 503);
   }
 
@@ -94,19 +86,32 @@ Deno.serve(async (req: Request) => {
       console.info("[mp-webhook] Simulação do painel recebida e confirmada; nenhum dado de assinatura foi alterado.");
       return json({ received: true, simulated: true, ignored: true });
     }
+
+    // Identify the environment by validating the HMAC against each configured secret.
+    // MP_ENVIRONMENT controls new checkout creation only; it must not disable callbacks
+    // for subscriptions created earlier in the other environment.
+    const productionSignatureValid = productionSecret
+      ? await verifySignature(req, resourceId, productionSecret)
+      : false;
+    const testSignatureValid = testSecret
+      ? await verifySignature(req, resourceId, testSecret)
+      : false;
+    if (productionSignatureValid === testSignatureValid) {
+      console.warn("[mp-webhook] Assinatura ausente, inválida ou ambígua; evento recusado.");
+      return json({ error: "Invalid signature" }, 401);
+    }
+    const mpEnvironment = productionSignatureValid ? "production" : "test";
     if (typeof body.live_mode !== "boolean" || body.live_mode !== (mpEnvironment === "production")) {
-      console.warn("[mp-webhook] Evento live_mode incompatível com o ambiente configurado; evento recusado.");
+      console.warn("[mp-webhook] live_mode incompatível com o segredo que validou a assinatura.");
       return json({ error: "Webhook environment mismatch" }, 409);
+    }
+    const accessToken = mpEnvironment === "production" ? productionToken : testToken;
+    if (!accessToken) {
+      console.error("[mp-webhook] Access Token ausente para o ambiente validado.");
+      return json({ error: "Webhook access token not configured" }, 503);
     }
 
     if (eventType === "subscription_authorized_payment") {
-      if (!webhookSecret) {
-        console.error("[mp-webhook] MP_WEBHOOK_SECRET ausente; evento recusado.");
-        return json({ error: "Webhook secret not configured" }, 503);
-      }
-      const signatureValid = await verifySignature(req, resourceId, webhookSecret);
-      if (!signatureValid) return json({ error: "Invalid signature" }, 401);
-
       const paymentResponse = await fetch(
         `https://api.mercadopago.com/authorized_payments/${encodeURIComponent(resourceId)}`,
         { headers: { "Authorization": `Bearer ${accessToken}`, ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}) } },
@@ -285,13 +290,6 @@ Deno.serve(async (req: Request) => {
     // The dashboard-level Webhooks configuration is not the supported setup path for Subscriptions.
     // Prefer HMAC when available; for test mode also require a canonical resource lookup before
     // any database mutation, so simulator payloads cannot activate a tenant.
-    if (!webhookSecret) {
-      console.error("[mp-webhook] MP_WEBHOOK_SECRET ausente; notificação recusada.");
-      return json({ error: "Webhook secret not configured" }, 503);
-    }
-    const signatureValid = await verifySignature(req, resourceId, webhookSecret);
-    if (!signatureValid) return json({ error: "Invalid signature" }, 401);
-
     const mpResponse = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(resourceId)}`, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
