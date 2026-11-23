@@ -1,22 +1,35 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
     font-family: var(--font-sans);
-    background-color: #0B0D11;
-    color: #F3F4F6;
+    background: #f6f7f9;
+    color: #202733;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    background: #f6f7f9;
+    color: #202733;
+    font-family: var(--font-sans);
   }
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    letter-spacing: -0.025em;
+  }
+
+  ::selection {
+    background: rgb(245 183 49 / 28%);
+    color: #202733;
   }
 
   .tabular-nums {
@@ -24,23 +37,23 @@
   }
 }
 
-/* Custom sleek scrollbars matching dark console theme */
+/* Scrollbars discretas para a interface clara. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0B0D11;
+  background: #f6f7f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #222733;
+  background: #d8dee7;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #333A4D;
+  background: #b9c3d0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -48,5 +61,42 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Compatibilidade temporária das classes legadas durante a migração visual.
+   Não altera componentes, regras de negócio, autenticação ou permissões. */
+@layer utilities {
+  [class~="bg-[#0B0D11]"] { background-color: #f6f7f9 !important; }
+  [class~="bg-[#0F1218]"] { background-color: #f0f2f5 !important; }
+  [class~="bg-[#12151C]"] { background-color: #ffffff !important; }
+  [class~="bg-[#171B24]"] { background-color: #edf0f4 !important; }
+  [class~="bg-[#181C26]"] { background-color: #e9edf2 !important; }
+  [class~="bg-[#1B202C]"] { background-color: #e9edf2 !important; }
+
+  [class~="border-[#222733]"] { border-color: #e1e5eb !important; }
+  [class~="border-[#2A3040]"] { border-color: #d8dee7 !important; }
+  [class~="divide-[#1D222E]"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: #e8ebf0 !important;
+  }
+
+  /* Legibilidade em superfícies claras, inclusive formulários e tabelas legadas. */
+  [class~="text-[#F3F4F6]"] { color: #202733 !important; }
+  [class~="text-slate-100"] { color: #263140 !important; }
+  [class~="text-slate-200"] { color: #344154 !important; }
+  [class~="text-slate-300"] { color: #475467 !important; }
+  [class~="text-slate-400"] { color: #667085 !important; }
+  [class~="text-slate-500"] { color: #667085 !important; }
+  [class~="text-slate-600"] { color: #475467 !important; }
+
+  [class~="placeholder:text-slate-600"]::placeholder {
+    color: #667085 !important;
+    opacity: 1;
+  }
+
+  [class~="hover:bg-[#171B24]"]:hover,
+  [class~="hover:bg-[#1B202C]"]:hover {
+    background-color: #edf0f4 !important;
   }
 }

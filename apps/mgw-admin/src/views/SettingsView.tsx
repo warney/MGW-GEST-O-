@@ -89,7 +89,7 @@ export function SettingsView({
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-xl font-bold text-white">Configurações da Plataforma</h1>
+        <h1 className="text-xl font-bold text-slate-900">Configurações da Plataforma</h1>
         <p className="text-xs text-slate-400 mt-0.5">
           Parâmetros globais de trial, carência, retenção de dados e modo de manutenção.
           {settings && (
@@ -101,14 +101,14 @@ export function SettingsView({
       </div>
 
       {!isSuperAdmin && (
-        <div className="rounded-lg border border-[#222733] bg-[#12151C] p-4 text-xs text-slate-300">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-300">
           Modo somente leitura. Apenas <code className="font-mono text-[#F5B731]">super_admin</code> pode
           alterar parâmetros globais da plataforma.
         </div>
       )}
 
       {isSuperAdmin && !mfaVerified && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-200 flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
             <span>Valide seu segundo fator (MFA AAL2) para salvar alterações globais.</span>
@@ -116,7 +116,7 @@ export function SettingsView({
           <button
             type="button"
             onClick={onRequestMfa}
-            className="rounded border border-amber-400/50 px-3 py-1 font-semibold hover:bg-amber-500/20 cursor-pointer whitespace-nowrap"
+            className="rounded-lg border border-amber-400/50 px-3 py-1 font-semibold hover:bg-amber-500/20 cursor-pointer whitespace-nowrap"
           >
             Validar MFA
           </button>
@@ -124,21 +124,21 @@ export function SettingsView({
       )}
 
       {error && (
-        <div className="rounded-lg border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error}
         </div>
       )}
 
       {successMsg && (
-        <div className="rounded-lg border border-emerald-500/35 bg-emerald-500/10 p-4 text-xs text-emerald-200">
+        <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-4 text-xs text-emerald-700">
           {successMsg}
         </div>
       )}
 
       {loading ? (
-        <div className="h-72 rounded-lg border border-[#222733] bg-[#12151C] animate-pulse" />
+        <div className="h-72 rounded-xl border border-slate-200 bg-white animate-pulse" />
       ) : (
-        <form onSubmit={handleSave} className="rounded-lg border border-[#222733] bg-[#12151C] p-6 space-y-5 text-xs">
+        <form onSubmit={handleSave} className="rounded-xl border border-slate-200 bg-white p-6 space-y-5 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-slate-300 mb-1.5 font-medium">Nome da Plataforma</label>
@@ -148,7 +148,7 @@ export function SettingsView({
                 disabled={!isSuperAdmin}
                 value={form.platformName}
                 onChange={(e) => setForm((f) => ({ ...f, platformName: e.target.value }))}
-                className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white disabled:opacity-60"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 disabled:opacity-60"
               />
             </div>
 
@@ -160,7 +160,7 @@ export function SettingsView({
                 value={form.supportEmail}
                 onChange={(e) => setForm((f) => ({ ...f, supportEmail: e.target.value }))}
                 placeholder="suporte@mgwgestao.com.br"
-                className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white disabled:opacity-60"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 disabled:opacity-60"
               />
             </div>
           </div>
@@ -175,7 +175,7 @@ export function SettingsView({
                 disabled={!isSuperAdmin}
                 value={form.trialDays}
                 onChange={(e) => setForm((f) => ({ ...f, trialDays: Number(e.target.value) }))}
-                className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 font-mono text-white disabled:opacity-60"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-slate-900 disabled:opacity-60"
               />
             </div>
 
@@ -188,7 +188,7 @@ export function SettingsView({
                 disabled={!isSuperAdmin}
                 value={form.graceDays}
                 onChange={(e) => setForm((f) => ({ ...f, graceDays: Number(e.target.value) }))}
-                className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 font-mono text-white disabled:opacity-60"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-slate-900 disabled:opacity-60"
               />
             </div>
 
@@ -201,12 +201,12 @@ export function SettingsView({
                 disabled={!isSuperAdmin}
                 value={form.retentionMonths}
                 onChange={(e) => setForm((f) => ({ ...f, retentionMonths: Number(e.target.value) }))}
-                className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 font-mono text-white disabled:opacity-60"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-slate-900 disabled:opacity-60"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#222733]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
             <label className="flex items-center gap-2.5 text-slate-200 cursor-pointer">
               <input
                 type="checkbox"
@@ -236,13 +236,13 @@ export function SettingsView({
                 disabled={!isSuperAdmin}
                 value={form.maintenanceMessage}
                 onChange={(e) => setForm((f) => ({ ...f, maintenanceMessage: e.target.value }))}
-                className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900"
               />
             </div>
           )}
 
           {isSuperAdmin && (
-            <div className="pt-3 border-t border-[#222733] space-y-3">
+            <div className="pt-3 border-t border-slate-200 space-y-3">
               <div>
                 <label className="block text-slate-300 mb-1.5 font-medium">
                   Motivo da alteração (registrado na auditoria)
@@ -254,14 +254,14 @@ export function SettingsView({
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Ex.: Ajuste de janela de carência ou contato de suporte..."
-                  className="w-full rounded-md border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={saving || !mfaVerified || reason.trim().length < 3}
-                className="inline-flex items-center gap-2 rounded-md bg-[#F5B731] px-4 py-2 text-xs font-semibold text-[#0B0D11] hover:bg-[#e5a824] disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#F5B731] px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-amber-500 disabled:opacity-50 cursor-pointer"
               >
                 <Save className="h-3.5 w-3.5" />
                 <span>{saving ? 'Salvando...' : 'Salvar configurações globais'}</span>

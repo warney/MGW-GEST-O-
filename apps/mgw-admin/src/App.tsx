@@ -129,7 +129,7 @@ export function App() {
 
   if (booting) {
     return (
-      <div className="min-h-screen bg-[#0B0D11] text-slate-300 flex items-center justify-center text-xs font-mono">
+      <div className="min-h-screen bg-[#f6f7f9] text-slate-600 flex items-center justify-center text-xs font-mono">
         Verificando sessão administrativa no Supabase...
       </div>
     );
