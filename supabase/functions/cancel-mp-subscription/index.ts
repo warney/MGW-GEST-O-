@@ -16,14 +16,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const configuredEnvironment = Deno.env.get("MP_ENVIRONMENT");
-  if (configuredEnvironment !== "production" && configuredEnvironment !== "test") {
-    console.error("[cancel-mp-subscription] MP_ENVIRONMENT ausente ou inválido; operação bloqueada.");
-    return json({ error: "Ambiente do Mercado Pago não configurado." }, 503);
-  }
-  const mpEnvironment = configuredEnvironment;
-  const accessToken = (Deno.env.get(mpEnvironment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
-  if (!supabaseUrl || !serviceRoleKey || !accessToken) return json({ error: "Integração de cobrança não configurada." }, 503);
+  if (!supabaseUrl || !serviceRoleKey) return json({ error: "Serviço de cobrança indisponível." }, 503);
 
   const authHeader = req.headers.get("authorization") || "";
   const jwt = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
@@ -48,7 +41,12 @@ Deno.serve(async (req: Request) => {
       .select("id,status,mp_preapproval_id,current_period_end,mp_environment").eq("tenant_id", tenantId).maybeSingle();
     if (subError || !subscription) return json({ error: "Assinatura não encontrada." }, 404);
     if (!subscription.mp_preapproval_id) return json({ error: "Não há assinatura Mercado Pago para cancelar." }, 409);
-    if (subscription.mp_environment !== mpEnvironment) return json({ error: "A assinatura pertence a outro ambiente do Mercado Pago." }, 409);
+    const mpEnvironment = subscription.mp_environment;
+    if (mpEnvironment !== "production" && mpEnvironment !== "test") {
+      return json({ error: "Ambiente da assinatura não identificado com segurança." }, 409);
+    }
+    const accessToken = (Deno.env.get(mpEnvironment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
+    if (!accessToken) return json({ error: "Credencial do ambiente desta assinatura não configurada." }, 503);
     if (subscription.status === "cancelled") return json({ cancelled: true, currentPeriodEnd: subscription.current_period_end });
 
     const providerResponse = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(subscription.mp_preapproval_id)}`, {
