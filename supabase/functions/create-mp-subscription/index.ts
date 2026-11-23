@@ -35,7 +35,8 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const accessToken = Deno.env.get("MP_ACCESS_TOKEN") || "";
+  const mpEnvironment = Deno.env.get("MP_ENVIRONMENT") === "production" ? "production" : "test";
+  const accessToken = (Deno.env.get(mpEnvironment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
   if (!supabaseUrl || !serviceRoleKey || !accessToken) {
     console.error("[create-mp-subscription] Configuração ausente.");
     return json({ error: "Integração de pagamentos ainda não configurada." }, 503);
@@ -86,7 +87,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: subscription, error: subscriptionError } = await admin
       .from("subscriptions")
-      .select("id,status,trial_ends_at,mp_preapproval_id,mp_init_point,plan_amount_cents,currency,updated_at")
+      .select("id,status,trial_ends_at,mp_preapproval_id,mp_init_point,plan_amount_cents,currency,updated_at,mp_environment")
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (subscriptionError || !subscription) {
@@ -95,9 +96,10 @@ Deno.serve(async (req: Request) => {
     if (
       subscription.mp_preapproval_id &&
       subscription.mp_init_point &&
+      subscription.mp_environment === mpEnvironment &&
       !["cancelled", "expired", "suspended"].includes(subscription.status)
     ) {
-      return json({ checkoutUrl: subscription.mp_init_point, reused: true });
+      return json({ checkoutUrl: subscription.mp_init_point, reused: true, environment: mpEnvironment });
     }
     if (subscription.status === "authorized" || subscription.status === "exempt") {
       return json({ error: "Este estabelecimento já possui uma assinatura ativa." }, 409);
@@ -112,6 +114,7 @@ Deno.serve(async (req: Request) => {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}),
         "X-Idempotency-Key": `mgw-sub-${tenantId}-${subscription.updated_at || subscription.id}`,
       },
       body: JSON.stringify({
@@ -131,7 +134,10 @@ Deno.serve(async (req: Request) => {
     });
 
     const mpData = await mpResponse.json().catch(() => ({}));
-    if (!mpResponse.ok || typeof mpData.id !== "string" || typeof mpData.init_point !== "string" || String(mpData.external_reference || "") !== tenantId) {
+    const checkoutUrl = mpEnvironment === "test"
+      ? (typeof mpData.sandbox_init_point === "string" ? mpData.sandbox_init_point : mpData.init_point)
+      : mpData.init_point;
+    if (!mpResponse.ok || typeof mpData.id !== "string" || typeof checkoutUrl !== "string" || String(mpData.external_reference || "") !== tenantId) {
       console.error("[create-mp-subscription] Mercado Pago recusou a criação:", mpResponse.status, mpData?.message || "sem mensagem");
       return json({ error: "Não foi possível gerar o checkout. Tente novamente mais tarde." }, 502);
     }
@@ -146,7 +152,8 @@ Deno.serve(async (req: Request) => {
       .update({
         mp_preapproval_id: mpData.id,
         mp_payer_email: user.email,
-        mp_init_point: mpData.init_point,
+        mp_init_point: checkoutUrl,
+        mp_environment: mpEnvironment,
         status: nextStatus,
         updated_at: new Date().toISOString(),
       })
@@ -156,7 +163,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Checkout criado, mas não foi possível salvar o vínculo. Contate o suporte antes de tentar novamente." }, 500);
     }
 
-    return json({ checkoutUrl: mpData.init_point, subscriptionId: mpData.id, reused: false });
+    return json({ checkoutUrl, subscriptionId: mpData.id, reused: false, environment: mpEnvironment });
   } catch (error) {
     console.error("[create-mp-subscription] Erro inesperado:", error instanceof Error ? error.message : "unknown");
     return json({ error: "Erro interno ao preparar a assinatura." }, 500);

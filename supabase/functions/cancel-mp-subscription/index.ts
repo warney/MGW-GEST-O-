@@ -16,7 +16,8 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const accessToken = (Deno.env.get("MP_ACCESS_TOKEN") || "").trim();
+  const mpEnvironment = Deno.env.get("MP_ENVIRONMENT") === "production" ? "production" : "test";
+  const accessToken = (Deno.env.get(mpEnvironment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
   if (!supabaseUrl || !serviceRoleKey || !accessToken) return json({ error: "Integração de cobrança não configurada." }, 503);
 
   const authHeader = req.headers.get("authorization") || "";
@@ -39,14 +40,19 @@ Deno.serve(async (req: Request) => {
     if (memberError || !member || member.role !== "owner") return json({ error: "Apenas o proprietário pode cancelar a assinatura." }, 403);
 
     const { data: subscription, error: subError } = await admin.from("subscriptions")
-      .select("id,status,mp_preapproval_id,current_period_end").eq("tenant_id", tenantId).maybeSingle();
+      .select("id,status,mp_preapproval_id,current_period_end,mp_environment").eq("tenant_id", tenantId).maybeSingle();
     if (subError || !subscription) return json({ error: "Assinatura não encontrada." }, 404);
     if (!subscription.mp_preapproval_id) return json({ error: "Não há assinatura Mercado Pago para cancelar." }, 409);
+    if (subscription.mp_environment !== mpEnvironment) return json({ error: "A assinatura pertence a outro ambiente do Mercado Pago." }, 409);
     if (subscription.status === "cancelled") return json({ cancelled: true, currentPeriodEnd: subscription.current_period_end });
 
     const providerResponse = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(subscription.mp_preapproval_id)}`, {
       method: "PUT",
-      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}),
+      },
       body: JSON.stringify({ status: "canceled" }),
     });
     const providerData = await providerResponse.json().catch(() => ({}));

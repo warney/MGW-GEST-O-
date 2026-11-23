@@ -59,8 +59,9 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const accessToken = (Deno.env.get("MP_ACCESS_TOKEN") || "").trim();
-  const webhookSecret = (Deno.env.get("MP_WEBHOOK_SECRET") || "").trim();
+  const mpEnvironment = Deno.env.get("MP_ENVIRONMENT") === "production" ? "production" : "test";
+  const accessToken = (Deno.env.get(mpEnvironment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
+  const webhookSecret = (Deno.env.get(mpEnvironment === "production" ? "MP_WEBHOOK_SECRET" : "MP_WEBHOOK_SECRET_TEST") || "").trim();
   if (!supabaseUrl || !serviceRoleKey || !accessToken) {
     console.error("[mp-webhook] Configuração obrigatória ausente.", {
       supabaseUrl: Boolean(supabaseUrl),
@@ -99,7 +100,7 @@ Deno.serve(async (req: Request) => {
 
       const paymentResponse = await fetch(
         `https://api.mercadopago.com/authorized_payments/${encodeURIComponent(resourceId)}`,
-        { headers: { "Authorization": `Bearer ${accessToken}` } },
+        { headers: { "Authorization": `Bearer ${accessToken}`, ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}) } },
       );
       const authorized = await paymentResponse.json().catch(() => ({}));
       if (!paymentResponse.ok || String(authorized.id || "") !== resourceId) {
@@ -125,6 +126,10 @@ Deno.serve(async (req: Request) => {
       if (subscriptionError || !subscription) {
         console.error("[mp-webhook] Assinatura não localizada para a fatura.");
         return json({ error: "Subscription not found for invoice" }, 404);
+      }
+      if (subscription.mp_environment !== mpEnvironment) {
+        console.warn("[mp-webhook] Evento de ambiente diferente da assinatura recusado.");
+        return json({ error: "Subscription environment mismatch" }, 409);
       }
       if (Math.round(amount * 100) !== subscription.plan_amount_cents || currency !== subscription.currency) {
         console.error("[mp-webhook] Valor/moeda da fatura diverge do plano contratado.");
@@ -281,7 +286,8 @@ Deno.serve(async (req: Request) => {
     const mpResponse = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(resourceId)}`, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
-              },
+        ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}),
+      },
     });
     const mp = await mpResponse.json().catch(() => ({}));
     if (!mpResponse.ok || typeof mp.external_reference !== "string") {
@@ -313,6 +319,10 @@ Deno.serve(async (req: Request) => {
       .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_start,current_period_end,grace_until,last_event_at")
       .eq("tenant_id", tenantId).maybeSingle();
     if (currentError || !current) return json({ error: "MGW subscription not found" }, 404);
+    if (current.mp_environment !== mpEnvironment) {
+      console.warn("[mp-webhook] Evento de ambiente diferente da assinatura recusado.");
+      return json({ error: "Subscription environment mismatch" }, 409);
+    }
     if (current.mp_preapproval_id && current.mp_preapproval_id !== resourceId) {
       return json({ error: "Subscription ID mismatch" }, 409);
     }

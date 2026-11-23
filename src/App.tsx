@@ -745,7 +745,7 @@ export default function App() {
     const checkoutUrl = typeof data?.checkoutUrl === 'string' ? data.checkoutUrl : '';
     let parsed: URL;
     try { parsed = new URL(checkoutUrl); } catch { throw new Error(data?.error || 'O Mercado Pago não retornou um checkout válido.'); }
-    if (parsed.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br'].includes(parsed.hostname)) throw new Error('O endereço de checkout retornado não é oficial do Mercado Pago.');
+    if (parsed.protocol !== 'https:' || !['www.mercadopago.com.br', 'mercadopago.com.br', 'sandbox.mercadopago.com.br'].includes(parsed.hostname)) throw new Error('O endereço de checkout retornado não é oficial do Mercado Pago.');
     window.location.assign(parsed.toString());
   }
 
