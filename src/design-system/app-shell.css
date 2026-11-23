@@ -1,43 +1,106 @@
-/* Scoped light-theme migration overrides. Only descendants of .mgw-app-theme are affected. */
-.mgw-app-theme { background:var(--mgw-canvas)!important; color:var(--mgw-text-primary)!important; color-scheme:light; }
-.mgw-app-theme [class~="bg-[#0B0D11]"] { background-color:var(--mgw-canvas)!important; }
-.mgw-app-theme [class~="bg-[#12151C]"] { background-color:var(--mgw-surface)!important; }
-.mgw-app-theme [class~="bg-[#181C24]"] { background-color:var(--mgw-surface-subtle)!important; }
-.mgw-app-theme [class~="bg-[#0B0D11]/95"] { background-color:rgb(246 247 249 / 95%)!important; }
-.mgw-app-theme [class~="bg-[#12151C]/95"] { background-color:rgb(255 255 255 / 96%)!important; }
+/* MGW Gestão — Scoped light-theme & shell alignment inside .mgw-app-theme only. */
+.mgw-app-theme {
+  background-color: var(--mgw-canvas) !important;
+  color: var(--mgw-text-primary) !important;
+  color-scheme: light;
+}
+
+/* Legacy surface & background mappings inside authenticated panel */
+.mgw-app-theme [class~="bg-[#0B0D11]"] { background-color: var(--mgw-canvas) !important; }
+.mgw-app-theme [class~="bg-[#12151C]"] { background-color: var(--mgw-surface) !important; }
+.mgw-app-theme [class~="bg-[#181C24]"] { background-color: var(--mgw-surface-subtle) !important; }
+.mgw-app-theme [class~="bg-[#0B0D11]/95"] { background-color: rgb(245 246 250 / 95%) !important; }
+.mgw-app-theme [class~="bg-[#12151C]/95"] { background-color: rgb(255 255 255 / 96%) !important; }
+.mgw-app-theme [class~="bg-[#F6F7F9]"] { background-color: var(--mgw-canvas) !important; }
+.mgw-app-theme [class~="bg-[#F9FAFB]"] { background-color: var(--mgw-surface-subtle) !important; }
+
+/* Text hierarchy mappings */
 .mgw-app-theme [class~="text-[#F3F4F6]"],
-.mgw-app-theme [class~="text-white"] { color:var(--mgw-text-primary)!important; }
-.mgw-app-theme [class~="text-[#D1D5DB]"] { color:var(--mgw-text-secondary)!important; }
-.mgw-app-theme [class~="text-[#9CA3AF]"] { color:var(--mgw-text-muted)!important; }
-.mgw-app-theme [class~="text-[#F5B731]"] { color:#a87500!important; }
-.mgw-app-theme [class~="border-[#232834]"] { border-color:var(--mgw-border)!important; }
-.mgw-app-theme [class~="border-[#374151]"] { border-color:var(--mgw-border-strong)!important; }
-.mgw-app-theme [class~="border-[#F5B731]"] { border-color:#e7c66d!important; }
-.mgw-app-theme [class~="border-[#F5B731]/30"],
-.mgw-app-theme [class~="border-[#F5B731]/40"] { border-color:#f0dfb1!important; }
-.mgw-app-theme [class~="bg-[#F5B731]"] { background-color:var(--mgw-brand-400)!important; }
-.mgw-app-theme [class~="hover:bg-[#FCD34D]"]:hover { background-color:var(--mgw-brand-300)!important; }
+.mgw-app-theme [class~="text-[#111827]"] { color: var(--mgw-text-primary) !important; }
+.mgw-app-theme [class~="text-[#D1D5DB]"],
+.mgw-app-theme [class~="text-[#4B5563]"] { color: var(--mgw-text-secondary) !important; }
+.mgw-app-theme [class~="text-[#9CA3AF]"],
+.mgw-app-theme [class~="text-[#6B7280]"] { color: var(--mgw-text-secondary) !important; }
+
+/* Ensure dark text on bright MGW brand buttons stays crisp */
+.mgw-app-theme [class~="bg-[#F5B731]"],
+.mgw-app-theme [class~="bg-[#F5B900]"] {
+  background-color: var(--mgw-brand-primary) !important;
+}
+.mgw-app-theme [class~="hover:bg-[#FCD34D]"]:hover,
+.mgw-app-theme [class~="hover:bg-[#FFC928]"]:hover {
+  background-color: var(--mgw-brand-highlight) !important;
+}
+.mgw-app-theme [class~="text-[#0B0D11]"] { color: var(--mgw-brand-ink) !important; }
+.mgw-app-theme [class~="text-[#F5B731]"] { color: #A67900 !important; }
 .mgw-app-theme [class~="bg-[#F5B731]/12"],
-.mgw-app-theme [class~="bg-[#F5B731]/15"] { background-color:var(--mgw-brand-50)!important; }
-.mgw-app-theme [class~="border-[#F5B731]/40"] { border-color:#ead8a5!important; }
-.mgw-app-theme [class~="text-[#0B0D11]"] { color:#30270f!important; }
-.mgw-app-theme [class~="hover:text-[#F3F4F6]"]:hover { color:var(--mgw-text-primary)!important; }
-.mgw-app-theme [class~="hover:bg-[#181C24]"]:hover { background-color:var(--mgw-surface-muted)!important; }
-.mgw-app-theme [class~="hover:border-[#374151]"]:hover { border-color:var(--mgw-border-strong)!important; }
-.mgw-app-theme [class~="bg-[#22C55E]/10"] { background-color:var(--mgw-success-bg)!important; }
-.mgw-app-theme [class~="border-[#22C55E]/30"] { border-color:#bbf7d0!important; }
-.mgw-app-theme [class~="text-[#86EFAC]"] { color:var(--mgw-success)!important; }
-.mgw-app-theme [class~="bg-[#EF4444]/10"] { background-color:var(--mgw-danger-bg)!important; }
-.mgw-app-theme [class~="border-[#EF4444]/30"] { border-color:#fecaca!important; }
-.mgw-app-theme [class~="text-[#FCA5A5]"] { color:var(--mgw-danger)!important; }
-.mgw-app-theme aside { background:var(--mgw-surface)!important; border-color:var(--mgw-border)!important; }
-.mgw-app-theme > div > header { background:rgb(255 255 255 / 96%)!important; border-color:var(--mgw-border)!important; }
-.mgw-app-theme > nav[aria-label="Menu inferior"] { background:rgb(255 255 255 / 97%)!important; border-color:var(--mgw-border)!important; }
-.mgw-app-theme main { max-width:var(--mgw-content-max); }
+.mgw-app-theme [class~="bg-[#F5B731]/15"] { background-color: var(--mgw-brand-50) !important; }
+.mgw-app-theme [class~="border-[#F5B731]"] { border-color: var(--mgw-brand-primary) !important; }
+.mgw-app-theme [class~="border-[#F5B731]/30"],
+.mgw-app-theme [class~="border-[#F5B731]/40"] { border-color: var(--mgw-brand-200) !important; }
+
+/* Borders & hover mappings */
+.mgw-app-theme [class~="border-[#232834]"],
+.mgw-app-theme [class~="border-[#E5E7EB]"] { border-color: var(--mgw-border) !important; }
+.mgw-app-theme [class~="border-[#374151]"],
+.mgw-app-theme [class~="border-[#D1D5DB]"] { border-color: var(--mgw-border-strong) !important; }
+.mgw-app-theme [class~="hover:text-[#F3F4F6]"]:hover { color: var(--mgw-text-primary) !important; }
+.mgw-app-theme [class~="hover:bg-[#181C24]"]:hover { background-color: var(--mgw-surface-muted) !important; }
+.mgw-app-theme [class~="hover:border-[#374151]"]:hover { border-color: var(--mgw-border-strong) !important; }
+
+/* Semantic status mappings */
+.mgw-app-theme [class~="bg-[#22C55E]/10"] { background-color: var(--mgw-success-bg) !important; }
+.mgw-app-theme [class~="border-[#22C55E]/30"] { border-color: var(--mgw-success-border) !important; }
+.mgw-app-theme [class~="text-[#86EFAC]"],
+.mgw-app-theme [class~="text-[#22C55E]"] { color: var(--mgw-success) !important; }
+
+.mgw-app-theme [class~="bg-[#EF4444]/10"] { background-color: var(--mgw-danger-bg) !important; }
+.mgw-app-theme [class~="border-[#EF4444]/30"] { border-color: var(--mgw-danger-border) !important; }
+.mgw-app-theme [class~="text-[#FCA5A5]"],
+.mgw-app-theme [class~="text-[#EF4444]"] { color: var(--mgw-danger) !important; }
+
+.mgw-app-theme [class~="text-[#3478E5]"] { color: var(--mgw-info) !important; }
+
+/* Shell chrome surfaces */
+.mgw-app-theme aside {
+  background-color: var(--mgw-surface);
+  border-color: var(--mgw-border);
+}
+
+.mgw-app-theme header.mgw-shell-header {
+  background-color: rgb(245 246 250 / 95%);
+  border-color: var(--mgw-border);
+}
+
+.mgw-app-theme nav[aria-label="Menu inferior"] {
+  background-color: rgb(255 255 255 / 97%);
+  border-color: var(--mgw-border);
+}
+
+.mgw-app-theme main.mgw-shell-main {
+  max-width: var(--mgw-content-max);
+}
+
 .mgw-app-theme input,
 .mgw-app-theme select,
-.mgw-app-theme textarea { color:var(--mgw-text-primary); }
-.mgw-app-theme ::placeholder { color:var(--mgw-text-disabled); opacity:1; }
-.mgw-app-theme ::-webkit-scrollbar-track { background:var(--mgw-canvas); }
-.mgw-app-theme ::-webkit-scrollbar-thumb { background:#d1d5db; }
-.mgw-app-theme ::-webkit-scrollbar-thumb:hover { background:#9ca3af; }
+.mgw-app-theme textarea {
+  color: var(--mgw-text-primary);
+}
+
+.mgw-app-theme ::placeholder {
+  color: var(--mgw-text-disabled);
+  opacity: 1;
+}
+
+.mgw-app-theme ::-webkit-scrollbar-track {
+  background: var(--mgw-canvas);
+}
+
+.mgw-app-theme ::-webkit-scrollbar-thumb {
+  background: var(--mgw-border-strong);
+  border-radius: 9999px;
+}
+
+.mgw-app-theme ::-webkit-scrollbar-thumb:hover {
+  background: #BAC1D1;
+}

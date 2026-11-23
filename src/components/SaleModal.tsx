@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Layers, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import {
   type ComboRecord,
@@ -132,7 +133,18 @@ export function SaleModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, editingSale]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   function addComboToCart(combo: ComboRecord) {
     setError(null);
@@ -285,21 +297,24 @@ export function SaleModal({
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-50 bg-[#172033]/55 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="sale-modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="w-full sm:max-w-2xl bg-[#FFFFFF] border border-[#E5E7EB] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 max-h-[94vh] overflow-y-auto">
-        <div className="w-10 h-1 bg-[#333A4A] rounded-full mx-auto mb-4 sm:hidden" />
+      <div className="w-full sm:max-w-2xl bg-[#FFFFFF] border border-[#E8EAF0] rounded-t-3xl sm:rounded-2xl p-4 sm:p-6 max-h-[94vh] overflow-y-auto shadow-[0_18px_42px_rgba(23,32,51,0.18)]">
+        <div className="w-10 h-1 bg-[#CBD5E1] rounded-full mx-auto mb-4 sm:hidden" />
         <div className="flex items-center justify-between gap-4 mb-4">
-          <div>
-            <h2 id="sale-modal-title" className="text-lg font-bold text-[#111827]">
+          <div className="min-w-0">
+            <h2 id="sale-modal-title" className="text-lg font-bold text-[#172033]">
               {editingSale ? 'Editar Venda' : 'Nova Venda Rápida'}
             </h2>
-            <p className="text-xs text-[#6B7280]">
+            <p className="text-xs text-[#778094] truncate">
               Combine combos e produtos individuais no mesmo pedido · {establishmentName}
             </p>
           </div>
@@ -307,7 +322,7 @@ export function SaleModal({
             type="button"
             onClick={onClose}
             aria-label="Fechar janela de venda"
-            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E5E7EB] hover:border-[#374151] flex items-center justify-center text-[#6B7280] hover:text-[#111827] transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E8EAF0] hover:border-[#D5D9E4] flex items-center justify-center text-[#778094] hover:text-[#172033] transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -317,7 +332,7 @@ export function SaleModal({
           {error && (
             <div
               role="alert"
-              className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5]"
+              className="p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-xs font-medium text-[#B91C1C]"
             >
               {error}
             </div>
@@ -327,7 +342,7 @@ export function SaleModal({
           <div
             role="tablist"
             aria-label="Tipo de seleção de venda"
-            className="grid grid-cols-2 p-1 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl"
+            className="grid grid-cols-2 p-1 bg-[#F7F8FC] border border-[#E8EAF0] rounded-xl"
           >
             <button
               type="button"
@@ -336,8 +351,8 @@ export function SaleModal({
               onClick={() => setMode('combo')}
               className={`min-h-[42px] px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer ${
                 mode === 'combo'
-                  ? 'bg-[#EAB308] text-[#F9FAFB]'
-                  : 'text-[#6B7280] hover:text-[#111827]'
+                  ? 'bg-[#F5B900] text-[#172033] shadow-xs'
+                  : 'text-[#4B5563] hover:text-[#172033]'
               }`}
             >
               <Layers className="w-4 h-4 shrink-0" />
@@ -351,8 +366,8 @@ export function SaleModal({
               onClick={() => setMode('individual')}
               className={`min-h-[42px] px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer ${
                 mode === 'individual'
-                  ? 'bg-[#EAB308] text-[#F9FAFB]'
-                  : 'text-[#6B7280] hover:text-[#111827]'
+                  ? 'bg-[#F5B900] text-[#172033] shadow-xs'
+                  : 'text-[#4B5563] hover:text-[#172033]'
               }`}
             >
               <ShoppingBag className="w-4 h-4 shrink-0" />
@@ -364,16 +379,16 @@ export function SaleModal({
           {mode === 'combo' && (
             <div className="space-y-2.5">
               {activeCombos.length === 0 ? (
-                <div className="p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] text-center space-y-2">
+                <div className="p-4 rounded-xl bg-[#F7F8FC] border border-[#E8EAF0] text-center space-y-2">
                   <p className="text-xs text-[#4B5563]">
                     Nenhum combo ativo cadastrado ainda.
                   </p>
-                  <p className="text-[11px] text-[#6B7280]">
+                  <p className="text-[11px] text-[#778094]">
                     Cadastre seus combos em <strong>Ajustes → Produtos e Combos</strong> ou use a aba{' '}
                     <button
                       type="button"
                       onClick={() => setMode('individual')}
-                      className="text-[#EAB308] underline font-semibold cursor-pointer"
+                      className="text-[#8A6200] hover:text-[#172033] underline font-semibold cursor-pointer"
                     >
                       Venda Individual
                     </button>
@@ -397,27 +412,27 @@ export function SaleModal({
                         data-testid={`combo-card-${combo.id}`}
                         className={`rounded-xl border p-3.5 flex flex-col justify-between gap-3 transition-colors ${
                           inCart
-                            ? 'bg-[#EAB308]/10 border-[#EAB308]/60'
-                            : 'bg-[#F9FAFB] border-[#E5E7EB]'
+                            ? 'bg-[#FFFBEB] border-[#F5B900]'
+                            : 'bg-[#F7F8FC] border-[#E8EAF0]'
                         }`}
                       >
                         <div className="space-y-1">
                           <div className="flex items-start justify-between gap-2">
-                            <span className="text-sm font-bold text-[#111827]">
+                            <span className="text-sm font-bold text-[#172033]">
                               {combo.name}
                             </span>
-                            <span className="text-sm font-bold text-[#EAB308] font-mono tabular-nums shrink-0">
+                            <span className="text-sm font-bold text-[#8A6200] font-mono tabular-nums shrink-0">
                               {formatCurrencyBRL(combo.salePrice)}
                             </span>
                           </div>
-                          <p className="text-xs text-[#6B7280] leading-snug">
+                          <p className="text-xs text-[#778094] leading-snug">
                             {comboDesc}
                           </p>
                         </div>
 
                         {inCart ? (
-                          <div className="flex items-center justify-between gap-2 pt-1">
-                            <span className="text-xs font-semibold text-[#EAB308] font-mono tabular-nums">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <span className="text-xs font-semibold text-[#8A6200] font-mono tabular-nums">
                               Subtotal {formatCurrencyBRL(calculateSaleTotal(inCart.quantity, inCart.unitPrice))}
                             </span>
                             <div className="flex items-center gap-1.5">
@@ -427,11 +442,11 @@ export function SaleModal({
                                   updateItemQuantity('combo', combo.id, inCart.quantity - 1)
                                 }
                                 aria-label={`Diminuir quantidade de ${combo.name}`}
-                                className="w-9 h-9 rounded-lg border border-[#E5E7EB] bg-[#FFFFFF] flex items-center justify-center text-[#111827] hover:border-[#EAB308] cursor-pointer"
+                                className="w-9 h-9 rounded-lg border border-[#E8EAF0] bg-[#FFFFFF] flex items-center justify-center text-[#172033] hover:border-[#F5B900] cursor-pointer"
                               >
                                 <Minus className="w-3.5 h-3.5" />
                               </button>
-                              <span className="w-7 text-center text-sm font-bold font-mono tabular-nums text-[#111827]">
+                              <span className="w-7 text-center text-sm font-bold font-mono tabular-nums text-[#172033]">
                                 {inCart.quantity}
                               </span>
                               <button
@@ -440,7 +455,7 @@ export function SaleModal({
                                   updateItemQuantity('combo', combo.id, inCart.quantity + 1)
                                 }
                                 aria-label={`Aumentar quantidade de ${combo.name}`}
-                                className="w-9 h-9 rounded-lg bg-[#EAB308] text-[#F9FAFB] flex items-center justify-center font-bold hover:bg-[#F5C842] cursor-pointer"
+                                className="w-9 h-9 rounded-lg bg-[#F5B900] text-[#172033] flex items-center justify-center font-bold hover:bg-[#FFC928] cursor-pointer"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                               </button>
@@ -450,7 +465,7 @@ export function SaleModal({
                           <button
                             type="button"
                             onClick={() => addComboToCart(combo)}
-                            className="w-full min-h-[40px] px-3 rounded-lg bg-[#F1F3F5] hover:bg-[#EAB308] text-[#111827] hover:text-[#F9FAFB] border border-[#E5E7EB] hover:border-[#EAB308] text-xs font-bold transition-colors cursor-pointer"
+                            className="w-full min-h-[40px] px-3 rounded-lg bg-white hover:bg-[#F5B900] text-[#172033] border border-[#E8EAF0] hover:border-[#F5B900] text-xs font-bold transition-colors cursor-pointer"
                           >
                             Selecionar
                           </button>
@@ -478,28 +493,28 @@ export function SaleModal({
                     data-testid={`product-card-${prod.id}`}
                     className={`rounded-xl border p-3.5 flex flex-col justify-between gap-2.5 transition-colors ${
                       inCart
-                        ? 'bg-[#EAB308]/10 border-[#EAB308]/60'
-                        : 'bg-[#F9FAFB] border-[#E5E7EB]'
+                        ? 'bg-[#FFFBEB] border-[#F5B900]'
+                        : 'bg-[#F7F8FC] border-[#E8EAF0]'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-[#111827] truncate">
+                        <p className="text-sm font-bold text-[#172033] truncate">
                           {prod.name}
                         </p>
-                        <p className="text-[11px] text-[#6B7280]">
+                        <p className="text-[11px] text-[#778094]">
                           {prod.category}
                           {prod.countsAsXSalada ? ' · Conta como X-Salada' : ''}
                         </p>
                       </div>
-                      <span className="text-sm font-bold text-[#EAB308] font-mono tabular-nums shrink-0">
+                      <span className="text-sm font-bold text-[#8A6200] font-mono tabular-nums shrink-0">
                         {formatCurrencyBRL(effectivePrice)}
                       </span>
                     </div>
 
                     {inCart ? (
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <span className="text-xs font-semibold text-[#EAB308] font-mono tabular-nums">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <span className="text-xs font-semibold text-[#8A6200] font-mono tabular-nums">
                           {formatCurrencyBRL(calculateSaleTotal(inCart.quantity, inCart.unitPrice))}
                         </span>
                         <div className="flex items-center gap-1.5">
@@ -509,11 +524,11 @@ export function SaleModal({
                               updateItemQuantity('product', prod.id, inCart.quantity - 1)
                             }
                             aria-label={`Diminuir quantidade de ${prod.name}`}
-                            className="w-9 h-9 rounded-lg border border-[#E5E7EB] bg-[#FFFFFF] flex items-center justify-center text-[#111827] hover:border-[#EAB308] cursor-pointer"
+                            className="w-9 h-9 rounded-lg border border-[#E8EAF0] bg-[#FFFFFF] flex items-center justify-center text-[#172033] hover:border-[#F5B900] cursor-pointer"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
-                          <span className="w-7 text-center text-sm font-bold font-mono tabular-nums text-[#111827]">
+                          <span className="w-7 text-center text-sm font-bold font-mono tabular-nums text-[#172033]">
                             {inCart.quantity}
                           </span>
                           <button
@@ -522,7 +537,7 @@ export function SaleModal({
                               updateItemQuantity('product', prod.id, inCart.quantity + 1)
                             }
                             aria-label={`Aumentar quantidade de ${prod.name}`}
-                            className="w-9 h-9 rounded-lg bg-[#EAB308] text-[#F9FAFB] flex items-center justify-center font-bold hover:bg-[#F5C842] cursor-pointer"
+                            className="w-9 h-9 rounded-lg bg-[#F5B900] text-[#172033] flex items-center justify-center font-bold hover:bg-[#FFC928] cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
@@ -532,7 +547,7 @@ export function SaleModal({
                       <button
                         type="button"
                         onClick={() => addProductToCart(prod)}
-                        className="w-full min-h-[40px] px-3 rounded-lg bg-[#F1F3F5] hover:bg-[#EAB308] text-[#111827] hover:text-[#F9FAFB] border border-[#E5E7EB] hover:border-[#EAB308] text-xs font-bold transition-colors cursor-pointer"
+                        className="w-full min-h-[40px] px-3 rounded-lg bg-white hover:bg-[#F5B900] text-[#172033] border border-[#E8EAF0] hover:border-[#F5B900] text-xs font-bold transition-colors cursor-pointer"
                       >
                         Selecionar
                       </button>
@@ -544,12 +559,12 @@ export function SaleModal({
           )}
 
           {/* Selected Order Items & Live Totals */}
-          <div className="rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] p-3.5 space-y-3">
-            <div className="flex items-center justify-between gap-2">
+          <div className="rounded-xl bg-[#F7F8FC] border border-[#E8EAF0] p-3.5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold text-[#4B5563]">
                 Itens do Pedido ({draftItems.length})
               </span>
-              <span className="text-xs text-[#6B7280] font-mono tabular-nums">
+              <span className="text-xs text-[#778094] font-mono tabular-nums">
                 {orderTotals.xSaladaCount} X-Salada{orderTotals.xSaladaCount === 1 ? '' : 's'}
                 {orderTotals.combosCount > 0
                   ? ` · ${orderTotals.combosCount} combo${orderTotals.combosCount === 1 ? '' : 's'}`
@@ -558,27 +573,27 @@ export function SaleModal({
             </div>
 
             {draftItems.length === 0 ? (
-              <p className="text-xs text-[#6B7280] py-1">
+              <p className="text-xs text-[#778094] py-1">
                 Toque em <strong>Selecionar</strong> acima para adicionar combos ou itens individuais nesta venda.
               </p>
             ) : (
-              <div className="divide-y divide-[#E5E7EB]">
+              <div className="divide-y divide-[#E8EAF0]">
                 {draftItems.map((item) => (
                   <div
                     key={`${item.kind}:${item.refId}`}
                     className="py-2.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                   >
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm font-semibold text-[#111827] truncate">
+                      <p className="text-xs sm:text-sm font-semibold text-[#172033] truncate">
                         {item.name}
                       </p>
-                      <p className="text-[11px] text-[#6B7280] font-mono tabular-nums">
+                      <p className="text-[11px] text-[#778094] font-mono tabular-nums">
                         {item.kind === 'combo' ? 'Combo' : 'Individual'} · Unit.{' '}
                         {formatCurrencyBRL(item.unitPrice)}
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2">
                       <div className="flex items-center gap-1.5">
                         <label
                           htmlFor={`qty-${item.kind}-${item.refId}`}
@@ -592,7 +607,7 @@ export function SaleModal({
                             updateItemQuantity(item.kind, item.refId, item.quantity - 1)
                           }
                           aria-label={`Remover 1 ${item.name}`}
-                          className="w-8 h-8 rounded-lg border border-[#E5E7EB] flex items-center justify-center text-[#4B5563] hover:border-[#EAB308] cursor-pointer"
+                          className="w-8 h-8 rounded-lg border border-[#E8EAF0] bg-white flex items-center justify-center text-[#4B5563] hover:border-[#F5B900] cursor-pointer"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
@@ -609,7 +624,7 @@ export function SaleModal({
                               updateItemQuantity(item.kind, item.refId, val);
                             }
                           }}
-                          className="w-12 h-8 text-center rounded-lg bg-[#FFFFFF] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-xs font-bold text-[#111827] font-mono tabular-nums"
+                          className="w-12 h-8 text-center rounded-lg bg-[#FFFFFF] border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-xs font-bold text-[#172033] font-mono tabular-nums"
                         />
                         <button
                           type="button"
@@ -617,50 +632,52 @@ export function SaleModal({
                             updateItemQuantity(item.kind, item.refId, item.quantity + 1)
                           }
                           aria-label={`Adicionar 1 ${item.name}`}
-                          className="w-8 h-8 rounded-lg border border-[#E5E7EB] flex items-center justify-center text-[#4B5563] hover:border-[#EAB308] cursor-pointer"
+                          className="w-8 h-8 rounded-lg border border-[#E8EAF0] bg-white flex items-center justify-center text-[#4B5563] hover:border-[#F5B900] cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
-                      <input
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        inputMode="decimal"
-                        aria-label={`Preço unitário de ${item.name}`}
-                        value={item.unitPrice}
-                        onChange={(e) =>
-                          updateItemUnitPrice(item.kind, item.refId, e.target.value)
-                        }
-                        className="w-20 h-8 px-2 rounded-lg bg-[#FFFFFF] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-xs text-right text-[#111827] font-mono tabular-nums"
-                      />
+                      <div className="flex items-center gap-2 ml-auto sm:ml-0">
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          inputMode="decimal"
+                          aria-label={`Preço unitário de ${item.name}`}
+                          value={item.unitPrice}
+                          onChange={(e) =>
+                            updateItemUnitPrice(item.kind, item.refId, e.target.value)
+                          }
+                          className="w-20 h-8 px-2 rounded-lg bg-[#FFFFFF] border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-xs text-right text-[#172033] font-mono tabular-nums"
+                        />
 
-                      <span className="w-20 text-right text-xs font-bold text-[#EAB308] font-mono tabular-nums">
-                        {formatCurrencyBRL(calculateSaleTotal(item.quantity, item.unitPrice))}
-                      </span>
+                        <span className="min-w-[72px] text-right text-xs font-bold text-[#172033] font-mono tabular-nums">
+                          {formatCurrencyBRL(calculateSaleTotal(item.quantity, item.unitPrice))}
+                        </span>
 
-                      <button
-                        type="button"
-                        onClick={() => updateItemQuantity(item.kind, item.refId, 0)}
-                        aria-label={`Excluir ${item.name} do pedido`}
-                        className="w-8 h-8 rounded-lg border border-[#E5E7EB] flex items-center justify-center text-[#6B7280] hover:text-[#EF4444] cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => updateItemQuantity(item.kind, item.refId, 0)}
+                          aria-label={`Excluir ${item.name} do pedido`}
+                          className="w-8 h-8 rounded-lg border border-[#E8EAF0] bg-white flex items-center justify-center text-[#778094] hover:text-[#DC2626] cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="pt-2.5 border-t border-[#E5E7EB] flex items-center justify-between gap-4">
-              <span className="text-xs font-medium text-[#4B5563]">
+            <div className="pt-2.5 border-t border-[#E8EAF0] flex items-center justify-between gap-4">
+              <span className="text-xs font-semibold text-[#4B5563]">
                 Valor total da venda
               </span>
               <span
                 data-testid="sale-computed-total"
-                className="text-lg font-bold text-[#EAB308] font-mono tabular-nums"
+                className="text-lg font-extrabold text-[#172033] font-mono tabular-nums"
               >
                 {formatCurrencyBRL(orderTotals.totalAmount)}
               </span>
@@ -725,18 +742,18 @@ export function SaleModal({
             />
           </div>
 
-          <div className="sticky bottom-0 -mx-5 sm:-mx-6 px-5 sm:px-6 py-3 bg-[#FFFFFF]/95 backdrop-blur-xs border-t border-[#E5E7EB] flex items-center gap-3">
+          <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-[#FFFFFF]/95 backdrop-blur-xs border-t border-[#E8EAF0] flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[46px] px-4 rounded-xl border border-[#E5E7EB] hover:border-[#374151] text-sm font-medium text-[#4B5563] cursor-pointer transition-colors"
+              className="flex-1 min-h-[46px] px-4 rounded-xl border border-[#E8EAF0] hover:border-[#D5D9E4] hover:bg-[#F7F8FC] text-sm font-semibold text-[#4B5563] cursor-pointer transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving || draftItems.length === 0}
-              className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-sm font-bold cursor-pointer transition-colors disabled:opacity-60"
+              className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#172033] text-sm font-bold cursor-pointer transition-colors disabled:opacity-60"
             >
               {isSaving
                 ? 'Salvando...'
@@ -747,6 +764,7 @@ export function SaleModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

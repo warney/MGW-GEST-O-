@@ -1,17 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  BarChart3,
-  BellRing,
-  Building2,
-  ClipboardList,
-  LayoutDashboard,
-  LogOut,
-  Plus,
-  Receipt,
-  Settings,
-  ShoppingBag,
-  X,
-} from 'lucide-react';
+import { BellRing, X } from 'lucide-react';
 import { registerOrderPushSubscription, setOrderPushSubscriptionEnabled } from './services/orderPushNotifications';
 import {
   addCombo,
@@ -103,7 +91,7 @@ import { SalesView } from './components/SalesView';
 import { SettingsView } from './components/SettingsView';
 import { StoreOnboardingScreen } from './components/StoreOnboardingScreen';
 import { SubscriptionBlockedScreen } from './components/SubscriptionBlockedScreen';
-import { PWAInstallButton } from './components/PWAInstallButton';
+import { AppShell } from './components/AppShell';
 
 import { LandingPageView } from './components/landing/LandingPageView';
 import { LegalDocumentView } from './components/landing/LegalDocumentView';
@@ -130,20 +118,6 @@ function resolveCurrentPublicRoute(): PublicUrlRoute {
   return parsePublicUrlRoute(window.location.pathname, lastPublicMenuSlug);
 }
 
-const NAV_ITEMS: Array<{
-  id: AppRoute;
-  label: string;
-  mobileLabel: string;
-  icon: typeof LayoutDashboard;
-}> = [
-  { id: 'dashboard', label: 'Dashboard', mobileLabel: 'Início', icon: LayoutDashboard },
-  { id: 'orders', label: 'Pedidos', mobileLabel: 'Pedidos', icon: ClipboardList },
-  { id: 'sales', label: 'Vendas', mobileLabel: 'Vendas', icon: ShoppingBag },
-  { id: 'expenses', label: 'Despesas', mobileLabel: 'Despesas', icon: Receipt },
-  { id: 'reports', label: 'Relatórios', mobileLabel: 'Relat.', icon: BarChart3 },
-  { id: 'settings', label: 'Configurações', mobileLabel: 'Ajustes', icon: Settings },
-];
-
 export default function App() {
   const [publicRoute, setPublicRoute] = useState<PublicUrlRoute>(() =>
     resolveCurrentPublicRoute(),
@@ -166,7 +140,7 @@ export default function App() {
     // Mantém o tema independente do Cardápio Digital público.
     document.documentElement.classList.toggle('dark', isPublicMenuApp);
     document.documentElement.style.colorScheme = isPublicMenuApp ? 'dark' : 'light';
-    document.body.style.backgroundColor = isPublicMenuApp ? '#0B0D11' : '#F6F7F9';
+    document.body.style.backgroundColor = isPublicMenuApp ? '#0B0D11' : '#F5F6FA';
 
     const manifestHref = isPublicMenuApp
       ? '/manifest-cardapio.webmanifest'
@@ -185,6 +159,20 @@ export default function App() {
     );
     if (appleTitle) {
       appleTitle.content = isPublicMenuApp ? 'MGW Cardápio' : 'MGW Gestão';
+    }
+
+    const themeMeta = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]',
+    );
+    if (themeMeta) {
+      themeMeta.content = isPublicMenuApp ? '#0B0D11' : '#F5F6FA';
+    }
+
+    const iconLink = document.querySelector<HTMLLinkElement>(
+      'link[rel="icon"]',
+    );
+    if (iconLink) {
+      iconLink.href = isPublicMenuApp ? '/icon-cardapio.svg' : '/icon.svg';
     }
   }, [publicRoute.kind]);
 
@@ -264,6 +252,12 @@ export default function App() {
   >(null);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const ordersInitializedRef = useRef(false);
+  const [ordersSyncTick, setOrdersSyncTick] = useState(0);
+  const prevSyncedTenantRef = useRef<string | null>(null);
+  const ordersRefreshPromiseRef = useRef<{
+    resolve: () => void;
+    reject: (err: Error) => void;
+  } | null>(null);
 
   const [saleModalOpen, setSaleModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
@@ -514,6 +508,7 @@ export default function App() {
   // Assinatura reativa dos dados do tenant selecionado
   useEffect(() => {
     if (!dataContext) {
+      prevSyncedTenantRef.current = null;
       setSales([]);
       setExpenses([]);
       setProducts([]);
@@ -527,28 +522,36 @@ export default function App() {
       knownOrderIdsRef.current = new Set();
       ordersInitializedRef.current = false;
       setDataLoading(false);
+      ordersRefreshPromiseRef.current?.resolve();
+      ordersRefreshPromiseRef.current = null;
       return;
     }
 
-    setSales([]);
-    setExpenses([]);
-    setProducts([]);
-    setCombos([]);
-    setOnlineOrders([]);
-    setSettings({
-      ownerId: dataContext.user.uid,
-      ...DEFAULT_SHOP_SETTINGS,
-      establishmentName: dataContext.tenant.name,
-    });
-    setDigitalMenuSettings({
-      tenantId: dataContext.tenant.tenantId,
-      ...DEFAULT_DIGITAL_MENU_SETTINGS,
-      slug: dataContext.tenant.slug,
-      storeName: dataContext.tenant.name,
-    });
-    knownOrderIdsRef.current = new Set();
-    ordersInitializedRef.current = false;
-    setDataLoading(true);
+    const isSameTenantResync =
+      prevSyncedTenantRef.current === dataContext.tenant.tenantId;
+    prevSyncedTenantRef.current = dataContext.tenant.tenantId;
+
+    if (!isSameTenantResync) {
+      setSales([]);
+      setExpenses([]);
+      setProducts([]);
+      setCombos([]);
+      setOnlineOrders([]);
+      setSettings({
+        ownerId: dataContext.user.uid,
+        ...DEFAULT_SHOP_SETTINGS,
+        establishmentName: dataContext.tenant.name,
+      });
+      setDigitalMenuSettings({
+        tenantId: dataContext.tenant.tenantId,
+        ...DEFAULT_DIGITAL_MENU_SETTINGS,
+        slug: dataContext.tenant.slug,
+        storeName: dataContext.tenant.name,
+      });
+      knownOrderIdsRef.current = new Set();
+      ordersInitializedRef.current = false;
+      setDataLoading(true);
+    }
     setDataError(null);
 
     const unsub = subscribeAllTenantData(dataContext, {
@@ -559,15 +562,39 @@ export default function App() {
       onSales: setSales,
       onExpenses: setExpenses,
       onOnlineOrders: setOnlineOrders,
-      onReady: () => setDataLoading(false),
+      onReady: () => {
+        setDataLoading(false);
+        const pending = ordersRefreshPromiseRef.current;
+        if (pending) {
+          ordersRefreshPromiseRef.current = null;
+          pending.resolve();
+        }
+      },
       onError: (err) => {
         setDataError(err.message);
         setDataLoading(false);
+        const pending = ordersRefreshPromiseRef.current;
+        if (pending) {
+          ordersRefreshPromiseRef.current = null;
+          pending.reject(err);
+        }
       },
     });
 
     return unsub;
-  }, [dataContext]);
+  }, [dataContext, ordersSyncTick]);
+
+  function handleRefreshOrders(): Promise<void> {
+    if (!dataContext) return Promise.resolve();
+    if (ordersRefreshPromiseRef.current) {
+      ordersRefreshPromiseRef.current.resolve();
+      ordersRefreshPromiseRef.current = null;
+    }
+    return new Promise<void>((resolve, reject) => {
+      ordersRefreshPromiseRef.current = { resolve, reject };
+      setOrdersSyncTick((n) => n + 1);
+    });
+  }
 
   const unviewedOrdersCount = useMemo(
     () => onlineOrders.filter(isUnreadNewOrder).length,
@@ -926,7 +953,7 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <div className="min-h-screen bg-[#F6F7F9] text-[#6B7280] flex items-center justify-center text-sm">
+      <div className="min-h-screen bg-[#F5F6FA] text-[#778094] flex items-center justify-center text-sm">
         Carregando MGW GESTÃO...
       </div>
     );
@@ -1002,448 +1029,106 @@ export default function App() {
   const canWriteCatalog = hasTenantPermission(activeTenant.role, 'catalog:write');
   const canAccessSettingsRoute = canWriteSettings || canWriteCatalog;
 
-  const visibleNavItems = NAV_ITEMS.filter((item) => {
-    if (item.id === 'dashboard') return canViewDashboard;
-    if (item.id === 'orders') return canReadSales;
-    if (item.id === 'sales') return canReadSales || canCreateSales;
-    if (item.id === 'expenses') return canReadExpenses;
-    if (item.id === 'reports') return canViewReports;
-    if (item.id === 'settings') return canAccessSettingsRoute;
-    return false;
-  });
+  const visibleRouteIds: AppRoute[] = [];
+  if (canViewDashboard) visibleRouteIds.push('dashboard');
+  if (canReadSales) visibleRouteIds.push('orders');
+  if (canReadSales || canCreateSales) visibleRouteIds.push('sales');
+  if (canReadExpenses) visibleRouteIds.push('expenses');
+  if (canViewReports) visibleRouteIds.push('reports');
+  if (canAccessSettingsRoute) visibleRouteIds.push('settings');
 
-  const effectiveRoute: AppRoute = visibleNavItems.some((item) => item.id === route)
+  const effectiveRoute: AppRoute = visibleRouteIds.includes(route)
     ? route
-    : visibleNavItems[0]?.id ?? 'dashboard';
-  const currentNav =
-    visibleNavItems.find((item) => item.id === effectiveRoute) ??
-    visibleNavItems[0] ??
-    NAV_ITEMS[0];
-  const hasMultipleTenants = tenants.length > 1;
-  const mobileNavGridClass =
-    (
-      {
-        1: 'grid-cols-1',
-        2: 'grid-cols-2',
-        3: 'grid-cols-3',
-        4: 'grid-cols-4',
-        5: 'grid-cols-5',
-        6: 'grid-cols-6',
-      } as Record<number, string>
-    )[visibleNavItems.length] ?? 'grid-cols-6';
+    : visibleRouteIds[0] ?? 'dashboard';
 
-  return (
-    <div className="mgw-app-theme min-h-screen bg-[#F6F7F9] text-[#111827] flex flex-col lg:flex-row">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white border-r border-[#E5E7EB]">
-        <div className="h-16 px-5 flex items-center gap-3 border-b border-[#E5E7EB]">
-          <div className="w-9 h-9 rounded-xl bg-[#FFF9E8] border border-[#F0DFB1] flex items-center justify-center text-[#A87500] font-display font-bold">
-            M
-          </div>
-          <span className="font-display font-bold text-base tracking-tight text-[#111827] whitespace-nowrap">
-            MGW GESTÃO
-          </span>
-        </div>
-
-        <nav
-          aria-label="Navegação principal"
-          className="flex-1 p-3 space-y-1 overflow-y-auto"
-        >
-          {visibleNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = effectiveRoute === item.id;
-            const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  if (item.id === 'settings') {
-                    setSettingsInitialTab(canWriteSettings ? 'shop' : 'catalog');
-                  }
-                  setRoute(item.id);
-                }}
-                aria-current={active ? 'page' : undefined}
-                className={`w-full min-h-[44px] px-3.5 rounded-xl flex items-center justify-between gap-2 text-sm font-medium whitespace-nowrap cursor-pointer ${
-                  active
-                    ? 'bg-[#F5B731]/12 text-[#F5B731]'
-                    : 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6]'
-                }`}
-              >
-                <span className="inline-flex items-center gap-3">
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
-                </span>
-                {showOrdersBadge && (
-                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#F5B731] text-[#0B0D11] text-[11px] font-bold font-mono tabular-nums flex items-center justify-center">
-                    {unviewedOrdersCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-[#232834] space-y-3">
-          {hasMultipleTenants && (
-            <div>
-              <label
-                htmlFor="desktop-tenant-select"
-                className="flex items-center gap-1.5 text-[11px] font-medium text-[#6B7280] mb-1.5"
-              >
-                <Building2 className="w-3.5 h-3.5 text-[#F5B731]" />
-                Estabelecimento
-              </label>
-              <select
-                id="desktop-tenant-select"
-                value={activeTenant?.tenantId ?? ''}
-                onChange={(e) => handleSelectTenant(e.target.value)}
-                className="w-full min-h-[38px] px-2.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-xs text-[#111827]"
-              >
-                {tenants.map((t) => (
-                  <option key={t.tenantId} value={t.tenantId}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="text-xs text-[#6B7280] truncate">
-            {user.email}
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleLogout()}
-            className="w-full min-h-[42px] px-3 rounded-xl border border-[#E5E7EB] hover:border-[#D1D5DB] text-xs font-medium text-[#4B5563] hover:text-[#111827] flex items-center justify-center gap-2 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Sair
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content Shell */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
-        {/* Top Bar (Desktop 64px / Mobile 52px) */}
-        <header className="sticky top-0 z-30 h-[52px] lg:h-16 bg-white/95 backdrop-blur-md border-b border-[#E5E7EB] px-4 lg:px-8 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="lg:hidden font-display font-bold text-sm text-[#F5B731] whitespace-nowrap shrink-0">
-              MGW GESTÃO
-            </span>
-            {hasMultipleTenants && (
-              <select
-                aria-label="Selecionar estabelecimento"
-                value={activeTenant?.tenantId ?? ''}
-                onChange={(e) => handleSelectTenant(e.target.value)}
-                className="lg:hidden max-w-[120px] min-h-[34px] px-2 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] text-[11px] text-[#111827]"
-              >
-                {tenants.map((t) => (
-                  <option key={t.tenantId} value={t.tenantId}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <h1 className="hidden lg:block text-lg font-bold text-[#111827] whitespace-nowrap truncate">
-              {currentNav.label}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <PWAInstallButton appName="MGW Gestão" installLabel="Instalar gestão" />
-            {canCreateExpenses && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingExpense(null);
-                  setExpenseModalOpen(true);
-                }}
-                className="min-h-[40px] lg:min-h-[42px] px-3 lg:px-4 rounded-xl border border-[#F5B731]/40 hover:border-[#F5B731] bg-white text-[#A87500] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Nova Despesa</span>
-                <span className="sm:hidden">Despesa</span>
-              </button>
-            )}
-
-            {canCreateSales && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingSale(null);
-                  setSaleModalOpen(true);
-                }}
-                className="min-h-[40px] lg:min-h-[42px] px-3 lg:px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Nova Venda</span>
-                <span className="sm:hidden">Venda</span>
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* Real-time Sticky Order Alert Banner across all Admin Screens */}
-        {canReadSales &&
-          liveOrderBanner &&
-          liveOrderBanner.length > 0 &&
-          unviewedOrdersCount > 0 &&
-          effectiveRoute !== 'orders' && (
-            <div
-              role="alert"
-              data-testid="live-order-alert"
-              className="mx-4 lg:mx-8 mt-4 rounded-2xl border border-[#F5B731] bg-[#FFFBEB] px-4 py-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-            >
-              <div className="flex items-start sm:items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-[#F5B731]/15 border border-[#F5B731]/40 text-[#F5B731] flex items-center justify-center shrink-0">
-                  <BellRing className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-bold text-[#111827] truncate">
-                    {liveOrderBanner.length === 1
-                      ? `Novo Pedido ${formatOrderNumber(liveOrderBanner[0].orderNumber)} — ${liveOrderBanner[0].customerName}`
-                      : `${liveOrderBanner.length} novos pedidos online recebidos!`}
-                  </p>
-                  <p className="text-[11px] sm:text-xs text-[#4B5563] truncate">
-                    {liveOrderBanner.length === 1
-                      ? `${
-                          liveOrderBanner[0].fulfillmentType === 'delivery'
-                            ? 'Entrega'
-                            : 'Retirada'
-                        } · ${formatCurrencyBRL(liveOrderBanner[0].totalAmount)} · ${liveOrderBanner[0].items
-                          .slice(0, 2)
-                          .map((i) => `${i.quantity}x ${i.itemName}`)
-                          .join(', ')}`
-                      : `Total somado: ${formatCurrencyBRL(
-                          liveOrderBanner.reduce((acc, o) => acc + o.totalAmount, 0),
-                        )} · Toque para confirmar`}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLiveOrderBanner(null);
-                    setRoute('orders');
-                  }}
-                  className="min-h-[38px] px-3.5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold cursor-pointer whitespace-nowrap"
-                >
-                  Ver Pedido
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLiveOrderBanner(null)}
-                  aria-label="Dispensar alerta de novo pedido"
-                  className="w-9 h-9 rounded-xl border border-[#E5E7EB] text-[#6B7280] hover:text-[#111827] flex items-center justify-center cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-
-        {/* Toast Feedback */}
-        {toast && (
-          <div
-            role="status"
-            className={`mx-4 lg:mx-8 mt-4 px-4 py-3 rounded-xl text-xs font-medium border ${
-              toast.type === 'ok'
-                ? 'bg-[#22C55E]/10 border-[#22C55E]/30 text-[#86EFAC]'
-                : 'bg-[#EF4444]/10 border-[#EF4444]/30 text-[#FCA5A5]'
-            }`}
-          >
-            {toast.text}
-          </div>
-        )}
-
-        {dataError && (
+  const topBanners = (
+    <>
+      {canReadSales &&
+        liveOrderBanner &&
+        liveOrderBanner.length > 0 &&
+        unviewedOrdersCount > 0 &&
+        effectiveRoute !== 'orders' && (
           <div
             role="alert"
-            className="mx-4 lg:mx-8 mt-4 px-4 py-3 rounded-xl text-xs bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#FCA5A5]"
+            data-testid="live-order-alert"
+            className="mx-4 lg:mx-8 mt-4 rounded-2xl border border-[#F5B900] bg-[#FFFBEB] px-4 py-3.5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
           >
-            Erro ao sincronizar dados: {dataError}
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-[#F5B900]/15 border border-[#F5B900]/40 text-[#B38300] flex items-center justify-center shrink-0">
+                <BellRing className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-bold text-[#172033] truncate">
+                  {liveOrderBanner.length === 1
+                    ? `Novo Pedido ${formatOrderNumber(liveOrderBanner[0].orderNumber)} — ${liveOrderBanner[0].customerName}`
+                    : `${liveOrderBanner.length} novos pedidos online recebidos!`}
+                </p>
+                <p className="text-[11px] sm:text-xs text-[#778094] truncate">
+                  {liveOrderBanner.length === 1
+                    ? `${
+                        liveOrderBanner[0].fulfillmentType === 'delivery'
+                          ? 'Entrega'
+                          : 'Retirada'
+                      } · ${formatCurrencyBRL(liveOrderBanner[0].totalAmount)} · ${liveOrderBanner[0].items
+                        .slice(0, 2)
+                        .map((i) => `${i.quantity}x ${i.itemName}`)
+                        .join(', ')}`
+                    : `Total somado: ${formatCurrencyBRL(
+                        liveOrderBanner.reduce((acc, o) => acc + o.totalAmount, 0),
+                      )} · Toque para confirmar`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setLiveOrderBanner(null);
+                  setRoute('orders');
+                }}
+                className="min-h-[38px] px-3.5 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#172033] text-xs font-bold cursor-pointer whitespace-nowrap"
+              >
+                Ver Pedido
+              </button>
+              <button
+                type="button"
+                onClick={() => setLiveOrderBanner(null)}
+                aria-label="Dispensar alerta de novo pedido"
+                className="w-9 h-9 rounded-xl border border-[#E8EAF0] text-[#778094] hover:text-[#172033] flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Viewport Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-10 max-w-7xl w-full mx-auto">
-          {dataLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="h-32 bg-white border border-[#E5E7EB] rounded-2xl animate-pulse"
-                />
-              ))}
-            </div>
-          ) : (
-            <>
-              {effectiveRoute === 'dashboard' && canViewDashboard && (
-                <DashboardView
-                  sales={sales}
-                  expenses={expenses}
-                  settings={settings}
-                  onlineOrders={onlineOrders}
-                  onOpenNewSale={() => {
-                    if (!canCreateSales) return;
-                    setEditingSale(null);
-                    setSaleModalOpen(true);
-                  }}
-                  onOpenNewExpense={() => {
-                    if (!canCreateExpenses) return;
-                    setEditingExpense(null);
-                    setExpenseModalOpen(true);
-                  }}
-                  onOpenOrders={() => {
-                    if (canReadSales) setRoute('orders');
-                  }}
-                />
-              )}
+      {toast && (
+        <div
+          role="status"
+          className={`mx-4 lg:mx-8 mt-4 px-4 py-3 rounded-xl text-xs font-medium border ${
+            toast.type === 'ok'
+              ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#16A36A]'
+              : 'bg-[#FEF2F2] border-[#FECACA] text-[#E35D62]'
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
 
-              {effectiveRoute === 'orders' && canReadSales && (
-                <OrdersCenterView
-                  orders={onlineOrders}
-                  digitalMenuSettings={digitalMenuSettings}
-                  soundEnabled={soundEnabled}
-                  pushEnabled={pushEnabled}
-                  notificationPermission={notificationPermission}
-                  onToggleSound={handleToggleSound}
-                  onTogglePush={handleTogglePushNotifications}
-                  onEnableMobileNotifications={() =>
-                    void handleEnableMobileNotifications()
-                  }
-                  onTestAlert={() => void handleTestOrderAlert()}
-                  onMarkViewed={handleMarkOnlineOrderViewed}
-                  onTransitionStatus={handleTransitionOnlineOrderStatus}
-                  onOpenDigitalMenuSettings={() => {
-                    if (!canAccessSettingsRoute) return;
-                    setSettingsInitialTab(canWriteSettings ? 'digital_menu' : 'catalog');
-                    setRoute('settings');
-                  }}
-                />
-              )}
+      {dataError && (
+        <div
+          role="alert"
+          className="mx-4 lg:mx-8 mt-4 px-4 py-3 rounded-xl text-xs bg-[#FEF2F2] border border-[#FECACA] text-[#E35D62]"
+        >
+          Erro ao sincronizar dados: {dataError}
+        </div>
+      )}
+    </>
+  );
 
-              {effectiveRoute === 'sales' && (canReadSales || canCreateSales) && (
-                <SalesView
-                  sales={sales}
-                  canCreateSales={canCreateSales}
-                  canEditSales={canEditSales}
-                  canDeleteSales={canDeleteSales}
-                  onOpenNewSale={() => {
-                    if (!canCreateSales) return;
-                    setEditingSale(null);
-                    setSaleModalOpen(true);
-                  }}
-                  onEditSale={(sale) => {
-                    if (!canEditSales) return;
-                    setEditingSale(sale);
-                    setSaleModalOpen(true);
-                  }}
-                  onDeleteSale={handleDeleteSale}
-                />
-              )}
-
-              {effectiveRoute === 'expenses' && canReadExpenses && (
-                <ExpensesView
-                  expenses={expenses}
-                  canCreateExpenses={canCreateExpenses}
-                  canEditExpenses={canEditExpenses}
-                  canDeleteExpenses={canDeleteExpenses}
-                  onOpenNewExpense={() => {
-                    if (!canCreateExpenses) return;
-                    setEditingExpense(null);
-                    setExpenseModalOpen(true);
-                  }}
-                  onEditExpense={(expense) => {
-                    if (!canEditExpenses) return;
-                    setEditingExpense(expense);
-                    setExpenseModalOpen(true);
-                  }}
-                  onDeleteExpense={handleDeleteExpense}
-                />
-              )}
-
-              {effectiveRoute === 'reports' && canViewReports && (
-                <ReportsView
-                  sales={sales}
-                  expenses={expenses}
-                  settings={settings}
-                />
-              )}
-
-              {effectiveRoute === 'settings' && canAccessSettingsRoute && (
-                <SettingsView
-                  workspaceId={dataContext?.tenant.tenantId || activeTenant.tenantId}
-                  settings={settings}
-                  products={products}
-                  combos={combos}
-                  digitalMenuSettings={digitalMenuSettings}
-                  initialTab={settingsInitialTab}
-                  accountEmail={user.email}
-                  canManageShopSettings={canWriteSettings}
-                  canManageDigitalMenu={canWriteSettings}
-                  onLogout={handleLogout}
-                  onSaveSettings={handleSaveSettings}
-                  onSaveDigitalMenuSettings={handleSaveDigitalMenuSettings}
-                  onCreateProduct={handleCreateProduct}
-                  onUpdateProduct={handleUpdateProduct}
-                  onCreateCombo={handleCreateCombo}
-                  onUpdateCombo={handleUpdateCombo}
-                  onSeedCatalog={handleSeedCatalog}
-                  onPreviewPublicMenu={(slug) =>
-                    navigatePublicPath(slug ? `/cardapio/${slug}` : '/cardapio')
-                  }
-                />
-              )}
-            </>
-          )}
-        </main>
-      </div>
-
-      {/* Mobile Bottom Navigation (64px) */}
-      <nav
-        aria-label="Menu inferior"
-        className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-white/95 backdrop-blur-md border-t border-[#E5E7EB] grid ${mobileNavGridClass} items-center`}
-      >
-        {visibleNavItems.map((item) => {
-          const Icon = item.icon;
-          const active = effectiveRoute === item.id;
-          const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                if (item.id === 'settings') {
-                  setSettingsInitialTab(canWriteSettings ? 'shop' : 'catalog');
-                }
-                setRoute(item.id);
-              }}
-              aria-current={active ? 'page' : undefined}
-              className={`relative h-full min-h-[44px] flex flex-col items-center justify-center gap-1 cursor-pointer ${
-                active ? 'text-[#F5B731]' : 'text-[#9CA3AF]'
-              }`}
-            >
-              <div className="relative">
-                <Icon className="w-5 h-5" />
-                {showOrdersBadge && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-[#F5B731] text-[#0B0D11] text-[9px] font-bold font-mono tabular-nums flex items-center justify-center">
-                    {unviewedOrdersCount}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] font-medium tracking-tight whitespace-nowrap">
-                {item.mobileLabel}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Modals */}
+  const overlays = (
+    <>
       <SaleModal
         isOpen={saleModalOpen}
         editingSale={editingSale}
@@ -1470,6 +1155,204 @@ export default function App() {
       />
 
       <OfflineIndicator />
-    </div>
+    </>
+  );
+
+  return (
+    <AppShell
+      effectiveRoute={effectiveRoute}
+      activeSettingsTab={settingsInitialTab}
+      onNavigate={(nextRoute, nextSettingsTab) => {
+        if (nextSettingsTab) {
+          setSettingsInitialTab(nextSettingsTab);
+        } else if (nextRoute === 'settings') {
+          setSettingsInitialTab(canWriteSettings ? 'shop' : 'catalog');
+        }
+        setRoute(nextRoute);
+      }}
+      canViewDashboard={canViewDashboard}
+      canReadSales={canReadSales}
+      canCreateSales={canCreateSales}
+      canReadExpenses={canReadExpenses}
+      canCreateExpenses={canCreateExpenses}
+      canViewReports={canViewReports}
+      canAccessSettingsRoute={canAccessSettingsRoute}
+      canWriteSettings={canWriteSettings}
+      unviewedOrdersCount={unviewedOrdersCount}
+      activeTenant={activeTenant}
+      tenants={tenants}
+      establishmentName={
+        digitalMenuSettings.storeName || settings.establishmentName || activeTenant.name
+      }
+      userEmail={user.email}
+      onSelectTenant={handleSelectTenant}
+      onLogout={handleLogout}
+      onOpenNewSale={() => {
+        setEditingSale(null);
+        setSaleModalOpen(true);
+      }}
+      onOpenNewExpense={() => {
+        setEditingExpense(null);
+        setExpenseModalOpen(true);
+      }}
+      onOpenOrdersNotifications={() => {
+        setLiveOrderBanner(null);
+        setRoute('orders');
+      }}
+      topBannerSlot={topBanners}
+      overlaysSlot={overlays}
+    >
+      {dataLoading &&
+      effectiveRoute !== 'dashboard' &&
+      effectiveRoute !== 'orders' &&
+      effectiveRoute !== 'sales' &&
+      effectiveRoute !== 'expenses' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="mgw-skeleton h-32" />
+          ))}
+        </div>
+      ) : (
+        <>
+          {effectiveRoute === 'dashboard' && canViewDashboard && (
+            <DashboardView
+              sales={sales}
+              expenses={expenses}
+              settings={settings}
+              onlineOrders={onlineOrders}
+              userEmail={user.email}
+              isLoading={dataLoading}
+              onOpenNewSale={() => {
+                if (!canCreateSales) return;
+                setEditingSale(null);
+                setSaleModalOpen(true);
+              }}
+              onOpenNewExpense={() => {
+                if (!canCreateExpenses) return;
+                setEditingExpense(null);
+                setExpenseModalOpen(true);
+              }}
+              onOpenOrders={() => {
+                if (canReadSales) setRoute('orders');
+              }}
+            />
+          )}
+
+          {effectiveRoute === 'orders' && canReadSales && (
+            <OrdersCenterView
+              orders={onlineOrders}
+              digitalMenuSettings={digitalMenuSettings}
+              soundEnabled={soundEnabled}
+              pushEnabled={pushEnabled}
+              notificationPermission={notificationPermission}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              onRefreshOrders={handleRefreshOrders}
+              onOpenNewOrder={
+                canCreateSales
+                  ? () => {
+                      setEditingSale(null);
+                      setSaleModalOpen(true);
+                    }
+                  : undefined
+              }
+              onToggleSound={handleToggleSound}
+              onTogglePush={handleTogglePushNotifications}
+              onEnableMobileNotifications={() =>
+                void handleEnableMobileNotifications()
+              }
+              onTestAlert={() => void handleTestOrderAlert()}
+              onMarkViewed={handleMarkOnlineOrderViewed}
+              onTransitionStatus={handleTransitionOnlineOrderStatus}
+              onOpenDigitalMenuSettings={() => {
+                if (!canAccessSettingsRoute) return;
+                setSettingsInitialTab(canWriteSettings ? 'digital_menu' : 'catalog');
+                setRoute('settings');
+              }}
+            />
+          )}
+
+          {effectiveRoute === 'sales' && (canReadSales || canCreateSales) && (
+            <SalesView
+              sales={sales}
+              canCreateSales={canCreateSales}
+              canEditSales={canEditSales}
+              canDeleteSales={canDeleteSales}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              onRetry={() => void handleRefreshOrders()}
+              onOpenNewSale={() => {
+                if (!canCreateSales) return;
+                setEditingSale(null);
+                setSaleModalOpen(true);
+              }}
+              onEditSale={(sale) => {
+                if (!canEditSales) return;
+                setEditingSale(sale);
+                setSaleModalOpen(true);
+              }}
+              onDeleteSale={handleDeleteSale}
+            />
+          )}
+
+          {effectiveRoute === 'expenses' && canReadExpenses && (
+            <ExpensesView
+              expenses={expenses}
+              canCreateExpenses={canCreateExpenses}
+              canEditExpenses={canEditExpenses}
+              canDeleteExpenses={canDeleteExpenses}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              onRetry={() => void handleRefreshOrders()}
+              onOpenNewExpense={() => {
+                if (!canCreateExpenses) return;
+                setEditingExpense(null);
+                setExpenseModalOpen(true);
+              }}
+              onEditExpense={(expense) => {
+                if (!canEditExpenses) return;
+                setEditingExpense(expense);
+                setExpenseModalOpen(true);
+              }}
+              onDeleteExpense={handleDeleteExpense}
+            />
+          )}
+
+          {effectiveRoute === 'reports' && canViewReports && (
+            <ReportsView
+              sales={sales}
+              expenses={expenses}
+              settings={settings}
+            />
+          )}
+
+          {effectiveRoute === 'settings' && canAccessSettingsRoute && (
+            <SettingsView
+              workspaceId={dataContext?.tenant.tenantId || activeTenant.tenantId}
+              settings={settings}
+              products={products}
+              combos={combos}
+              digitalMenuSettings={digitalMenuSettings}
+              initialTab={settingsInitialTab}
+              onTabChange={setSettingsInitialTab}
+              accountEmail={user.email}
+              canManageShopSettings={canWriteSettings}
+              canManageDigitalMenu={canWriteSettings}
+              onLogout={handleLogout}
+              onSaveSettings={handleSaveSettings}
+              onSaveDigitalMenuSettings={handleSaveDigitalMenuSettings}
+              onCreateProduct={handleCreateProduct}
+              onUpdateProduct={handleUpdateProduct}
+              onCreateCombo={handleCreateCombo}
+              onUpdateCombo={handleUpdateCombo}
+              onSeedCatalog={handleSeedCatalog}
+              onPreviewPublicMenu={(slug) =>
+                navigatePublicPath(slug ? `/cardapio/${slug}` : '/cardapio')
+              }
+            />
+          )}
+        </>
+      )}
+    </AppShell>
   );
 }

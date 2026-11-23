@@ -1,17 +1,27 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
+  AlertCircle,
+  ArrowDownRight,
+  ArrowUpRight,
   Bell,
   BellOff,
   BellRing,
   Check,
-  ChevronDown,
-  ChevronUp,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Eye,
-  MapPin,
   MessageCircle,
+  MoreHorizontal,
+  Plus,
   Printer,
+  RefreshCw,
+  Search,
   Settings,
+  ShoppingCart,
+  UtensilsCrossed,
   Volume2,
   VolumeX,
   X,
@@ -21,21 +31,31 @@ import type {
   OnlineOrderRecord,
   OnlineOrderStatus,
 } from '../types/finance';
-import { formatCurrencyBRL } from '../utils/finance';
+import { formatCurrencyBRL, getLocalTodayDate } from '../utils/finance';
 import {
   buildWhatsappUrl,
-  formatDateTimeBR,
   formatOrderNumber,
   formatTimeBR,
   getNextStatusActions,
   isUnreadNewOrder,
-  ORDER_STATUS_LABELS,
 } from '../utils/onlineOrders';
 import {
   fromOnlineOrderRecord,
   type PrintableOrderSource,
 } from '../utils/orderPrint';
 import type { BrowserNotificationPermissionState } from '../utils/orderNotifications';
+import {
+  computeOrdersCenterSummary,
+  filterAndSearchOrders,
+  formatOrdersDeltaBR,
+  getOrderStatusBadgeSpec,
+  type OrdersCenterFilterTab,
+  paginateOrders,
+  PRIMARY_ORDER_FILTER_TABS,
+  SECONDARY_ORDER_FILTER_TABS,
+  summarizeOrderItems,
+} from '../utils/ordersCenter';
+import { OrderDetailsModal, OrderStatusIcon } from './OrderDetailsModal';
 import { OrderPrintModal } from './OrderPrintModal';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -45,6 +65,10 @@ interface OrdersCenterViewProps {
   soundEnabled: boolean;
   pushEnabled: boolean;
   notificationPermission: BrowserNotificationPermissionState;
+  isLoading?: boolean;
+  errorMessage?: string | null;
+  onRefreshOrders?: () => Promise<void> | void;
+  onOpenNewOrder?: () => void;
   onToggleSound: () => void;
   onTogglePush: () => void;
   onEnableMobileNotifications: () => void;
@@ -58,15 +82,7 @@ interface OrdersCenterViewProps {
   onOpenDigitalMenuSettings: () => void;
 }
 
-type OrderFilterTab =
-  | 'all'
-  | 'received'
-  | 'accepted'
-  | 'preparing'
-  | 'ready'
-  | 'dispatch'
-  | 'completed'
-  | 'closed';
+const ORDERS_PAGE_SIZE = 15;
 
 const QUICK_REASONS = [
   'Produto indisponível no momento',
@@ -75,12 +91,46 @@ const QUICK_REASONS = [
   'Cancelado a pedido do cliente',
 ];
 
+function OrdersCenterSkeleton() {
+  return (
+    <div
+      className="space-y-5"
+      aria-busy="true"
+      aria-label="Carregando Central de Pedidos"
+    >
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-2">
+          <div className="mgw-skeleton h-7 w-52 rounded-lg" />
+          <div className="mgw-skeleton h-4 w-64 rounded-lg" />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="mgw-skeleton h-10 w-28 rounded-xl" />
+          <div className="mgw-skeleton h-10 w-36 rounded-xl" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 min-[440px]:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((idx) => (
+          <div key={idx} className="mgw-skeleton h-[132px] rounded-2xl" />
+        ))}
+      </div>
+
+      <div className="mgw-skeleton h-12 w-full rounded-xl" />
+      <div className="mgw-skeleton h-[340px] w-full rounded-2xl" />
+    </div>
+  );
+}
+
 export function OrdersCenterView({
   orders,
   digitalMenuSettings,
   soundEnabled,
   pushEnabled,
   notificationPermission,
+  isLoading = false,
+  errorMessage = null,
+  onRefreshOrders,
+  onOpenNewOrder,
   onToggleSound,
   onTogglePush,
   onEnableMobileNotifications,
@@ -89,12 +139,17 @@ export function OrdersCenterView({
   onTransitionStatus,
   onOpenDigitalMenuSettings,
 }: OrdersCenterViewProps) {
-  const [filterTab, setFilterTab] = useState<OrderFilterTab>('all');
+  const [filterTab, setFilterTab] = useState<OrdersCenterFilterTab>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
-  const [expandedTimelineIds, setExpandedTimelineIds] = useState<
-    Record<string, boolean>
-  >({});
-
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [openMenuOrderId, setOpenMenuOrderId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshStatusText, setRefreshStatusText] = useState<string | null>(
+    null,
+  );
+  const [actionError, setActionError] = useState<string | null>(null);
   const [reasonModal, setReasonModal] = useState<{
     order: OnlineOrderRecord;
     nextStatus: 'rejected' | 'cancelled';
@@ -102,70 +157,96 @@ export function OrdersCenterView({
   } | null>(null);
   const [reasonText, setReasonText] = useState('');
   const [reasonError, setReasonError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [printingOrder, setPrintingOrder] =
     useState<PrintableOrderSource | null>(null);
 
-  const counts = useMemo(() => {
-    const res = {
-      all: orders.length,
-      received: 0,
-      unviewed: 0,
-      accepted: 0,
-      preparing: 0,
-      ready: 0,
-      dispatch: 0,
-      completed: 0,
-      closed: 0,
-    };
-    for (const o of orders) {
-      if (o.status === 'received') {
-        res.received += 1;
-        if (isUnreadNewOrder(o)) res.unviewed += 1;
-      } else if (o.status === 'accepted') {
-        res.accepted += 1;
-      } else if (o.status === 'preparing') {
-        res.preparing += 1;
-      } else if (o.status === 'ready') {
-        res.ready += 1;
-      } else if (
-        o.status === 'out_for_delivery' ||
-        o.status === 'ready_for_pickup'
-      ) {
-        res.dispatch += 1;
-      } else if (o.status === 'completed') {
-        res.completed += 1;
-      } else if (o.status === 'rejected' || o.status === 'cancelled') {
-        res.closed += 1;
-      }
-    }
-    return res;
-  }, [orders]);
+  const actionMenuContainerRef = useRef<HTMLDivElement | null>(null);
+  const today = getLocalTodayDate();
 
-  const filteredOrders = useMemo(() => {
-    return orders.filter((o) => {
-      switch (filterTab) {
-        case 'all':
-          return true;
-        case 'received':
-          return o.status === 'received';
-        case 'accepted':
-          return o.status === 'accepted';
-        case 'preparing':
-          return o.status === 'preparing';
-        case 'ready':
-          return o.status === 'ready';
-        case 'dispatch':
-          return (
-            o.status === 'out_for_delivery' || o.status === 'ready_for_pickup'
-          );
-        case 'completed':
-          return o.status === 'completed';
-        case 'closed':
-          return o.status === 'rejected' || o.status === 'cancelled';
+  const summary = useMemo(
+    () => computeOrdersCenterSummary(orders, today),
+    [orders, today],
+  );
+
+  const filteredOrders = useMemo(
+    () => filterAndSearchOrders(orders, filterTab, searchQuery),
+    [orders, filterTab, searchQuery],
+  );
+
+  const pagination = useMemo(
+    () => paginateOrders(filteredOrders, page, ORDERS_PAGE_SIZE),
+    [filteredOrders, page],
+  );
+
+  const selectedOrder = useMemo(
+    () => orders.find((o) => o.id === selectedOrderId) ?? null,
+    [orders, selectedOrderId],
+  );
+
+  // Reset to page 1 when filter or search query changes
+  useEffect(() => {
+    setPage(1);
+  }, [filterTab, searchQuery]);
+
+  // Close row dropdown menu on outside click or Escape
+  useEffect(() => {
+    if (!openMenuOrderId) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        actionMenuContainerRef.current &&
+        !actionMenuContainerRef.current.contains(event.target as Node)
+      ) {
+        setOpenMenuOrderId(null);
       }
-    });
-  }, [orders, filterTab]);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenMenuOrderId(null);
+      }
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openMenuOrderId]);
+
+  useEffect(() => {
+    if (!reasonModal) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setReasonModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [reasonModal]);
+
+  useEffect(() => {
+    if (!refreshStatusText) return;
+    const timer = window.setTimeout(() => setRefreshStatusText(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [refreshStatusText]);
+
+  async function handleRefreshClick() {
+    if (!onRefreshOrders || isRefreshing) return;
+    setIsRefreshing(true);
+    setActionError(null);
+    setRefreshStatusText(null);
+    try {
+      await onRefreshOrders();
+      setRefreshStatusText('Atualizado');
+    } catch (err) {
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível atualizar os pedidos.',
+      );
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   async function runDirectTransition(
     order: OnlineOrderRecord,
@@ -173,6 +254,7 @@ export function OrdersCenterView({
   ) {
     if (busyOrderId) return;
     setActionError(null);
+    setOpenMenuOrderId(null);
     setBusyOrderId(order.id);
     try {
       await onTransitionStatus(order, nextStatus, '');
@@ -210,9 +292,7 @@ export function OrdersCenterView({
       setReasonText('');
     } catch (err) {
       setReasonError(
-        err instanceof Error
-          ? err.message
-          : 'Erro ao atualizar pedido.',
+        err instanceof Error ? err.message : 'Erro ao atualizar pedido.',
       );
     } finally {
       setBusyOrderId(null);
@@ -221,42 +301,110 @@ export function OrdersCenterView({
 
   async function handleMarkAsViewed(order: OnlineOrderRecord) {
     if (busyOrderId) return;
+    setActionError(null);
+    setOpenMenuOrderId(null);
     setBusyOrderId(order.id);
     try {
       await onMarkViewed(order);
+    } catch (err) {
+      setActionError(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível confirmar a visualização.',
+      );
     } finally {
       setBusyOrderId(null);
     }
   }
 
-  const tabs: Array<{ id: OrderFilterTab; label: string; count: number }> = [
-    { id: 'all', label: 'Todos', count: counts.all },
-    { id: 'received', label: 'Novos', count: counts.received },
-    { id: 'accepted', label: 'Aceitos', count: counts.accepted },
-    { id: 'preparing', label: 'Em preparo', count: counts.preparing },
-    { id: 'ready', label: 'Prontos', count: counts.ready },
-    { id: 'dispatch', label: 'Entrega / Retirada', count: counts.dispatch },
-    { id: 'completed', label: 'Concluídos', count: counts.completed },
-    { id: 'closed', label: 'Recusados / Cancelados', count: counts.closed },
-  ];
+  function openPrintModalForOrder(order: OnlineOrderRecord) {
+    setOpenMenuOrderId(null);
+    setPrintingOrder(
+      fromOnlineOrderRecord(order, {
+        storeName: digitalMenuSettings.storeName,
+        storePhone: digitalMenuSettings.phoneWhatsapp,
+        storeAddress: digitalMenuSettings.address,
+      }),
+    );
+  }
+
+  function openReasonModalForOrder(
+    order: OnlineOrderRecord,
+    nextStatus: 'rejected' | 'cancelled',
+    actionLabel: string,
+  ) {
+    setOpenMenuOrderId(null);
+    setReasonText('');
+    setReasonError(null);
+    setReasonModal({
+      order,
+      nextStatus,
+      title: `${actionLabel} · ${formatOrderNumber(order.orderNumber)}`,
+    });
+  }
+
+  if (isLoading) {
+    return <OrdersCenterSkeleton />;
+  }
+
+  const menuStatusLabel = !digitalMenuSettings.isActive
+    ? 'Desativado'
+    : digitalMenuSettings.isOpen
+      ? 'Aberto'
+      : 'Fechado';
+
+  const menuStatusColor = !digitalMenuSettings.isActive
+    ? 'text-[#778094]'
+    : digitalMenuSettings.isOpen
+      ? 'text-[#16A36A]'
+      : 'text-[#B45309]';
+
+  const hasFiltersActive = filterTab !== 'all' || searchQuery.trim().length > 0;
 
   return (
     <div className="space-y-5">
+      {/* Error State Banner */}
+      {errorMessage && (
+        <div
+          role="alert"
+          className="rounded-2xl bg-[#FEF2F2] border border-[#FECACA] px-4 py-3 text-xs sm:text-sm text-[#B91C1C] flex flex-wrap items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="truncate">
+              Não foi possível sincronizar os pedidos: {errorMessage}
+            </span>
+          </div>
+          {onRefreshOrders && (
+            <button
+              type="button"
+              onClick={() => void handleRefreshClick()}
+              disabled={isRefreshing}
+              className="min-h-[34px] px-3 rounded-lg bg-white border border-[#FECACA] text-xs font-semibold text-[#B91C1C] hover:bg-[#FEF2F2] cursor-pointer shrink-0"
+            >
+              Tentar novamente
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Unviewed New Order Alert Banner */}
-      {counts.unviewed > 0 && (
+      {summary.unviewedCount > 0 && (
         <div
           role="status"
-          className="bg-[#EAB308]/12 border border-[#EAB308]/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          className="bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_2px_8px_rgba(23,32,51,0.04)]"
         >
           <div className="flex items-center gap-3">
-            <Bell className="w-5 h-5 text-[#EAB308] shrink-0" />
+            <div className="w-10 h-10 rounded-full bg-[#FEF3C7] text-[#B45309] flex items-center justify-center shrink-0">
+              <Bell className="w-5 h-5" />
+            </div>
             <div>
-              <p className="text-sm font-bold text-[#111827]">
-                {counts.unviewed === 1
+              <p className="text-sm font-bold text-[#172033]">
+                {summary.unviewedCount === 1
                   ? 'Novo pedido recebido aguardando visualização!'
-                  : `${counts.unviewed} novos pedidos recebidos aguardando confirmação!`}
+                  : `${summary.unviewedCount} novos pedidos recebidos aguardando confirmação!`}
               </p>
-              <p className="text-xs text-[#4B5563]">
+              <p className="text-xs text-[#778094] mt-0.5">
                 Revise os itens e clique em ACEITAR PEDIDO ou RECUSAR PEDIDO.
               </p>
             </div>
@@ -265,42 +413,76 @@ export function OrdersCenterView({
           <button
             type="button"
             onClick={() => setFilterTab('received')}
-            className="min-h-[40px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold shrink-0 cursor-pointer"
+            className="mgw-btn-primary shrink-0 whitespace-nowrap"
           >
             Ver novos pedidos
           </button>
         </div>
       )}
 
-      {/* Header Toolbar */}
-      <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-4 sm:p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-[#111827]">
-              Central de Pedidos Online
-            </h2>
-            <p className="text-xs text-[#6B7280] mt-0.5">
-              Cardápio Digital:{' '}
-              <span
-                className={
-                  !digitalMenuSettings.isActive
-                    ? 'text-[#6B7280]'
-                    : digitalMenuSettings.isOpen
-                      ? 'text-[#22C55E] font-semibold'
-                      : 'text-[#EAB308] font-semibold'
-                }
-              >
-                {!digitalMenuSettings.isActive
-                  ? 'Desativado'
-                  : digitalMenuSettings.isOpen
-                    ? 'Aberto'
-                    : 'Fechado'}
-              </span>{' '}
-              ·{' '}
-              <span className="font-mono">
-                /cardapio/{digitalMenuSettings.slug}
+      {/* 1. Cabeçalho da Página */}
+      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-extrabold text-[#172033] tracking-tight">
+            Central de Pedidos
+          </h2>
+          <p className="text-xs sm:text-sm text-[#778094] mt-0.5">
+            Gerencie os pedidos em{' '}
+            <span className="font-semibold text-[#172033]">tempo real</span>
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {onRefreshOrders && (
+            <button
+              type="button"
+              onClick={() => void handleRefreshClick()}
+              disabled={isRefreshing}
+              className="mgw-btn-secondary whitespace-nowrap shrink-0 disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-[#172033] ${
+                  isRefreshing ? 'animate-spin' : ''
+                }`}
+                aria-hidden="true"
+              />
+              <span>
+                {isRefreshing
+                  ? 'Atualizando...'
+                  : refreshStatusText || 'Atualizar'}
               </span>
-            </p>
+            </button>
+          )}
+
+          {onOpenNewOrder && (
+            <button
+              type="button"
+              onClick={onOpenNewOrder}
+              className="mgw-btn-primary whitespace-nowrap shrink-0"
+            >
+              <span>Novo Pedido</span>
+              <Plus className="w-4 h-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* Barra Operacional do Cardápio & Alertas */}
+      <section
+        aria-label="Controles operacionais de pedidos"
+        className="bg-white border border-[#E8EAF0] rounded-2xl px-4 py-3 shadow-[0_2px_8px_rgba(23,32,51,0.03)] space-y-2.5"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#778094] min-w-0">
+            <span className="font-medium text-[#172033]">Cardápio Digital</span>
+            <span aria-hidden="true">·</span>
+            <span className={`font-semibold ${menuStatusColor}`}>
+              {menuStatusLabel}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="font-mono text-[#778094] truncate max-w-[260px]">
+              /cardapio/{digitalMenuSettings.slug}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -310,21 +492,21 @@ export function OrdersCenterView({
                   type="button"
                   onClick={onTogglePush}
                   aria-pressed={pushEnabled}
-                  className={`min-h-[40px] px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-2 cursor-pointer transition-colors ${
+                  className={`min-h-[36px] px-3 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
                     pushEnabled
-                      ? 'bg-[#F9FAFB] border-[#22C55E]/40 text-[#86EFAC]'
-                      : 'bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]'
+                      ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#15803D]'
+                      : 'bg-white border-[#E8EAF0] text-[#778094] hover:text-[#172033]'
                   }`}
                 >
                   {pushEnabled ? (
                     <>
-                      <BellRing className="w-4 h-4" />
-                      Notificações no celular ativas
+                      <BellRing className="w-3.5 h-3.5 shrink-0" />
+                      <span>Notificações no celular ativas</span>
                     </>
                   ) : (
                     <>
-                      <BellOff className="w-4 h-4" />
-                      Notificações pausadas
+                      <BellOff className="w-3.5 h-3.5 shrink-0" />
+                      <span>Notificações pausadas</span>
                     </>
                   )}
                 </button>
@@ -332,44 +514,44 @@ export function OrdersCenterView({
                 <button
                   type="button"
                   onClick={onTestAlert}
-                  className="min-h-[40px] px-3 rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/50 bg-[#F9FAFB] text-xs font-semibold text-[#4B5563] hover:text-[#EAB308] inline-flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-[36px] px-3 rounded-xl border border-[#E8EAF0] hover:border-[#D5D9E4] bg-white text-xs font-semibold text-[#172033] inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <Bell className="w-3.5 h-3.5 text-[#EAB308]" />
-                  Testar alerta
+                  <Bell className="w-3.5 h-3.5 text-[#D97706] shrink-0" />
+                  <span>Testar alerta</span>
                 </button>
               </>
             ) : (
               <button
                 type="button"
                 onClick={onEnableMobileNotifications}
-                className="min-h-[40px] px-3.5 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                className="min-h-[36px] px-3 rounded-xl bg-[#FFFBEB] border border-[#FDE68A] hover:bg-[#FEF3C7] text-[#B45309] text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
               >
-                <BellRing className="w-4 h-4" />
-                Ativar notificações no celular
+                <BellRing className="w-3.5 h-3.5 shrink-0" />
+                <span>Ativar notificações no celular</span>
               </button>
             )}
 
-            <PWAInstallButton />
+            <PWAInstallButton showManualFallback />
 
             <button
               type="button"
               onClick={onToggleSound}
               aria-pressed={soundEnabled}
-              className={`min-h-[40px] px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-2 cursor-pointer transition-colors ${
+              className={`min-h-[36px] px-3 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
                 soundEnabled
-                  ? 'bg-[#F9FAFB] border-[#22C55E]/40 text-[#86EFAC]'
-                  : 'bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]'
+                  ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#15803D]'
+                  : 'bg-white border-[#E8EAF0] text-[#778094] hover:text-[#172033]'
               }`}
             >
               {soundEnabled ? (
                 <>
-                  <Volume2 className="w-4 h-4" />
-                  Alerta sonoro ligado
+                  <Volume2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Alerta sonoro ligado</span>
                 </>
               ) : (
                 <>
-                  <VolumeX className="w-4 h-4" />
-                  Som silenciado
+                  <VolumeX className="w-3.5 h-3.5 shrink-0" />
+                  <span>Som silenciado</span>
                 </>
               )}
             </button>
@@ -377,473 +559,890 @@ export function OrdersCenterView({
             <button
               type="button"
               onClick={onOpenDigitalMenuSettings}
-              className="min-h-[40px] px-3.5 rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/50 bg-[#F9FAFB] text-xs font-semibold text-[#4B5563] inline-flex items-center gap-1.5 cursor-pointer"
+              className="min-h-[36px] px-3 rounded-xl border border-[#E8EAF0] hover:border-[#D5D9E4] bg-white text-xs font-semibold text-[#172033] inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Settings className="w-3.5 h-3.5 text-[#EAB308]" />
-              Configurar cardápio
+              <Settings className="w-3.5 h-3.5 text-[#778094] shrink-0" />
+              <span>Configurar cardápio</span>
             </button>
           </div>
         </div>
 
         {notificationPermission === 'denied' && (
-          <p className="text-xs text-[#FCA5A5] bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-xl px-3.5 py-2.5">
+          <p className="text-xs text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3.5 py-2">
             As notificações estão bloqueadas nas permissões do navegador. Toque no ícone de cadeado ao lado do endereço do site para permitir notificações e receber os alertas no celular.
           </p>
         )}
+      </section>
 
-        {/* Status Filter Tabs */}
+      {/* 2. Cartões de Indicadores */}
+      <section
+        aria-label="Indicadores da Central de Pedidos"
+        className="grid grid-cols-1 min-[440px]:grid-cols-2 xl:grid-cols-4 gap-3.5 sm:gap-4"
+      >
+        {/* Card 1 — Pedidos Hoje */}
+        <article className="bg-white border border-[#E8EAF0] rounded-2xl p-4 sm:p-5 shadow-[0_2px_8px_rgba(23,32,51,0.04)] flex flex-col justify-between min-h-[132px]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="w-10 h-10 rounded-full bg-[#EFF6FF] border border-[#BFDBFE]/70 text-[#3478E5] flex items-center justify-center shrink-0">
+              <ShoppingCart className="w-[18px] h-[18px]" aria-hidden="true" />
+            </div>
+            <span className="text-[11px] font-medium text-[#778094]">
+              Hoje
+            </span>
+          </div>
+
+          <div className="mt-3">
+            <p className="text-xs sm:text-[13px] font-medium text-[#778094]">
+              Pedidos Hoje
+            </p>
+            <p
+              data-testid="orders-kpi-today"
+              className="text-2xl font-extrabold text-[#172033] font-mono tabular-nums tracking-tight mt-0.5"
+            >
+              {summary.receivedTodayCount}
+            </p>
+            {summary.todayDeltaPct !== null ? (
+              <p className="mt-1.5 flex items-center gap-1 text-[11px] sm:text-xs truncate">
+                <span
+                  className={`inline-flex items-center gap-0.5 font-semibold font-mono tabular-nums ${
+                    summary.todayDeltaPct >= 0
+                      ? 'text-[#16A36A]'
+                      : 'text-[#E35D62]'
+                  }`}
+                >
+                  {summary.todayDeltaPct >= 0 ? (
+                    <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <ArrowDownRight className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  {formatOrdersDeltaBR(summary.todayDeltaPct)}
+                </span>
+                <span className="text-[#778094]">vs ontem</span>
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[11px] sm:text-xs text-[#778094] truncate">
+                Sem base de ontem
+              </p>
+            )}
+          </div>
+        </article>
+
+        {/* Card 2 — Em Preparo */}
+        <article className="bg-white border border-[#E8EAF0] rounded-2xl p-4 sm:p-5 shadow-[0_2px_8px_rgba(23,32,51,0.04)] flex flex-col justify-between min-h-[132px]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="w-10 h-10 rounded-full bg-[#FFFBEB] border border-[#FDE68A]/80 text-[#D97706] flex items-center justify-center shrink-0">
+              <UtensilsCrossed
+                className="w-[18px] h-[18px]"
+                aria-hidden="true"
+              />
+            </div>
+            <span className="text-[11px] font-medium text-[#778094]">
+              Produção
+            </span>
+          </div>
+
+          <div className="mt-3">
+            <p className="text-xs sm:text-[13px] font-medium text-[#778094]">
+              Em Preparo
+            </p>
+            <p
+              data-testid="orders-kpi-preparing"
+              className="text-2xl font-extrabold text-[#172033] font-mono tabular-nums tracking-tight mt-0.5"
+            >
+              {summary.preparingCount}
+            </p>
+            <p className="mt-1.5 text-[11px] sm:text-xs text-[#778094] truncate">
+              {summary.pendingBeforePrepCount > 0
+                ? `+ ${summary.pendingBeforePrepCount} aguardando início`
+                : 'Na cozinha agora'}
+            </p>
+          </div>
+        </article>
+
+        {/* Card 3 — Prontos */}
+        <article className="bg-white border border-[#E8EAF0] rounded-2xl p-4 sm:p-5 shadow-[0_2px_8px_rgba(23,32,51,0.04)] flex flex-col justify-between min-h-[132px]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="w-10 h-10 rounded-full bg-[#ECFDF5] border border-[#A7F3D0]/70 text-[#16A36A] flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-[18px] h-[18px]" aria-hidden="true" />
+            </div>
+            <span className="text-[11px] font-medium text-[#778094]">
+              Saída
+            </span>
+          </div>
+
+          <div className="mt-3">
+            <p className="text-xs sm:text-[13px] font-medium text-[#778094]">
+              Prontos
+            </p>
+            <p
+              data-testid="orders-kpi-ready"
+              className="text-2xl font-extrabold text-[#172033] font-mono tabular-nums tracking-tight mt-0.5"
+            >
+              {summary.readyCount}
+            </p>
+            <p className="mt-1.5 text-[11px] sm:text-xs text-[#778094] truncate">
+              {summary.dispatchCount > 0
+                ? `+ ${summary.dispatchCount} em entrega/retirada`
+                : 'Prontos para saída'}
+            </p>
+          </div>
+        </article>
+
+        {/* Card 4 — Entregues */}
+        <article className="bg-white border border-[#E8EAF0] rounded-2xl p-4 sm:p-5 shadow-[0_2px_8px_rgba(23,32,51,0.04)] flex flex-col justify-between min-h-[132px]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="w-10 h-10 rounded-full bg-[#EFF6FF] border border-[#BFDBFE]/70 text-[#3478E5] flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-[18px] h-[18px]" aria-hidden="true" />
+            </div>
+            <span className="text-[11px] font-medium text-[#778094]">
+              Concluídos
+            </span>
+          </div>
+
+          <div className="mt-3">
+            <p className="text-xs sm:text-[13px] font-medium text-[#778094]">
+              Entregues
+            </p>
+            <p
+              data-testid="orders-kpi-completed"
+              className="text-2xl font-extrabold text-[#172033] font-mono tabular-nums tracking-tight mt-0.5"
+            >
+              {summary.completedCount}
+            </p>
+            <p className="mt-1.5 text-[11px] sm:text-xs text-[#778094] truncate">
+              {summary.completedTodayCount > 0
+                ? `${summary.completedTodayCount} concluído(s) hoje`
+                : 'Total concluído'}
+            </p>
+          </div>
+        </article>
+      </section>
+
+      {/* 3. Barra de Filtros por Status & Busca */}
+      <section
+        aria-label="Filtros e busca de pedidos"
+        className="space-y-3"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Primary Segmented Tabs matching visual reference */}
+          <div
+            role="tablist"
+            aria-label="Filtrar pedidos por etapa principal"
+            className="inline-flex items-center gap-1 p-1 bg-white border border-[#E8EAF0] rounded-xl shadow-[0_1px_2px_rgba(23,32,51,0.03)] overflow-x-auto max-w-full"
+          >
+            {PRIMARY_ORDER_FILTER_TABS.map((tab) => {
+              const isActive = filterTab === tab.id;
+              const count = summary.countsByTab[tab.id];
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setFilterTab(tab.id)}
+                  className={`min-h-[36px] px-3.5 rounded-lg text-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    isActive
+                      ? 'bg-[#F5B900] text-[#172033] font-bold shadow-[0_1px_2px_rgba(23,32,51,0.08)]'
+                      : 'text-[#4B5563] hover:text-[#172033] hover:bg-[#F7F8FC] font-semibold'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className="font-mono tabular-nums opacity-85">
+                    ({count})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search input */}
+          <div className="relative w-full lg:w-72 shrink-0">
+            <Search
+              className="w-4 h-4 text-[#778094] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Buscar pedidos"
+              placeholder="Buscar #pedido, cliente ou item..."
+              className="mgw-input !pl-9 !pr-8 !min-h-[40px] !text-xs sm:!text-[13px]"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Limpar busca"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md text-[#778094] hover:text-[#172033] flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Preserved Additional Operational Status Filters */}
         <div
           role="tablist"
-          aria-label="Filtrar pedidos por status"
-          className="flex flex-wrap gap-1.5"
+          aria-label="Etapas operacionais adicionais"
+          className="flex flex-wrap items-center gap-1.5"
         >
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={filterTab === tab.id}
-              onClick={() => setFilterTab(tab.id)}
-              className={`min-h-[38px] px-3 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
-                filterTab === tab.id
-                  ? 'bg-[#EAB308] text-[#F9FAFB]'
-                  : 'bg-[#F9FAFB] border border-[#E5E7EB] text-[#4B5563] hover:border-[#374151]'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className="font-mono tabular-nums opacity-80">
-                ({tab.count})
-              </span>
-            </button>
-          ))}
+          <span className="text-[11px] font-semibold text-[#778094] mr-1">
+            Mais etapas:
+          </span>
+          {SECONDARY_ORDER_FILTER_TABS.map((tab) => {
+            const isActive = filterTab === tab.id;
+            const count = summary.countsByTab[tab.id];
+            const highlightNew = tab.id === 'received' && count > 0 && !isActive;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setFilterTab(tab.id)}
+                className={`min-h-[32px] px-3 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1.5 border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  isActive
+                    ? 'bg-[#172033] border-[#172033] text-white'
+                    : highlightNew
+                      ? 'bg-[#FFFBEB] border-[#FDE68A] text-[#B45309] hover:bg-[#FEF3C7]'
+                      : 'bg-white border-[#E8EAF0] text-[#4B5563] hover:border-[#D5D9E4] hover:text-[#172033]'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className="font-mono tabular-nums opacity-85">
+                  ({count})
+                </span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
       {actionError && (
         <div
           role="alert"
-          className="p-3.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5]"
+          className="p-3.5 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-xs font-medium text-[#B91C1C] flex items-center justify-between gap-2"
         >
-          {actionError}
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            aria-label="Dispensar erro"
+            className="text-[#B91C1C] hover:text-[#7F1D1D] cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 
-      {/* Orders Feed */}
+      {/* 4. Tabela de Pedidos / Estado Vazio */}
       {filteredOrders.length === 0 ? (
-        <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-10 text-center space-y-2">
-          <p className="text-sm font-semibold text-[#111827]">
+        <section className="bg-white border border-[#E8EAF0] rounded-2xl p-8 sm:p-12 text-center shadow-[0_2px_8px_rgba(23,32,51,0.04)] space-y-2.5">
+          <div className="w-12 h-12 rounded-full bg-[#F7F8FC] border border-[#E8EAF0] text-[#778094] flex items-center justify-center mx-auto">
+            <ShoppingCart className="w-5 h-5" aria-hidden="true" />
+          </div>
+          <p className="text-sm font-bold text-[#172033]">
             {orders.length === 0
-              ? 'Nenhum pedido online recebido ainda.'
-              : 'Nenhum pedido nesta etapa no momento.'}
+              ? 'Nenhum pedido encontrado.'
+              : 'Nenhum pedido corresponde ao filtro selecionado.'}
           </p>
-          <p className="text-xs text-[#6B7280]">
+          <p className="text-xs text-[#778094] max-w-md mx-auto">
             {orders.length === 0
-              ? 'Quando um cliente enviar um pedido pelo cardápio digital, ele aparecerá aqui em tempo real.'
-              : 'Selecione outra aba acima para visualizar os demais pedidos.'}
+              ? 'Quando um cliente enviar um pedido pelo Cardápio Digital, ele aparecerá aqui em tempo real.'
+              : 'Altere o status ou limpe o campo de busca para visualizar os demais pedidos.'}
           </p>
+          {hasFiltersActive && orders.length > 0 && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterTab('all');
+                  setSearchQuery('');
+                }}
+                className="mgw-btn-secondary"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          )}
         </section>
       ) : (
-        <div className="space-y-4">
-          {filteredOrders.map((order) => {
-            const unread = isUnreadNewOrder(order);
-            const actions = getNextStatusActions(
-              order.status,
-              order.fulfillmentType,
-            );
-            const isBusy = busyOrderId === order.id;
-            const timelineOpen = Boolean(expandedTimelineIds[order.id]);
-            const whatsappUrl = buildWhatsappUrl(
-              order.customerPhone,
-              `Olá ${order.customerName}! Sobre o seu pedido ${formatOrderNumber(order.orderNumber)}:`,
-            );
+        <>
+          {/* Desktop & Tablet Table */}
+          <div className="hidden md:block bg-white border border-[#E8EAF0] rounded-2xl shadow-[0_2px_8px_rgba(23,32,51,0.04)]">
+            <div className="overflow-x-auto rounded-2xl">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-[#F7F8FC] border-b border-[#E8EAF0] text-[12px] font-semibold text-[#778094]">
+                    <th className="py-3.5 px-4 whitespace-nowrap"># Pedido</th>
+                    <th className="py-3.5 px-4">Cliente</th>
+                    <th className="py-3.5 px-4">Itens</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Valor</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Status</th>
+                    <th className="py-3.5 px-4 text-right whitespace-nowrap">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E8EAF0]">
+                  {pagination.items.map((order, rowIdx) => {
+                    const unread = isUnreadNewOrder(order);
+                    const badgeSpec = getOrderStatusBadgeSpec(order.status);
+                    const itemsSummary = summarizeOrderItems(order);
+                    const actions = getNextStatusActions(
+                      order.status,
+                      order.fulfillmentType,
+                    );
+                    const isBusy = busyOrderId === order.id;
+                    const menuOpen = openMenuOrderId === order.id;
+                    const openUpward =
+                      pagination.items.length > 3 &&
+                      rowIdx >= pagination.items.length - 2;
+                    const orderCode = formatOrderNumber(order.orderNumber);
+                    const whatsappUrl = buildWhatsappUrl(
+                      order.customerPhone,
+                      `Olá ${order.customerName}! Sobre o seu pedido ${orderCode}:`,
+                    );
 
-            return (
-              <article
-                key={order.id}
-                data-testid={`admin-order-card-${order.orderNumber}`}
-                className={`bg-[#FFFFFF] border rounded-2xl p-4 sm:p-5 space-y-4 ${
-                  unread ? 'border-[#EAB308]' : 'border-[#E5E7EB]'
-                }`}
-              >
-                {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E7EB] pb-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-base font-bold text-[#EAB308] font-mono tabular-nums">
-                      {formatOrderNumber(order.orderNumber)}
-                    </span>
-                    <span className="text-xs text-[#6B7280]">·</span>
-                    <span className="text-sm font-bold text-[#111827]">
-                      {order.customerName}
-                    </span>
-                    <span className="text-xs text-[#6B7280]">·</span>
-                    <span className="text-xs text-[#6B7280] font-mono tabular-nums inline-flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      {formatDateTimeBR(order.createdAtMs)}
-                    </span>
-                    {unread && (
-                      <span className="text-xs font-bold text-[#EAB308]">
-                        · NOVO NÃO VISUALIZADO
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 self-start sm:self-center">
-                    <span
-                      className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
-                        order.status === 'rejected' || order.status === 'cancelled'
-                          ? 'bg-[#EF4444]/10 border-[#EF4444]/30 text-[#FCA5A5]'
-                          : order.status === 'completed'
-                            ? 'bg-[#22C55E]/10 border-[#22C55E]/30 text-[#86EFAC]'
-                            : order.status === 'received'
-                              ? 'bg-[#EAB308]/12 border-[#EAB308]/40 text-[#EAB308]'
-                              : 'bg-[#F1F3F5] border-[#E5E7EB] text-[#111827]'
-                      }`}
-                    >
-                      {ORDER_STATUS_LABELS[order.status]}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Body Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                  {/* Items */}
-                  <div className="lg:col-span-7 space-y-2">
-                    <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
-                      Itens do pedido
-                    </p>
-                    <div className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl divide-y divide-[#E5E7EB]">
-                      {order.items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="p-3 flex items-start justify-between gap-3 text-xs"
-                        >
-                          <div className="min-w-0">
-                            <p className="font-semibold text-[#111827]">
-                              {item.quantity}x {item.itemName}
-                            </p>
-                            {item.selectedAddons?.map((group) => (
-                              <p key={group.groupId} className="text-[#4B5563] mt-1">
-                                <span className="text-[#EAB308]">{group.groupName}:</span>{' '}
-                                {group.options.map((option) => `${option.name}${option.price > 0 ? ` (+${formatCurrencyBRL(option.price)})` : ''}`).join(', ')}
-                              </p>
-                            ))}
-                            {item.itemNote && (
-                              <p className="text-[#EAB308] mt-0.5">
-                                Obs: {item.itemNote}
-                              </p>
-                            )}
-                          </div>
-                          <span className="font-mono tabular-nums text-[#4B5563] shrink-0">
-                            {formatCurrencyBRL(item.lineTotal)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {order.customerNote && (
-                      <p className="text-xs text-[#F5C842] bg-[#EAB308]/10 border border-[#EAB308]/20 rounded-lg px-3 py-2">
-                        Observação geral: {order.customerNote}
-                      </p>
-                    )}
-
-                    {(order.status === 'rejected' ||
-                      order.status === 'cancelled') &&
-                      order.rejectionReason && (
-                        <p className="text-xs text-[#FCA5A5] bg-[#EF4444]/10 border border-[#EF4444]/30 rounded-lg px-3 py-2">
-                          Motivo: {order.rejectionReason}
-                        </p>
-                      )}
-                  </div>
-
-                  {/* Customer, Fulfillment & Totals */}
-                  <div className="lg:col-span-5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl p-3.5 space-y-2.5 text-xs">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-[#6B7280]">Contato</p>
-                        <p className="font-mono text-[#111827]">
-                          {order.customerPhone}
-                        </p>
-                      </div>
-                      {whatsappUrl && (
-                        <a
-                          href={whatsappUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="min-h-[34px] px-2.5 rounded-lg border border-[#22C55E]/40 text-[#86EFAC] inline-flex items-center gap-1 font-semibold hover:border-[#22C55E]"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          WhatsApp
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="flex items-start gap-2 pt-2 border-t border-[#E5E7EB]">
-                      <MapPin className="w-3.5 h-3.5 text-[#EAB308] shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[#6B7280]">
-                          {order.fulfillmentType === 'delivery'
-                            ? 'Entrega'
-                            : 'Retirada no balcão'}
-                        </p>
-                        {order.fulfillmentType === 'delivery' && (
-                          <p className="text-[#111827]">
-                            {order.deliveryAddress}
-                            {order.deliveryReference
-                              ? ` · Ref: ${order.deliveryReference}`
-                              : ''}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-[#E5E7EB] space-y-1">
-                      <div className="flex justify-between text-[#6B7280]">
-                        <span>Pagamento</span>
-                        <span className="text-[#111827] font-semibold">
-                          {order.paymentMethod}
-                          {order.paymentMethod === 'Dinheiro' && order.changeFor
-                            ? ` (Troco p/ ${formatCurrencyBRL(order.changeFor)})`
-                            : ''}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-[#6B7280]">
-                        <span>Subtotal</span>
-                        <span className="font-mono tabular-nums text-[#111827]">
-                          {formatCurrencyBRL(order.subtotalAmount)}
-                        </span>
-                      </div>
-                      {order.fulfillmentType === 'delivery' && (
-                        <div className="flex justify-between text-[#6B7280]">
-                          <span>Taxa de entrega</span>
-                          <span className="font-mono tabular-nums text-[#111827]">
-                            {order.deliveryFee <= 0
-                              ? 'Grátis'
-                              : formatCurrencyBRL(order.deliveryFee)}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-sm font-bold text-[#EAB308] pt-1 border-t border-[#E5E7EB]">
-                        <span>Total</span>
-                        <span className="font-mono tabular-nums">
-                          {formatCurrencyBRL(order.totalAmount)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions Row */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E5E7EB]">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {unread && (
-                      <button
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => void handleMarkAsViewed(order)}
-                        className="min-h-[42px] px-3.5 rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/60 bg-[#F9FAFB] text-xs font-semibold text-[#4B5563] inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-[#EAB308]" />
-                        Confirmar visualização
-                      </button>
-                    )}
-
-                    {actions.map((action) => (
-                      <button
-                        key={action.nextStatus}
-                        type="button"
-                        disabled={isBusy}
-                        onClick={() => {
-                          if (action.requiresReason) {
-                            setReasonText('');
-                            setReasonError(null);
-                            setReasonModal({
-                              order,
-                              nextStatus: action.nextStatus as
-                                | 'rejected'
-                                | 'cancelled',
-                              title: `${action.label} · ${formatOrderNumber(order.orderNumber)}`,
-                            });
-                          } else {
-                            void runDirectTransition(order, action.nextStatus);
+                    return (
+                      <tr
+                        key={order.id}
+                        data-testid={`admin-order-card-${order.orderNumber}`}
+                        tabIndex={0}
+                        aria-label={`Abrir detalhes do pedido ${orderCode} de ${order.customerName}`}
+                        onClick={() => setSelectedOrderId(order.id)}
+                        onKeyDown={(e) => {
+                          if (
+                            (e.key === 'Enter' || e.key === ' ') &&
+                            e.target === e.currentTarget
+                          ) {
+                            e.preventDefault();
+                            setSelectedOrderId(order.id);
                           }
                         }}
-                        className={`min-h-[42px] px-4 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50 ${
-                          action.tone === 'success'
-                            ? 'bg-[#22C55E] hover:bg-[#16A34A] text-[#F9FAFB]'
-                            : action.tone === 'primary'
-                              ? 'bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB]'
-                              : 'border border-[#EF4444]/40 hover:border-[#EF4444] bg-[#EF4444]/10 text-[#FCA5A5]'
+                        className={`transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-[#F5B900] focus-visible:outline-offset-[-2px] ${
+                          unread
+                            ? 'bg-[#FFFBEB]/65 hover:bg-[#FFFBEB]'
+                            : 'hover:bg-[#F7F8FC]/85'
                         }`}
                       >
-                        {action.tone === 'success' && (
-                          <Check className="w-4 h-4" />
+                        {/* # Pedido */}
+                        <td className="py-3.5 px-4 whitespace-nowrap align-middle">
+                          <div className="flex flex-col">
+                            <span className="text-[13px] font-bold text-[#172033] font-mono tabular-nums">
+                              {orderCode}
+                            </span>
+                            <span className="text-[11px] text-[#778094] font-mono tabular-nums">
+                              {formatTimeBR(order.createdAtMs)}
+                              {unread ? ' · Novo' : ''}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Cliente */}
+                        <td className="py-3.5 px-4 align-middle max-w-[220px]">
+                          <p className="text-[13px] font-semibold text-[#172033] truncate">
+                            {order.customerName}
+                          </p>
+                          <p className="text-[11px] text-[#778094] truncate">
+                            {order.fulfillmentType === 'delivery'
+                              ? 'Entrega'
+                              : 'Retirada'}
+                            {' · '}
+                            {order.paymentMethod}
+                          </p>
+                        </td>
+
+                        {/* Itens */}
+                        <td className="py-3.5 px-4 align-middle max-w-[260px]">
+                          <p className="text-[13px] font-medium text-[#172033] tabular-nums">
+                            {itemsSummary.countLabel}
+                          </p>
+                          <p className="text-[11px] text-[#778094] truncate">
+                            {itemsSummary.previewText || 'Sem detalhes'}
+                          </p>
+                        </td>
+
+                        {/* Valor */}
+                        <td className="py-3.5 px-4 whitespace-nowrap align-middle">
+                          <span className="text-[13px] font-bold text-[#172033] font-mono tabular-nums">
+                            {formatCurrencyBRL(order.totalAmount)}
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3.5 px-4 whitespace-nowrap align-middle">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-semibold ${badgeSpec.containerClass}`}
+                          >
+                            <OrderStatusIcon
+                              status={order.status}
+                              className="w-3 h-3 shrink-0"
+                            />
+                            <span>{badgeSpec.label}</span>
+                          </span>
+                        </td>
+
+                        {/* Ações */}
+                        <td
+                          className="py-3.5 px-4 whitespace-nowrap align-middle text-right"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div
+                            ref={menuOpen ? actionMenuContainerRef : undefined}
+                            className="relative inline-flex items-center justify-end gap-1.5"
+                          >
+                            {unread && (
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => void handleMarkAsViewed(order)}
+                                title="Confirmar visualização"
+                                aria-label={`Confirmar visualização do pedido ${orderCode}`}
+                                className="min-h-[32px] px-2.5 rounded-lg bg-[#FFFBEB] border border-[#FDE68A] hover:bg-[#FEF3C7] text-[#B45309] text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Ver</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              aria-haspopup="menu"
+                              aria-expanded={menuOpen}
+                              aria-label={`Ações do pedido ${orderCode}`}
+                              onClick={() =>
+                                setOpenMenuOrderId((curr) =>
+                                  curr === order.id ? null : order.id,
+                                )
+                              }
+                              className="w-9 h-8 rounded-lg border border-[#E8EAF0] hover:border-[#D5D9E4] bg-white hover:bg-[#F7F8FC] text-[#4B5563] hover:text-[#172033] inline-flex items-center justify-center cursor-pointer transition-colors"
+                            >
+                              <MoreHorizontal className="w-4 h-4" />
+                            </button>
+
+                            {menuOpen && (
+                              <div
+                                role="menu"
+                                aria-label={`Menu de ações para ${orderCode}`}
+                                className={`absolute right-0 ${
+                                  openUpward
+                                    ? 'bottom-full mb-1.5'
+                                    : 'top-full mt-1.5'
+                                } z-30 w-56 bg-white border border-[#E8EAF0] rounded-xl shadow-[0_12px_32px_rgba(23,32,51,0.14)] p-1.5 text-left`}
+                              >
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setOpenMenuOrderId(null);
+                                    setSelectedOrderId(order.id);
+                                  }}
+                                  className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-[#172033] hover:bg-[#F7F8FC] flex items-center gap-2 cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-[#778094]" />
+                                  <span>Visualizar detalhes</span>
+                                </button>
+
+                                {unread && (
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    disabled={isBusy}
+                                    onClick={() =>
+                                      void handleMarkAsViewed(order)
+                                    }
+                                    className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-[#B45309] hover:bg-[#FFFBEB] flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Confirmar visualização</span>
+                                  </button>
+                                )}
+
+                                {actions.map((action) => (
+                                  <button
+                                    key={action.nextStatus}
+                                    type="button"
+                                    role="menuitem"
+                                    disabled={isBusy}
+                                    onClick={() => {
+                                      if (action.requiresReason) {
+                                        openReasonModalForOrder(
+                                          order,
+                                          action.nextStatus as
+                                            | 'rejected'
+                                            | 'cancelled',
+                                          action.label,
+                                        );
+                                      } else {
+                                        void runDirectTransition(
+                                          order,
+                                          action.nextStatus,
+                                        );
+                                      }
+                                    }}
+                                    className={`w-full px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                      action.tone === 'danger'
+                                        ? 'text-[#B91C1C] hover:bg-[#FEF2F2]'
+                                        : action.tone === 'success'
+                                          ? 'text-[#15803D] hover:bg-[#ECFDF5]'
+                                          : 'text-[#172033] hover:bg-[#F7F8FC]'
+                                    }`}
+                                  >
+                                    {action.tone === 'danger' ? (
+                                      <X className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <Check className="w-3.5 h-3.5" />
+                                    )}
+                                    <span>{action.label}</span>
+                                  </button>
+                                ))}
+
+                                <div className="my-1 border-t border-[#E8EAF0]" />
+
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => openPrintModalForOrder(order)}
+                                  className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-[#172033] hover:bg-[#F7F8FC] flex items-center gap-2 cursor-pointer"
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-[#778094]" />
+                                  <span>Imprimir pedido</span>
+                                </button>
+
+                                {whatsappUrl && (
+                                  <a
+                                    role="menuitem"
+                                    href={whatsappUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setOpenMenuOrderId(null)}
+                                    className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-[#15803D] hover:bg-[#ECFDF5] flex items-center gap-2"
+                                  >
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                    <span>Chamar no WhatsApp</span>
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Responsive Cards (< md) */}
+          <div className="md:hidden space-y-3">
+            {pagination.items.map((order) => {
+              const unread = isUnreadNewOrder(order);
+              const badgeSpec = getOrderStatusBadgeSpec(order.status);
+              const itemsSummary = summarizeOrderItems(order);
+              const actions = getNextStatusActions(
+                order.status,
+                order.fulfillmentType,
+              );
+              const primaryAction = actions.find((a) => !a.requiresReason);
+              const isBusy = busyOrderId === order.id;
+              const orderCode = formatOrderNumber(order.orderNumber);
+
+              return (
+                <article
+                  key={order.id}
+                  data-testid={`admin-order-mobile-card-${order.orderNumber}`}
+                  onClick={() => setSelectedOrderId(order.id)}
+                  className={`bg-white border rounded-2xl p-4 shadow-[0_2px_8px_rgba(23,32,51,0.04)] space-y-3 cursor-pointer ${
+                    unread ? 'border-[#F5B900] bg-[#FFFBEB]/40' : 'border-[#E8EAF0]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-extrabold text-[#172033] font-mono tabular-nums">
+                          {orderCode}
+                        </span>
+                        <span className="text-[11px] text-[#778094] font-mono tabular-nums">
+                          {formatTimeBR(order.createdAtMs)}
+                        </span>
+                        {unread && (
+                          <span className="text-[11px] font-bold text-[#B45309]">
+                            · Novo
+                          </span>
                         )}
-                        {action.tone === 'danger' && <X className="w-4 h-4" />}
-                        {isBusy ? 'Atualizando...' : action.label}
-                      </button>
-                    ))}
+                      </div>
+                      <p className="text-sm font-bold text-[#172033] truncate mt-0.5">
+                        {order.customerName}
+                      </p>
+                    </div>
+
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-semibold shrink-0 ${badgeSpec.containerClass}`}
+                    >
+                      <OrderStatusIcon
+                        status={order.status}
+                        className="w-3 h-3 shrink-0"
+                      />
+                      <span>{badgeSpec.label}</span>
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPrintingOrder(
-                          fromOnlineOrderRecord(order, {
-                            storeName: digitalMenuSettings.storeName,
-                            storePhone: digitalMenuSettings.phoneWhatsapp,
-                            storeAddress: digitalMenuSettings.address,
-                          }),
-                        )
-                      }
-                      aria-label={`Imprimir pedido ${formatOrderNumber(order.orderNumber)}`}
-                      className="min-h-[38px] px-3 rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/60 bg-[#F9FAFB] text-xs font-semibold text-[#4B5563] hover:text-[#EAB308] inline-flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Imprimir</span>
-                    </button>
+                  <div className="flex items-center justify-between gap-3 text-xs pt-2 border-t border-[#E8EAF0]">
+                    <div className="min-w-0">
+                      <span className="font-semibold text-[#172033] tabular-nums">
+                        {itemsSummary.countLabel}
+                      </span>
+                      <span className="text-[#778094]"> · </span>
+                      <span className="text-[#778094]">
+                        {order.fulfillmentType === 'delivery'
+                          ? 'Entrega'
+                          : 'Retirada'}
+                      </span>
+                    </div>
+                    <span className="text-sm font-extrabold text-[#172033] font-mono tabular-nums shrink-0">
+                      {formatCurrencyBRL(order.totalAmount)}
+                    </span>
+                  </div>
 
-                    {order.statusHistory.length > 0 && (
+                  <div
+                    className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E8EAF0]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {primaryAction ? (
                       <button
                         type="button"
+                        disabled={isBusy}
                         onClick={() =>
-                          setExpandedTimelineIds((prev) => ({
-                            ...prev,
-                            [order.id]: !prev[order.id],
-                          }))
+                          void runDirectTransition(
+                            order,
+                            primaryAction.nextStatus,
+                          )
                         }
-                        className="min-h-[38px] px-3 rounded-lg text-xs text-[#6B7280] hover:text-[#111827] inline-flex items-center gap-1 cursor-pointer"
+                        className={`min-h-[40px] px-3.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                          primaryAction.tone === 'success'
+                            ? 'bg-[#16A36A] text-white'
+                            : 'bg-[#F5B900] text-[#172033]'
+                        }`}
                       >
-                        <span>Histórico ({order.statusHistory.length})</span>
-                        {timelineOpen ? (
-                          <ChevronUp className="w-3.5 h-3.5" />
-                        ) : (
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        )}
+                        <Check className="w-3.5 h-3.5" />
+                        <span>
+                          {isBusy ? 'Atualizando...' : primaryAction.label}
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrderId(order.id)}
+                        className="min-h-[40px] px-3.5 rounded-xl border border-[#E8EAF0] bg-white text-xs font-semibold text-[#172033] inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#778094]" />
+                        <span>Ver detalhes</span>
                       </button>
                     )}
-                  </div>
-                </div>
 
-                {/* Expandable Timeline */}
-                {timelineOpen && order.statusHistory.length > 0 && (
-                  <div className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl p-3 space-y-1.5 text-xs">
-                    {order.statusHistory.map((ev) => (
-                      <div
-                        key={ev.id}
-                        className="flex items-center justify-between gap-2 text-[#4B5563]"
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openPrintModalForOrder(order)}
+                        aria-label={`Imprimir pedido ${orderCode}`}
+                        className="min-h-[40px] min-w-[40px] rounded-xl border border-[#E8EAF0] bg-white text-[#4B5563] inline-flex items-center justify-center cursor-pointer"
                       >
-                        <span>
-                          {ORDER_STATUS_LABELS[ev.toStatus]}
-                          {ev.reason ? ` — ${ev.reason}` : ''}
-                        </span>
-                        <span className="font-mono tabular-nums text-[#6B7280]">
-                          {formatTimeBR(ev.createdAtMs)}
-                        </span>
-                      </div>
-                    ))}
+                        <Printer className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrderId(order.id)}
+                        aria-label={`Mais ações do pedido ${orderCode}`}
+                        className="min-h-[40px] min-w-[40px] rounded-xl border border-[#E8EAF0] bg-white text-[#4B5563] inline-flex items-center justify-center cursor-pointer"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Pagination Bar */}
+          {pagination.totalPages > 1 && (
+            <nav
+              aria-label="Paginação de pedidos"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white border border-[#E8EAF0] rounded-2xl px-4 py-3 text-xs text-[#778094]"
+            >
+              <span className="tabular-nums">
+                Exibindo{' '}
+                <strong className="text-[#172033]">
+                  {pagination.startIndex + 1}–{pagination.endIndex}
+                </strong>{' '}
+                de{' '}
+                <strong className="text-[#172033]">
+                  {pagination.totalItems}
+                </strong>{' '}
+                pedidos
+              </span>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  type="button"
+                  disabled={pagination.safePage <= 1}
+                  onClick={() =>
+                    setPage((p) => Math.max(1, p - 1))
+                  }
+                  className="min-h-[36px] px-3 rounded-lg border border-[#E8EAF0] bg-white hover:bg-[#F7F8FC] text-[#172033] font-semibold inline-flex items-center gap-1 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Anterior</span>
+                </button>
+
+                <span className="font-mono tabular-nums px-2 text-[#172033] font-semibold">
+                  {pagination.safePage} / {pagination.totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={pagination.safePage >= pagination.totalPages}
+                  onClick={() =>
+                    setPage((p) =>
+                      Math.min(pagination.totalPages, p + 1),
+                    )
+                  }
+                  className="min-h-[36px] px-3 rounded-lg border border-[#E8EAF0] bg-white hover:bg-[#F7F8FC] text-[#172033] font-semibold inline-flex items-center gap-1 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
+                >
+                  <span>Próxima</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </nav>
+          )}
+        </>
       )}
+
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        order={selectedOrder}
+        busyOrderId={busyOrderId}
+        actionError={actionError}
+        onClose={() => setSelectedOrderId(null)}
+        onMarkViewed={handleMarkAsViewed}
+        onDirectTransition={runDirectTransition}
+        onRequestReasonTransition={(order, action) =>
+          openReasonModalForOrder(
+            order,
+            action.nextStatus as 'rejected' | 'cancelled',
+            action.label,
+          )
+        }
+        onPrint={openPrintModalForOrder}
+      />
 
       {/* Reason Modal for Rejection or Cancellation */}
-      {reasonModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="reason-modal-title"
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
-        >
-          <form
-            onSubmit={(e) => void handleConfirmReasonSubmit(e)}
-            className="max-w-md w-full bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 space-y-4"
+      {reasonModal &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reason-modal-title"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setReasonModal(null);
+              }
+            }}
+            className="fixed inset-0 z-50 bg-[#172033]/50 backdrop-blur-[2px] flex items-center justify-center p-4"
           >
-            <div className="flex items-center justify-between gap-2 border-b border-[#E5E7EB] pb-3">
-              <h3
-                id="reason-modal-title"
-                className="text-sm font-bold text-[#111827]"
-              >
-                {reasonModal.title}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setReasonModal(null)}
-                className="w-8 h-8 rounded-lg text-[#6B7280] hover:text-[#111827] flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {reasonError && (
-              <div
-                role="alert"
-                className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5]"
-              >
-                {reasonError}
+            <form
+              onSubmit={(e) => void handleConfirmReasonSubmit(e)}
+              className="max-w-md w-full bg-white border border-[#E8EAF0] rounded-2xl shadow-[0_18px_42px_rgba(23,32,51,0.16)] p-5 space-y-4"
+            >
+              <div className="flex items-center justify-between gap-2 border-b border-[#E8EAF0] pb-3">
+                <h3
+                  id="reason-modal-title"
+                  className="text-sm font-bold text-[#172033]"
+                >
+                  {reasonModal.title}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setReasonModal(null)}
+                  aria-label="Fechar"
+                  className="w-8 h-8 rounded-lg text-[#778094] hover:text-[#172033] hover:bg-[#F7F8FC] flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            )}
 
-            <div className="space-y-2">
-              <p className="text-xs text-[#6B7280]">
-                Sugestões rápidas (o cliente verá este motivo):
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_REASONS.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => setReasonText(suggestion)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] hover:border-[#EAB308]/50 text-[11px] text-[#4B5563] cursor-pointer"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+              {reasonError && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-xs font-medium text-[#B91C1C]"
+                >
+                  {reasonError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <p className="text-xs text-[#778094]">
+                  Sugestões rápidas (o cliente verá este motivo):
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_REASONS.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => setReasonText(suggestion)}
+                      className="px-2.5 py-1.5 rounded-lg bg-[#F7F8FC] border border-[#E8EAF0] hover:border-[#F5B900] text-[11px] font-medium text-[#172033] cursor-pointer"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label
-                htmlFor="rejection-reason-input"
-                className="block text-xs font-medium text-[#4B5563] mb-1.5"
-              >
-                Motivo obrigatório *
-              </label>
-              <textarea
-                id="rejection-reason-input"
-                rows={3}
-                required
-                minLength={3}
-                maxLength={240}
-                value={reasonText}
-                onChange={(e) => setReasonText(e.target.value)}
-                placeholder="Descreva o motivo..."
-                className="w-full px-3 py-2 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
-              />
-            </div>
+              <div>
+                <label
+                  htmlFor="rejection-reason-input"
+                  className="block text-xs font-semibold text-[#172033] mb-1.5"
+                >
+                  Motivo obrigatório *
+                </label>
+                <textarea
+                  id="rejection-reason-input"
+                  rows={3}
+                  required
+                  minLength={3}
+                  maxLength={240}
+                  value={reasonText}
+                  onChange={(e) => setReasonText(e.target.value)}
+                  placeholder="Descreva o motivo..."
+                  className="mgw-input !min-h-[88px] resize-y"
+                />
+              </div>
 
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setReasonModal(null)}
-                className="min-h-[42px] px-4 rounded-xl border border-[#E5E7EB] text-xs font-semibold text-[#4B5563] cursor-pointer"
-              >
-                Voltar
-              </button>
-              <button
-                type="submit"
-                disabled={Boolean(busyOrderId)}
-                className="min-h-[42px] px-4 rounded-xl bg-[#EF4444] hover:bg-[#DC2626] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
-              >
-                {busyOrderId ? 'Salvando...' : 'Confirmar'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setReasonModal(null)}
+                  className="mgw-btn-secondary"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="submit"
+                  disabled={Boolean(busyOrderId)}
+                  className="min-h-[40px] px-4 rounded-xl bg-[#E35D62] hover:bg-[#DC2626] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {busyOrderId ? 'Salvando...' : 'Confirmar'}
+                </button>
+              </div>
+            </form>
+          </div>,
+          document.body,
+        )}
 
       <OrderPrintModal
         order={printingOrder}

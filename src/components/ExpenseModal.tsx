@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import {
   EXPENSE_CATEGORIES,
@@ -56,7 +57,18 @@ export function ExpenseModal({
     setIsSaving(false);
   }, [isOpen, editingExpense]);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
 
   async function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,24 +114,27 @@ export function ExpenseModal({
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-50 bg-[#172033]/55 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="expense-modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="w-full sm:max-w-lg bg-[#FFFFFF] border border-[#E5E7EB] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 max-h-[92vh] overflow-y-auto">
-        <div className="w-10 h-1 bg-[#333A4A] rounded-full mx-auto mb-4 sm:hidden" />
+      <div className="w-full sm:max-w-lg bg-[#FFFFFF] border border-[#E8EAF0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 max-h-[92vh] overflow-y-auto shadow-[0_18px_42px_rgba(23,32,51,0.18)]">
+        <div className="w-10 h-1 bg-[#CBD5E1] rounded-full mx-auto mb-4 sm:hidden" />
         <div className="flex items-center justify-between gap-4 mb-5">
-          <div>
+          <div className="min-w-0">
             <h2
               id="expense-modal-title"
-              className="text-lg font-bold text-[#111827]"
+              className="text-lg font-bold text-[#172033]"
             >
               {editingExpense ? 'Editar Despesa' : 'Nova Despesa'}
             </h2>
-            <p className="text-xs text-[#6B7280]">
+            <p className="text-xs text-[#778094] truncate">
               Lançamento de insumos e custos · {establishmentName}
             </p>
           </div>
@@ -127,7 +142,7 @@ export function ExpenseModal({
             type="button"
             onClick={onClose}
             aria-label="Fechar janela de despesa"
-            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E5E7EB] hover:border-[#374151] flex items-center justify-center text-[#6B7280] hover:text-[#111827] transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E8EAF0] hover:border-[#D5D9E4] flex items-center justify-center text-[#778094] hover:text-[#172033] transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -137,7 +152,7 @@ export function ExpenseModal({
           {error && (
             <div
               role="alert"
-              className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5]"
+              className="p-3 rounded-xl bg-[#FEF2F2] border border-[#FECACA] text-xs font-medium text-[#B91C1C]"
             >
               {error}
             </div>
@@ -268,14 +283,14 @@ export function ExpenseModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 min-h-[46px] px-4 rounded-xl border border-[#E5E7EB] hover:border-[#374151] text-sm font-medium text-[#4B5563] cursor-pointer transition-colors"
+              className="flex-1 min-h-[46px] px-4 rounded-xl border border-[#E8EAF0] hover:border-[#D5D9E4] hover:bg-[#F7F8FC] text-sm font-semibold text-[#4B5563] cursor-pointer transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-sm font-bold cursor-pointer transition-colors disabled:opacity-60"
+              className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#172033] text-sm font-bold cursor-pointer transition-colors disabled:opacity-60"
             >
               {isSaving
                 ? 'Salvando...'
@@ -286,6 +301,7 @@ export function ExpenseModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

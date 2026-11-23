@@ -1,38 +1,141 @@
-/* MGW Gestão — visual foundation v1. Tokens are opt-in during migration. */
+/* MGW Gestão — Design System Tokens (Etapa 1: Identidade Visual Oficial) */
 :root {
-  --mgw-brand-50:#fff9e8; --mgw-brand-100:#fff0c2; --mgw-brand-200:#ffe28a;
-  --mgw-brand-300:#ffd34d; --mgw-brand-400:#f5c342; --mgw-brand-500:#eab308; --mgw-brand-600:#ca8a04;
-  --mgw-canvas:#f6f7f9; --mgw-surface:#fff; --mgw-surface-subtle:#f9fafb; --mgw-surface-muted:#f1f3f5;
-  --mgw-border:#e5e7eb; --mgw-border-strong:#d1d5db;
-  --mgw-text-primary:#111827; --mgw-text-secondary:#4b5563; --mgw-text-muted:#6b7280;
-  --mgw-text-disabled:#9ca3af; --mgw-text-inverse:#fff;
-  --mgw-success:#15803d; --mgw-success-bg:#f0fdf4; --mgw-warning:#b45309; --mgw-warning-bg:#fffbeb;
-  --mgw-danger:#dc2626; --mgw-danger-bg:#fef2f2; --mgw-info:#1d4ed8; --mgw-info-bg:#eff6ff;
-  --mgw-shadow-xs:0 1px 2px rgb(15 23 42 / 4%);
-  --mgw-shadow-sm:0 1px 3px rgb(15 23 42 / 7%), 0 1px 2px rgb(15 23 42 / 4%);
-  --mgw-shadow-md:0 4px 12px rgb(15 23 42 / 6%); --mgw-shadow-overlay:0 16px 40px rgb(15 23 42 / 14%);
-  --mgw-radius-sm:6px; --mgw-radius-md:9px; --mgw-radius-lg:12px; --mgw-radius-xl:16px; --mgw-radius-2xl:20px;
-  --mgw-space-1:4px; --mgw-space-2:8px; --mgw-space-3:12px; --mgw-space-4:16px;
-  --mgw-space-5:20px; --mgw-space-6:24px; --mgw-space-8:32px; --mgw-space-10:40px; --mgw-space-12:48px;
-  --mgw-font-sans:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  --mgw-font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
-  --mgw-text-xs:.75rem; --mgw-text-sm:.875rem; --mgw-text-base:1rem; --mgw-text-lg:1.125rem;
-  --mgw-text-xl:1.25rem; --mgw-text-2xl:1.5rem; --mgw-text-3xl:1.875rem;
-  --mgw-motion-fast:120ms; --mgw-motion-normal:180ms; --mgw-motion-slow:240ms;
-  --mgw-ease-standard:cubic-bezier(.2,0,0,1);
-  --mgw-sidebar-width:248px; --mgw-header-height:64px; --mgw-content-max:1600px;
+  /* Marca MGW */
+  --mgw-brand-primary: #F5B900;
+  --mgw-brand-highlight: #FFC928;
+  --mgw-brand-50: #FFFBEB;
+  --mgw-brand-100: #FFF2BE;
+  --mgw-brand-200: #FDE68A;
+  --mgw-brand-300: #FFC928;
+  --mgw-brand-400: #F5B900;
+  --mgw-brand-500: #DFA700;
+  --mgw-brand-600: #B38300;
+  --mgw-brand-ink: #172033;
+
+  /* Destaque ativo na navegação lateral */
+  --mgw-nav-active-from: #FFF0B3;
+  --mgw-nav-active-to: #FFF8DB;
+
+  /* Superfícies & Bordas */
+  --mgw-canvas: #F5F6FA;
+  --mgw-surface: #FFFFFF;
+  --mgw-surface-subtle: #F7F8FC;
+  --mgw-surface-muted: #EFF1F7;
+  --mgw-border: #E8EAF0;
+  --mgw-border-strong: #D5D9E4;
+
+  /* Tipografia */
+  --mgw-text-primary: #172033;
+  --mgw-text-secondary: #778094;
+  --mgw-text-muted: #778094;
+  --mgw-text-disabled: #9EA6B8;
+  --mgw-text-inverse: #FFFFFF;
+
+  /* Semântica */
+  --mgw-success: #16A36A;
+  --mgw-success-bg: #ECFDF5;
+  --mgw-success-border: #A7F3D0;
+  --mgw-warning: #B45309;
+  --mgw-warning-bg: #FFFBEB;
+  --mgw-warning-border: #FDE68A;
+  --mgw-danger: #E35D62;
+  --mgw-danger-bg: #FEF2F2;
+  --mgw-danger-border: #FECACA;
+  --mgw-info: #3478E5;
+  --mgw-info-bg: #EFF6FF;
+  --mgw-info-border: #BFDBFE;
+
+  /* Elevação */
+  --mgw-shadow-xs: 0 1px 2px rgb(23 32 51 / 4%);
+  --mgw-shadow-sm: 0 2px 8px rgb(23 32 51 / 5%), 0 1px 2px rgb(23 32 51 / 3%);
+  --mgw-shadow-md: 0 8px 22px rgb(23 32 51 / 7%);
+  --mgw-shadow-overlay: 0 18px 42px rgb(23 32 51 / 14%);
+
+  /* Raios */
+  --mgw-radius-sm: 8px;
+  --mgw-radius-md: 10px;
+  --mgw-radius-lg: 12px;
+  --mgw-radius-xl: 16px;
+  --mgw-radius-2xl: 20px;
+  --mgw-radius-full: 9999px;
+
+  /* Espaçamento */
+  --mgw-space-1: 4px;
+  --mgw-space-2: 8px;
+  --mgw-space-3: 12px;
+  --mgw-space-4: 16px;
+  --mgw-space-5: 20px;
+  --mgw-space-6: 24px;
+  --mgw-space-8: 32px;
+  --mgw-space-10: 40px;
+  --mgw-space-12: 48px;
+
+  /* Tipografia & Escala */
+  --mgw-font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mgw-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --mgw-text-xs: 0.75rem;
+  --mgw-text-sm: 0.875rem;
+  --mgw-text-base: 1rem;
+  --mgw-text-lg: 1.125rem;
+  --mgw-text-xl: 1.25rem;
+  --mgw-text-2xl: 1.5rem;
+  --mgw-text-3xl: 1.875rem;
+
+  /* Movimento & Layout */
+  --mgw-motion-fast: 140ms;
+  --mgw-motion-normal: 200ms;
+  --mgw-motion-slow: 260ms;
+  --mgw-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --mgw-sidebar-width: 240px;
+  --mgw-sidebar-collapsed-width: 76px;
+  --mgw-header-height: 64px;
+  --mgw-content-max: 1440px;
 }
+
 .mgw-app-theme {
   color-scheme: light;
-  color:var(--mgw-text-primary); background:var(--mgw-canvas); font-family:var(--mgw-font-sans);
-  font-synthesis:none; text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased;
-  -moz-osx-font-smoothing:grayscale;
+  color: var(--mgw-text-primary);
+  background-color: var(--mgw-canvas);
+  font-family: var(--mgw-font-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-.mgw-app-theme *, .mgw-app-theme *::before, .mgw-app-theme *::after { box-sizing:border-box; }
-.mgw-app-theme :focus-visible { outline:2px solid var(--mgw-brand-500); outline-offset:2px; }
-@media (prefers-reduced-motion:reduce) {
-  .mgw-app-theme *, .mgw-app-theme *::before, .mgw-app-theme *::after {
-    scroll-behavior:auto !important; animation-duration:.01ms !important;
-    animation-iteration-count:1 !important; transition-duration:.01ms !important;
+
+.mgw-app-theme h1,
+.mgw-app-theme h2,
+.mgw-app-theme h3,
+.mgw-app-theme h4,
+.mgw-app-theme .font-display {
+  font-family: var(--mgw-font-sans);
+  letter-spacing: -0.015em;
+}
+
+.mgw-app-theme .font-mono,
+.mgw-app-theme .tabular-nums {
+  font-family: var(--mgw-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.mgw-app-theme *,
+.mgw-app-theme *::before,
+.mgw-app-theme *::after {
+  box-sizing: border-box;
+}
+
+.mgw-app-theme :focus-visible {
+  outline: 2px solid var(--mgw-brand-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mgw-app-theme *,
+  .mgw-app-theme *::before,
+  .mgw-app-theme *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

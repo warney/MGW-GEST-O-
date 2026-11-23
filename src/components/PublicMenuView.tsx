@@ -1209,6 +1209,8 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               <PWAInstallButton
                 appName="MGW Cardápio Digital"
                 installLabel="Instalar cardápio"
+                tone="dark"
+                showManualFallback
               />
               <button
                 type="button"

@@ -168,16 +168,16 @@ export function ImageUploadField({
   }
 
   return (
-    <div className="p-3.5 rounded-xl bg-white border border-[#E5E7EB] shadow-sm space-y-3">
+    <div className="p-3.5 rounded-xl bg-[#F7F8FC]/60 border border-[#E8EAF0] space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <label
             htmlFor={inputId}
-            className="block text-xs font-semibold text-[#111827]"
+            className="block text-xs font-semibold text-[#172033]"
           >
             {label}
           </label>
-          <p className="text-[11px] text-[#6B7280] mt-0.5">
+          <p className="text-[11px] text-[#778094] mt-0.5">
             {helperText ||
               `JPG, PNG ou WebP · Recomendado: ${presetMeta.aspectHint}`}
           </p>
@@ -202,7 +202,7 @@ export function ImageUploadField({
         }
       >
         <div
-          className={`relative overflow-hidden rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] flex items-center justify-center shrink-0 ${
+          className={`relative overflow-hidden rounded-xl border border-[#E8EAF0] bg-white flex items-center justify-center shrink-0 ${
             isBanner ? 'w-full h-28 sm:h-36' : 'w-20 h-20'
           }`}
         >
@@ -215,16 +215,16 @@ export function ImageUploadField({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-[#6B7280] px-2 text-center">
-              <ImageIcon className="w-5 h-5 mb-1 text-[#6B7280]" />
-              <span className="text-[10px]">Sem foto</span>
+            <div className="flex flex-col items-center justify-center text-[#778094] px-2 text-center">
+              <ImageIcon className="w-5 h-5 mb-1 text-[#778094]" />
+              <span className="text-[10px] font-medium">Sem foto</span>
             </div>
           )}
 
           {uploading && (
-            <div className="absolute inset-0 bg-[#111827]/75 flex flex-col items-center justify-center gap-1 px-2">
-              <Loader2 className="w-4 h-4 text-[#F5B731] animate-spin" />
-              <span className="text-[10px] font-mono tabular-nums text-[#111827]">
+            <div className="absolute inset-0 bg-[#172033]/75 flex flex-col items-center justify-center gap-1 px-2">
+              <Loader2 className="w-4 h-4 text-[#F5B900] animate-spin" />
+              <span className="text-[10px] font-mono tabular-nums font-bold text-white">
                 {progress}%
               </span>
             </div>
@@ -237,16 +237,16 @@ export function ImageUploadField({
               type="button"
               disabled={disabled}
               onClick={() => fileInputRef.current?.click()}
-              className="min-h-[40px] px-3.5 rounded-xl border border-[#E5E7EB] hover:border-[#F5B731]/60 bg-white text-xs font-semibold text-[#111827] inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
+              className="min-h-[40px] px-3.5 rounded-xl border border-[#E8EAF0] hover:border-[#F5B900] bg-white text-xs font-semibold text-[#172033] inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
             >
-              <Upload className="w-3.5 h-3.5 text-[#F5B731]" />
+              <Upload className="w-3.5 h-3.5 text-[#D97706]" />
               {valueUrl ? 'Trocar imagem' : 'Enviar imagem'}
             </button>
           ) : (
             <button
               type="button"
               onClick={handleCancelUpload}
-              className="min-h-[40px] px-3.5 rounded-xl border border-[#EF4444]/40 hover:border-[#EF4444] bg-[#EF4444]/10 text-xs font-semibold text-[#DC2626] inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="min-h-[40px] px-3.5 rounded-xl border border-[#FECACA] hover:border-[#E35D62] bg-[#FEF2F2] text-xs font-semibold text-[#E35D62] inline-flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <X className="w-3.5 h-3.5" />
               Cancelar ({progress}%)
@@ -258,7 +258,7 @@ export function ImageUploadField({
               type="button"
               disabled={disabled}
               onClick={handleRemove}
-              className="min-h-[40px] px-3 rounded-xl border border-[#E5E7EB] hover:border-[#EF4444]/50 text-xs font-medium text-[#DC2626] inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
+              className="min-h-[40px] px-3 rounded-xl border border-[#E8EAF0] hover:border-[#FECACA] hover:bg-[#FEF2F2] text-xs font-semibold text-[#E35D62] inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Remover
@@ -270,10 +270,10 @@ export function ImageUploadField({
       {uploading && (
         <div
           aria-label="Progresso do envio da imagem"
-          className="h-1.5 w-full rounded-full bg-white overflow-hidden"
+          className="h-1.5 w-full rounded-full bg-[#EFF1F7] overflow-hidden"
         >
           <div
-            className="h-full bg-[#F5B731] transition-all duration-150"
+            className="h-full bg-[#F5B900] transition-all duration-150"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -282,7 +282,7 @@ export function ImageUploadField({
       {uploadCompleted && !uploading && !uploadError && valueUrl && (
         <p
           role="status"
-          className="text-[11px] text-[#15803D] flex items-center gap-1.5"
+          className="text-[11px] font-medium text-[#16A36A] flex items-center gap-1.5"
         >
           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
           <span>Imagem enviada. Clique em Salvar para confirmar no cardápio.</span>
@@ -292,9 +292,9 @@ export function ImageUploadField({
       {uploadError && (
         <div
           role="alert"
-          className="p-2.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 space-y-2"
+          className="p-2.5 rounded-xl bg-[#FEF2F2] border border-[#FECACA] space-y-2"
         >
-          <p className="text-[11px] text-[#DC2626] flex items-start gap-1.5 leading-relaxed">
+          <p className="text-[11px] text-[#B91C1C] flex items-start gap-1.5 leading-relaxed">
             <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
             <span>{uploadError}</span>
           </p>
@@ -302,9 +302,9 @@ export function ImageUploadField({
             type="button"
             disabled={disabled}
             onClick={handleRetryUpload}
-            className="min-h-[34px] px-3 rounded-lg bg-white border border-[#E5E7EB] hover:border-[#F5B731]/60 text-[11px] font-semibold text-[#111827] inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
+            className="min-h-[34px] px-3 rounded-lg bg-white border border-[#E8EAF0] hover:border-[#F5B900] text-[11px] font-semibold text-[#172033] inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
           >
-            <RotateCcw className="w-3 h-3 text-[#F5B731]" />
+            <RotateCcw className="w-3 h-3 text-[#D97706]" />
             Tentar novamente
           </button>
         </div>

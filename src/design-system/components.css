@@ -1,0 +1,167 @@
+/* MGW Gestão — Reusable Design System Component Primitives (Etapa 1) */
+
+.mgw-app-theme .mgw-title-page {
+  font-size: var(--mgw-text-xl);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--mgw-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.mgw-app-theme .mgw-title-section {
+  font-size: var(--mgw-text-base);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--mgw-text-primary);
+  letter-spacing: -0.01em;
+}
+
+.mgw-app-theme .mgw-subtitle {
+  font-size: var(--mgw-text-sm);
+  line-height: 1.45;
+  color: var(--mgw-text-secondary);
+}
+
+.mgw-app-theme .mgw-card {
+  background-color: var(--mgw-surface);
+  border: 1px solid var(--mgw-border);
+  border-radius: var(--mgw-radius-xl);
+  box-shadow: var(--mgw-shadow-sm);
+}
+
+.mgw-app-theme .mgw-nav-item-active {
+  background: linear-gradient(90deg, var(--mgw-nav-active-from) 0%, var(--mgw-nav-active-to) 100%);
+  color: var(--mgw-text-primary);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgb(245 185 0 / 18%);
+}
+
+.mgw-app-theme .mgw-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0 1rem;
+  border-radius: var(--mgw-radius-md);
+  background-color: var(--mgw-brand-primary);
+  color: var(--mgw-brand-ink);
+  font-size: var(--mgw-text-xs);
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid transparent;
+  box-shadow: var(--mgw-shadow-xs);
+  transition: background-color var(--mgw-motion-fast) var(--mgw-ease-standard),
+    transform var(--mgw-motion-fast) var(--mgw-ease-standard),
+    box-shadow var(--mgw-motion-fast) var(--mgw-ease-standard);
+  cursor: pointer;
+}
+
+.mgw-app-theme .mgw-btn-primary:hover {
+  background-color: var(--mgw-brand-highlight);
+}
+
+.mgw-app-theme .mgw-btn-primary:active {
+  transform: translateY(1px);
+}
+
+.mgw-app-theme .mgw-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0 0.875rem;
+  border-radius: var(--mgw-radius-md);
+  background-color: var(--mgw-surface);
+  color: var(--mgw-text-primary);
+  font-size: var(--mgw-text-xs);
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid var(--mgw-border);
+  box-shadow: var(--mgw-shadow-xs);
+  transition: background-color var(--mgw-motion-fast) var(--mgw-ease-standard),
+    border-color var(--mgw-motion-fast) var(--mgw-ease-standard);
+  cursor: pointer;
+}
+
+.mgw-app-theme .mgw-btn-secondary:hover {
+  background-color: var(--mgw-surface-subtle);
+  border-color: var(--mgw-border-strong);
+}
+
+.mgw-app-theme .mgw-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--mgw-radius-md);
+  background-color: var(--mgw-surface);
+  border: 1px solid var(--mgw-border);
+  color: var(--mgw-text-primary);
+  font-size: var(--mgw-text-sm);
+  transition: border-color var(--mgw-motion-fast) var(--mgw-ease-standard),
+    box-shadow var(--mgw-motion-fast) var(--mgw-ease-standard);
+}
+
+.mgw-app-theme .mgw-input:focus {
+  outline: none;
+  border-color: var(--mgw-brand-primary);
+  box-shadow: 0 0 0 3px rgb(245 185 0 / 16%);
+}
+
+.mgw-app-theme .mgw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--mgw-radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.mgw-app-theme .mgw-badge-brand {
+  background-color: var(--mgw-brand-100);
+  color: #8A6200;
+  border: 1px solid var(--mgw-brand-200);
+}
+
+.mgw-app-theme .mgw-badge-success {
+  background-color: var(--mgw-success-bg);
+  color: var(--mgw-success);
+  border: 1px solid var(--mgw-success-border);
+}
+
+.mgw-app-theme .mgw-badge-danger {
+  background-color: var(--mgw-danger-bg);
+  color: var(--mgw-danger);
+  border: 1px solid var(--mgw-danger-border);
+}
+
+.mgw-app-theme .mgw-badge-info {
+  background-color: var(--mgw-info-bg);
+  color: var(--mgw-info);
+  border: 1px solid var(--mgw-info-border);
+}
+
+.mgw-app-theme .mgw-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--mgw-surface-subtle) 0%,
+    var(--mgw-surface-muted) 50%,
+    var(--mgw-surface-subtle) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--mgw-radius-xl);
+  border: 1px solid var(--mgw-border);
+  animation: mgw-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes mgw-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

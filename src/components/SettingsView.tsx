@@ -27,6 +27,7 @@ interface SettingsViewProps {
   onSeedCatalog: () => Promise<void>;
   onPreviewPublicMenu?: (slug: string) => void;
   initialTab?: 'shop' | 'catalog' | 'digital_menu';
+  onTabChange?: (tab: 'shop' | 'catalog' | 'digital_menu') => void;
   accountEmail: string;
   onLogout: () => Promise<void>;
   canManageShopSettings?: boolean;
@@ -58,6 +59,7 @@ export function SettingsView({
   onSeedCatalog,
   onPreviewPublicMenu,
   initialTab = 'shop',
+  onTabChange,
   accountEmail,
   onLogout,
   canManageShopSettings = true,
@@ -81,6 +83,11 @@ export function SettingsView({
     }
     setActiveTab(initialTab);
   }, [initialTab, canManageShopSettings, canManageDigitalMenu]);
+
+  function handleSelectTab(nextTab: 'shop' | 'catalog' | 'digital_menu') {
+    setActiveTab(nextTab);
+    onTabChange?.(nextTab);
+  }
 
   const [establishmentName, setEstablishmentName] = useState(
     settings.establishmentName,
@@ -167,7 +174,7 @@ export function SettingsView({
   }
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className={activeTab === 'catalog' ? 'space-y-5' : 'max-w-4xl space-y-5'}>
       {/* Settings Navigation Tabs */}
       <div
         role="tablist"
@@ -179,7 +186,7 @@ export function SettingsView({
             type="button"
             role="tab"
             aria-selected={activeTab === 'shop'}
-            onClick={() => setActiveTab('shop')}
+            onClick={() => handleSelectTab('shop')}
             className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
               activeTab === 'shop'
                 ? 'bg-[#EAB308] text-[#F9FAFB]'
@@ -195,7 +202,7 @@ export function SettingsView({
           type="button"
           role="tab"
           aria-selected={activeTab === 'catalog'}
-          onClick={() => setActiveTab('catalog')}
+          onClick={() => handleSelectTab('catalog')}
           className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
             activeTab === 'catalog'
               ? 'bg-[#EAB308] text-[#F9FAFB]'
@@ -211,7 +218,7 @@ export function SettingsView({
             type="button"
             role="tab"
             aria-selected={activeTab === 'digital_menu'}
-            onClick={() => setActiveTab('digital_menu')}
+            onClick={() => handleSelectTab('digital_menu')}
             className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
               activeTab === 'digital_menu'
                 ? 'bg-[#EAB308] text-[#F9FAFB]'

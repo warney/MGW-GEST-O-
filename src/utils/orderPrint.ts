@@ -15,6 +15,12 @@ import {
 export type PrintPaperFormat = '80mm' | '58mm' | 'a4';
 export type PrintCopyMode = 'complete' | 'kitchen';
 
+export interface PrintableOrderAddonGroup {
+  groupId: string;
+  groupName: string;
+  options: Array<{ id: string; name: string; price: number }>;
+}
+
 export interface PrintableOrderItem {
   id: string;
   itemName: string;
@@ -22,6 +28,7 @@ export interface PrintableOrderItem {
   unitPrice: number;
   lineTotal: number;
   itemNote: string;
+  selectedAddons?: PrintableOrderAddonGroup[];
 }
 
 export interface PrintableOrderSource {
@@ -33,6 +40,7 @@ export interface PrintableOrderSource {
   changeFor: number | null;
   subtotalAmount: number;
   deliveryFee: number;
+  discountAmount?: number;
   totalAmount: number;
   customerNote: string;
   createdAtMs: number;
@@ -46,12 +54,18 @@ export interface PrintableOrderSource {
   storeAddress?: string;
 }
 
+export interface PrintableOrderLineAddon {
+  groupName: string;
+  optionsSummary: string;
+}
+
 export interface PrintableOrderLine {
   id: string;
   quantity: number;
   name: string;
   unitPriceFormatted: string;
   lineTotalFormatted: string;
+  addons: PrintableOrderLineAddon[];
   note: string;
 }
 
@@ -75,6 +89,7 @@ export interface PrintableOrderDocument {
   changeForFormatted: string | null;
   changeReturnFormatted: string | null;
   subtotalFormatted: string;
+  discountFormatted: string | null;
   deliveryFeeFormatted: string;
   totalFormatted: string;
   customerNote: string;
@@ -137,6 +152,33 @@ function storeNameFallback(name: string): string {
   return (name || '').trim() || 'MGW GESTÃO';
 }
 
+function formatLineAddons(
+  selectedAddons: PrintableOrderAddonGroup[] | undefined,
+  showPrices: boolean,
+): PrintableOrderLineAddon[] {
+  if (!selectedAddons || selectedAddons.length === 0) return [];
+  const result: PrintableOrderLineAddon[] = [];
+
+  for (const group of selectedAddons) {
+    if (!group.options || group.options.length === 0) continue;
+    const summary = group.options
+      .map((opt) =>
+        showPrices && opt.price > 0
+          ? `${opt.name} (+${formatCurrencyBRL(opt.price)})`
+          : opt.name,
+      )
+      .join(', ');
+    if (summary) {
+      result.push({
+        groupName: group.groupName,
+        optionsSummary: summary,
+      });
+    }
+  }
+
+  return result;
+}
+
 export function buildPrintableOrderDocument(
   source: PrintableOrderSource,
   mode: PrintCopyMode = 'complete',
@@ -155,6 +197,13 @@ export function buildPrintableOrderDocument(
   const changeReturnNumber =
     changeForNumber !== null
       ? roundCurrency(Math.max(0, changeForNumber - source.totalAmount))
+      : null;
+
+  const discountNumber =
+    typeof source.discountAmount === 'number' &&
+    Number.isFinite(source.discountAmount) &&
+    source.discountAmount > 0
+      ? roundCurrency(source.discountAmount)
       : null;
 
   return {
@@ -179,6 +228,8 @@ export function buildPrintableOrderDocument(
     changeReturnFormatted:
       changeReturnNumber !== null ? formatCurrencyBRL(changeReturnNumber) : null,
     subtotalFormatted: formatCurrencyBRL(source.subtotalAmount),
+    discountFormatted:
+      discountNumber !== null ? formatCurrencyBRL(discountNumber) : null,
     deliveryFeeFormatted:
       !isDelivery || source.deliveryFee <= 0
         ? 'Grátis'
@@ -191,6 +242,7 @@ export function buildPrintableOrderDocument(
       name: item.itemName,
       unitPriceFormatted: formatCurrencyBRL(item.unitPrice),
       lineTotalFormatted: formatCurrencyBRL(item.lineTotal),
+      addons: formatLineAddons(item.selectedAddons, showPrices),
       note: (item.itemNote || '').trim(),
     })),
   };
@@ -198,10 +250,19 @@ export function buildPrintableOrderDocument(
 
 export function getPrintPageCss(format: PrintPaperFormat): string {
   if (format === '58mm') {
-    return '@page { size: 58mm auto; margin: 2mm; }';
+    return [
+      '@page { size: 58mm auto; margin: 2mm; }',
+      '@media print { #mgw-printable-receipt { width: 54mm !important; max-width: 54mm !important; font-size: 10px !important; line-height: 1.3 !important; } }',
+    ].join('\n');
   }
   if (format === 'a4') {
-    return '@page { size: A4 portrait; margin: 12mm; }';
+    return [
+      '@page { size: A4 portrait; margin: 14mm; }',
+      '@media print { #mgw-printable-receipt { max-width: 180mm !important; width: 100% !important; font-size: 12px !important; line-height: 1.45 !important; } }',
+    ].join('\n');
   }
-  return '@page { size: 80mm auto; margin: 3mm; }';
+  return [
+    '@page { size: 80mm auto; margin: 3mm; }',
+    '@media print { #mgw-printable-receipt { width: 74mm !important; max-width: 74mm !important; font-size: 11px !important; line-height: 1.35 !important; } }',
+  ].join('\n');
 }

@@ -13,6 +13,11 @@
     background-color: #0B0D11;
     color: #F3F4F6;
     color-scheme: dark;
+    overflow-x: clip;
+  }
+
+  body {
+    overflow-x: clip;
   }
 
   h1, h2, h3, h4, .font-display {
@@ -62,10 +67,39 @@
     padding: 0 !important;
     height: auto !important;
     min-height: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  #root {
+  /* Isolate OrderPrintModal receipt when active; keep general pages printable otherwise */
+  body.mgw-order-print-open #root {
     display: none !important;
+  }
+
+  aside,
+  header.mgw-shell-header,
+  nav[aria-label="Menu inferior"],
+  .mgw-offline-banner,
+  .no-print {
+    display: none !important;
+  }
+
+  .mgw-app-theme,
+  .mgw-app-theme > div {
+    padding-left: 0 !important;
+    background: #ffffff !important;
+  }
+
+  main.mgw-shell-main {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .mgw-print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   #mgw-print-portal {
@@ -106,9 +140,6 @@
     color: #000000 !important;
     background: #ffffff !important;
   }
-
-  .no-print {
-    display: none !important;
-  }
 }
+
 

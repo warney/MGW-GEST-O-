@@ -28,8 +28,8 @@ export default defineConfig(() => {
           short_name: 'MGW Gestão',
           description:
             'Aplicativo administrativo para gerenciar estabelecimentos, vendas, despesas, produtos e pedidos.',
-          theme_color: '#0B0D11',
-          background_color: '#0B0D11',
+          theme_color: '#F5F6FA',
+          background_color: '#F5F6FA',
           display: 'standalone',
           start_url: '/',
           scope: '/',
