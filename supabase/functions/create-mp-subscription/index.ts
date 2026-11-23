@@ -35,16 +35,11 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const accessToken = Deno.env.get("MP_ACCESS_TOKEN_TEST") || "";
+  const accessToken = Deno.env.get("MP_ACCESS_TOKEN") || "";
   if (!supabaseUrl || !serviceRoleKey || !accessToken) {
     console.error("[create-mp-subscription] Configuração ausente.");
     return json({ error: "Integração de pagamentos ainda não configurada." }, 503);
   }
-  if (!accessToken.startsWith("TEST-")) {
-    console.error("[create-mp-subscription] Token não identificado como credencial de teste; operação bloqueada.");
-    return json({ error: "A integração está configurada apenas para credenciais de teste." }, 503);
-  }
-
   const authHeader = req.headers.get("authorization") || "";
   const jwt = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
   if (!jwt) return json({ error: "Sessão não encontrada. Entre novamente." }, 401);
@@ -91,7 +86,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: subscription, error: subscriptionError } = await admin
       .from("subscriptions")
-      .select("id,status,trial_ends_at,mp_preapproval_id,mp_init_point,plan_amount_cents,currency")
+      .select("id,status,trial_ends_at,mp_preapproval_id,mp_init_point,plan_amount_cents,currency,updated_at")
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (subscriptionError || !subscription) {
@@ -117,8 +112,7 @@ Deno.serve(async (req: Request) => {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-        "X-scope": "stage",
-        "X-Idempotency-Key": `mgw-sub-${tenantId}-${subscription.mp_preapproval_id || "initial"}`,
+        "X-Idempotency-Key": `mgw-sub-${tenantId}-${subscription.updated_at || subscription.id}`,
       },
       body: JSON.stringify({
         reason: "MGW Gestão SaaS — plano mensal",
@@ -137,9 +131,9 @@ Deno.serve(async (req: Request) => {
     });
 
     const mpData = await mpResponse.json().catch(() => ({}));
-    if (!mpResponse.ok || typeof mpData.id !== "string" || typeof mpData.init_point !== "string") {
+    if (!mpResponse.ok || typeof mpData.id !== "string" || typeof mpData.init_point !== "string" || String(mpData.external_reference || "") !== tenantId) {
       console.error("[create-mp-subscription] Mercado Pago recusou a criação:", mpResponse.status, mpData?.message || "sem mensagem");
-      return json({ error: "Não foi possível gerar o checkout de teste. Tente novamente mais tarde." }, 502);
+      return json({ error: "Não foi possível gerar o checkout. Tente novamente mais tarde." }, 502);
     }
 
     const trialStillActive = subscription.status === "trialing"

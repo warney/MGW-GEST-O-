@@ -59,8 +59,8 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const accessToken = (Deno.env.get("MP_ACCESS_TOKEN_TEST") || "").trim();
-  const webhookSecret = (Deno.env.get("MP_WEBHOOK_SECRET_TEST") || "").trim();
+  const accessToken = (Deno.env.get("MP_ACCESS_TOKEN") || "").trim();
+  const webhookSecret = (Deno.env.get("MP_WEBHOOK_SECRET") || "").trim();
   if (!supabaseUrl || !serviceRoleKey || !accessToken) {
     console.error("[mp-webhook] Configuração obrigatória ausente.", {
       supabaseUrl: Boolean(supabaseUrl),
@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
 
     if (eventType === "subscription_authorized_payment") {
       if (!webhookSecret) {
-        console.error("[mp-webhook] MP_WEBHOOK_SECRET_TEST ausente; evento recusado.");
+        console.error("[mp-webhook] MP_WEBHOOK_SECRET ausente; evento recusado.");
         return json({ error: "Webhook secret not configured" }, 503);
       }
       const signatureValid = await verifySignature(req, resourceId, webhookSecret);
@@ -99,7 +99,7 @@ Deno.serve(async (req: Request) => {
 
       const paymentResponse = await fetch(
         `https://api.mercadopago.com/authorized_payments/${encodeURIComponent(resourceId)}`,
-        { headers: { "Authorization": `Bearer ${accessToken}`, "X-scope": "stage" } },
+        { headers: { "Authorization": `Bearer ${accessToken}` } },
       );
       const authorized = await paymentResponse.json().catch(() => ({}));
       if (!paymentResponse.ok || String(authorized.id || "") !== resourceId) {
@@ -131,7 +131,13 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Invoice amount mismatch" }, 409);
       }
 
-      const rawStatus = String(authorized.status || "").toLowerCase();
+      const paymentObject = authorized.payment && typeof authorized.payment === "object"
+        ? authorized.payment as Record<string, unknown>
+        : {};
+      const payerObject = paymentObject.payer && typeof paymentObject.payer === "object"
+        ? paymentObject.payer as Record<string, unknown>
+        : {};
+      const rawStatus = String(paymentObject.status || authorized.summarized || authorized.status || "").toLowerCase();
       const paymentStatus: Record<string, string> = {
         approved: "approved",
         pending: "pending",
@@ -143,18 +149,12 @@ Deno.serve(async (req: Request) => {
       };
       const normalizedStatus = paymentStatus[rawStatus] || "pending";
       const now = new Date();
-      const paymentObject = authorized.payment && typeof authorized.payment === "object"
-        ? authorized.payment as Record<string, unknown>
-        : {};
-      const payerObject = paymentObject.payer && typeof paymentObject.payer === "object"
-        ? paymentObject.payer as Record<string, unknown>
-        : {};
       const mpPaymentId = String(paymentObject.id || authorized.id);
-      const paidAtValue = authorized.date_approved || authorized.date_last_updated || null;
+      const paidAtValue = authorized.date_approved || paymentObject.date_approved || authorized.date_last_updated || null;
       const paidAt = normalizedStatus === "approved" && paidAtValue
         ? new Date(String(paidAtValue))
         : null;
-      const dueAtValue = authorized.debit_date || authorized.date_of_expiration || null;
+      const dueAtValue = authorized.debit_date || paymentObject.date_of_expiration || authorized.date_of_expiration || null;
       const dueAt = dueAtValue ? new Date(String(dueAtValue)) : null;
       const eventId = `authorized_payment:${resourceId}:${rawStatus}:${String(authorized.last_modified || authorized.date_created || "")}`;
 
@@ -199,6 +199,22 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Could not reconcile payment" }, 500);
       }
 
+      if (normalizedStatus === "approved") {
+        const paidStart = paidAt && !Number.isNaN(paidAt.getTime()) ? paidAt : now;
+        const paidEnd = dueAt && !Number.isNaN(dueAt.getTime()) ? dueAt : new Date(paidStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const { error: lifecycleError } = await supabase.from("subscriptions").update({ status: "authorized", current_period_start: paidStart.toISOString(), current_period_end: paidEnd.toISOString(), grace_until: null, last_event_at: now.toISOString(), updated_at: now.toISOString() }).eq("id", subscription.id);
+        if (lifecycleError) {
+          await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: lifecycleError.message, processed_at: now.toISOString() }).eq("id", eventId);
+          return json({ error: "Could not activate paid subscription" }, 500);
+        }
+      } else if (normalizedStatus === "rejected" || normalizedStatus === "cancelled" || normalizedStatus === "refunded") {
+        const graceUntil = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString();
+        const { error: lifecycleError } = await supabase.from("subscriptions").update({ status: "paused", grace_until: graceUntil, last_event_at: now.toISOString(), updated_at: now.toISOString() }).eq("id", subscription.id);
+        if (lifecycleError) {
+          await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: lifecycleError.message, processed_at: now.toISOString() }).eq("id", eventId);
+          return json({ error: "Could not update subscription after payment failure" }, 500);
+        }
+      }
       await supabase.from("mp_webhook_events").update({
         processing_status: "processed",
         processed_at: now.toISOString(),
@@ -211,7 +227,7 @@ Deno.serve(async (req: Request) => {
     // Prefer HMAC when available; for test mode also require a canonical resource lookup before
     // any database mutation, so simulator payloads cannot activate a tenant.
     if (!webhookSecret) {
-      console.error("[mp-webhook] MP_WEBHOOK_SECRET_TEST ausente; notificação recusada.");
+      console.error("[mp-webhook] MP_WEBHOOK_SECRET ausente; notificação recusada.");
       return json({ error: "Webhook secret not configured" }, 503);
     }
     const signatureValid = await verifySignature(req, resourceId, webhookSecret);
@@ -220,8 +236,7 @@ Deno.serve(async (req: Request) => {
     const mpResponse = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(resourceId)}`, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
-        "X-scope": "stage",
-      },
+              },
     });
     const mp = await mpResponse.json().catch(() => ({}));
     if (!mpResponse.ok || typeof mp.external_reference !== "string") {
@@ -241,7 +256,7 @@ Deno.serve(async (req: Request) => {
     }
     const amount = Number(mp.auto_recurring?.transaction_amount);
     const currency = String(mp.auto_recurring?.currency_id || "");
-    if (amount !== 49.9 || currency !== "BRL") {
+    if (Math.round(amount * 100) !== 4990 || currency !== "BRL") {
       console.error("[mp-webhook] Valor/moeda divergente; assinatura não atualizada.");
       return json({ error: "Subscription amount mismatch" }, 409);
     }
@@ -250,7 +265,7 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: current, error: currentError } = await supabase
-      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id")
+      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_end")
       .eq("tenant_id", tenantId).maybeSingle();
     if (currentError || !current) return json({ error: "MGW subscription not found" }, 404);
     if (current.mp_preapproval_id && current.mp_preapproval_id !== resourceId) {
@@ -279,8 +294,8 @@ Deno.serve(async (req: Request) => {
 
     const now = new Date();
     const statusMap: Record<string, string> = {
-      authorized: "authorized",
-      pending: "pending",
+      authorized: current.status === "authorized" ? "authorized" : (current.status === "trialing" && current.trial_ends_at && Date.parse(current.trial_ends_at) > Date.now() ? "trialing" : "pending"),
+      pending: current.status === "authorized" ? "authorized" : (current.status === "trialing" && current.trial_ends_at && Date.parse(current.trial_ends_at) > Date.now() ? "trialing" : "pending"),
       paused: "paused",
       cancelled: "cancelled",
       canceled: "cancelled",
@@ -296,7 +311,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Unsupported subscription status" }, 422);
     }
     const startDate = mp.date_created ? new Date(mp.date_created) : now;
-    const endDate = mp.next_payment_date ? new Date(mp.next_payment_date) : null;
+    const endDate = mp.next_payment_date ? new Date(mp.next_payment_date) : (current.current_period_end ? new Date(current.current_period_end) : null);
     const graceUntil = nextStatus === "paused"
       ? new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString()
       : null;
@@ -304,14 +319,11 @@ Deno.serve(async (req: Request) => {
     const { error: updateError } = await supabase.from("subscriptions").update({
       status: nextStatus,
       mp_preapproval_id: resourceId,
-      current_period_start: nextStatus === "authorized" ? startDate.toISOString() : null,
-      current_period_end: endDate && !Number.isNaN(endDate.getTime()) ? endDate.toISOString() : null,
+      current_period_start: nextStatus === "authorized" ? startDate.toISOString() : undefined,
+      current_period_end: endDate && !Number.isNaN(endDate.getTime()) ? endDate.toISOString() : undefined,
       grace_until: graceUntil,
-      ended_at: nextStatus === "cancelled" ? now.toISOString() : null,
-      cancelled_at: nextStatus === "cancelled" ? now.toISOString() : null,
-      retention_until: nextStatus === "cancelled"
-        ? new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString()
-        : null,
+      ended_at: nextStatus === "cancelled" && (!endDate || endDate.getTime() <= now.getTime()) ? now.toISOString() : undefined,
+      cancelled_at: nextStatus === "cancelled" ? now.toISOString() : undefined,
       last_event_at: now.toISOString(),
       updated_at: now.toISOString(),
     }).eq("tenant_id", tenantId);
