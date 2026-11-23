@@ -108,7 +108,7 @@ export function SettingsView({
       )}
 
       {isSuperAdmin && !mfaVerified && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-200 flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
             <span>Valide seu segundo fator (MFA AAL2) para salvar alterações globais.</span>
@@ -124,13 +124,13 @@ export function SettingsView({
       )}
 
       {error && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error}
         </div>
       )}
 
       {successMsg && (
-        <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-4 text-xs text-emerald-200">
+        <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-4 text-xs text-emerald-700">
           {successMsg}
         </div>
       )}
