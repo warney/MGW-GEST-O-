@@ -199,7 +199,7 @@ export function SupportView({ role, refreshTrigger }: SupportViewProps) {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error}
         </div>
       )}
