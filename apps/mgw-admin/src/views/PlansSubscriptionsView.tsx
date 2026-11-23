@@ -133,7 +133,7 @@ export function PlansSubscriptionsView({
       </div>
 
       {error && (
-        <div className="rounded-lg border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
           {error}
         </div>
       )}
@@ -143,7 +143,7 @@ export function PlansSubscriptionsView({
         {plans.map((plan) => (
           <div
             key={plan.code}
-            className="rounded-lg border border-[#222733] bg-[#12151C] p-4 flex flex-col justify-between gap-3"
+            className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col justify-between gap-3"
           >
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
@@ -157,7 +157,7 @@ export function PlansSubscriptionsView({
               <p className="text-xs text-slate-400 leading-relaxed">{plan.description}</p>
             </div>
 
-            <div className="pt-3 border-t border-[#222733] flex items-center justify-between">
+            <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
               <div>
                 <p className="text-base font-bold font-mono text-white tabular-nums">
                   {formatCurrencyCents(plan.amount_cents)}
@@ -170,7 +170,7 @@ export function PlansSubscriptionsView({
                 <button
                   type="button"
                   onClick={() => openPlanEditor(plan)}
-                  className="inline-flex items-center gap-1 rounded border border-[#2A3040] px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-[#1B202C] cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-slate-100 cursor-pointer"
                 >
                   <Edit3 className="h-3 w-3" />
                   <span>Editar</span>
@@ -182,8 +182,8 @@ export function PlansSubscriptionsView({
       </div>
 
       {/* Subscriptions Management */}
-      <div className="rounded-lg border border-[#222733] bg-[#12151C] overflow-hidden">
-        <div className="px-5 py-4 border-b border-[#222733] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-white">
               Assinaturas por Estabelecimento ({subscriptions.length})
@@ -197,7 +197,7 @@ export function PlansSubscriptionsView({
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-md border border-[#2A3040] bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white focus:border-[#F5B731] focus:outline-none"
+              className="rounded-md border border-slate-200 bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white focus:border-[#F5B731] focus:outline-none"
             >
               <option value="all">Todos os status</option>
               <option value="trialing">Em Trial</option>
@@ -222,11 +222,11 @@ export function PlansSubscriptionsView({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar loja..."
-                className="w-44 rounded-md border border-[#2A3040] bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white placeholder:text-slate-500 focus:border-[#F5B731] focus:outline-none"
+                className="w-44 rounded-md border border-slate-200 bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white placeholder:text-slate-500 focus:border-[#F5B731] focus:outline-none"
               />
               <button
                 type="submit"
-                className="rounded-md border border-[#2A3040] px-2.5 py-1.5 text-xs text-slate-200 hover:bg-[#1B202C] cursor-pointer"
+                className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-100 cursor-pointer"
               >
                 Filtrar
               </button>
@@ -237,7 +237,7 @@ export function PlansSubscriptionsView({
         {loading ? (
           <div className="p-6 space-y-3">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-11 rounded bg-[#181C26] animate-pulse" />
+              <div key={i} className="h-11 rounded bg-slate-100 animate-pulse" />
             ))}
           </div>
         ) : subscriptions.length === 0 ? (
@@ -247,7 +247,7 @@ export function PlansSubscriptionsView({
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#0F1218] text-slate-400 border-b border-[#222733]">
+              <thead className="bg-slate-50 text-slate-400 border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-2.5 font-medium">Estabelecimento</th>
                   <th className="px-4 py-2.5 font-medium">Plano</th>
@@ -257,9 +257,9 @@ export function PlansSubscriptionsView({
                   {canEditSubs && <th className="px-4 py-2.5 font-medium text-right">Ações</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#1D222E]">
+              <tbody className="divide-y divide-slate-100">
                 {subscriptions.map((sub) => (
-                  <tr key={sub.id} className="hover:bg-[#161A23] transition-colors">
+                  <tr key={sub.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <p className="font-medium text-white">
                         {sub.tenant_name}
@@ -300,7 +300,7 @@ export function PlansSubscriptionsView({
                                 tone: 'accent',
                               })
                             }
-                            className="inline-flex items-center gap-1 rounded border border-[#2A3040] px-2 py-1 text-[11px] text-slate-200 hover:bg-[#1B202C] cursor-pointer whitespace-nowrap"
+                            className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
                           >
                             <CalendarPlus className="h-3 w-3 text-[#F5B731]" />
                             <span>+7d Trial</span>
@@ -318,7 +318,7 @@ export function PlansSubscriptionsView({
                                   tone: 'warning',
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded border border-[#2A3040] px-2 py-1 text-[11px] text-slate-200 hover:bg-[#1B202C] cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
                             >
                               <ShieldCheck className="h-3 w-3 text-emerald-400" />
                               <span>Isentar</span>
@@ -376,8 +376,8 @@ export function PlansSubscriptionsView({
       {/* Edit Plan Modal */}
       {editingPlan && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-lg border border-[#222733] bg-[#12151C] p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-[#222733] pb-3">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <h2 className="text-sm font-bold text-white">
                 Editar Plano <code className="font-mono text-[#F5B731]">{editingPlan.code}</code>
               </h2>
@@ -410,7 +410,7 @@ export function PlansSubscriptionsView({
                   type="text"
                   value={planForm.name}
                   onChange={(e) => setPlanForm((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full rounded border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white"
+                  className="w-full rounded border border-slate-200 bg-[#0B0D11] px-3 py-2 text-white"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -420,7 +420,7 @@ export function PlansSubscriptionsView({
                     type="text"
                     value={planForm.amountReais}
                     onChange={(e) => setPlanForm((f) => ({ ...f, amountReais: e.target.value }))}
-                    className="w-full rounded border border-[#2A3040] bg-[#0B0D11] px-3 py-2 font-mono text-white"
+                    className="w-full rounded border border-slate-200 bg-[#0B0D11] px-3 py-2 font-mono text-white"
                   />
                 </div>
                 <div>
@@ -431,7 +431,7 @@ export function PlansSubscriptionsView({
                     max={100}
                     value={planForm.maxMembers}
                     onChange={(e) => setPlanForm((f) => ({ ...f, maxMembers: e.target.value }))}
-                    className="w-full rounded border border-[#2A3040] bg-[#0B0D11] px-3 py-2 font-mono text-white"
+                    className="w-full rounded border border-slate-200 bg-[#0B0D11] px-3 py-2 font-mono text-white"
                   />
                 </div>
               </div>
@@ -450,7 +450,7 @@ export function PlansSubscriptionsView({
                   value={planForm.reason}
                   onChange={(e) => setPlanForm((f) => ({ ...f, reason: e.target.value }))}
                   placeholder="Ex.: Ajuste de limite de usuários..."
-                  className="w-full rounded border border-[#2A3040] bg-[#0B0D11] px-3 py-2 text-white"
+                  className="w-full rounded border border-slate-200 bg-[#0B0D11] px-3 py-2 text-white"
                 />
               </div>
             </div>
@@ -459,7 +459,7 @@ export function PlansSubscriptionsView({
               <button
                 type="button"
                 onClick={() => setEditingPlan(null)}
-                className="rounded border border-[#2A3040] px-3 py-1.5 text-xs text-slate-300"
+                className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-300"
               >
                 Cancelar
               </button>
