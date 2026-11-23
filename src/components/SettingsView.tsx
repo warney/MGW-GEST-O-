@@ -172,7 +172,7 @@ export function SettingsView({
       <div
         role="tablist"
         aria-label="Opções de configuração"
-        className="flex flex-wrap p-1 bg-[#12151C] border border-[#232834] rounded-xl gap-1"
+        className="flex flex-wrap p-1 bg-[#FFFFFF] border border-[#E5E7EB] rounded-xl gap-1"
       >
         {canManageShopSettings && (
           <button
@@ -182,8 +182,8 @@ export function SettingsView({
             onClick={() => setActiveTab('shop')}
             className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
               activeTab === 'shop'
-                ? 'bg-[#F5B731] text-[#0B0D11]'
-                : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+                ? 'bg-[#EAB308] text-[#F9FAFB]'
+                : 'text-[#6B7280] hover:text-[#111827]'
             }`}
           >
             <Store className="w-4 h-4" />
@@ -198,8 +198,8 @@ export function SettingsView({
           onClick={() => setActiveTab('catalog')}
           className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
             activeTab === 'catalog'
-              ? 'bg-[#F5B731] text-[#0B0D11]'
-              : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+              ? 'bg-[#EAB308] text-[#F9FAFB]'
+              : 'text-[#6B7280] hover:text-[#111827]'
           }`}
         >
           <Layers className="w-4 h-4" />
@@ -214,8 +214,8 @@ export function SettingsView({
             onClick={() => setActiveTab('digital_menu')}
             className={`min-h-[40px] px-4 rounded-lg text-xs font-semibold inline-flex items-center gap-2 cursor-pointer ${
               activeTab === 'digital_menu'
-                ? 'bg-[#F5B731] text-[#0B0D11]'
-                : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+                ? 'bg-[#EAB308] text-[#F9FAFB]'
+                : 'text-[#6B7280] hover:text-[#111827]'
             }`}
           >
             <Globe className="w-4 h-4" />
@@ -235,15 +235,15 @@ export function SettingsView({
         />
       ) : activeTab === 'shop' && canManageShopSettings ? (
         <div className="max-w-2xl space-y-4">
-        <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold text-[#F3F4F6]">
-              <span className="w-8 h-8 rounded-lg bg-[#F5B731]/10 text-[#F5B731] flex items-center justify-center">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#111827]">
+              <span className="w-8 h-8 rounded-lg bg-[#EAB308]/10 text-[#EAB308] flex items-center justify-center">
                 <LogOut className="w-4 h-4" />
               </span>
               Conta e acesso
             </div>
-            <p className="text-xs text-[#9CA3AF] mt-2 break-all">{accountEmail}</p>
+            <p className="text-xs text-[#6B7280] mt-2 break-all">{accountEmail}</p>
             <p className="text-[11px] text-[#6B7280] mt-1">Encerre sua sessão neste dispositivo com segurança.</p>
           </div>
           <button
@@ -256,24 +256,24 @@ export function SettingsView({
             {isSigningOut ? 'Saindo...' : 'Sair da conta'}
           </button>
         </section>
-        <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-5 sm:p-6 space-y-5">
-          <div className="border-b border-[#232834] pb-4">
-            <h2 className="text-lg font-bold text-[#F3F4F6]">
+        <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 space-y-5">
+          <div className="border-b border-[#E5E7EB] pb-4">
+            <h2 className="text-lg font-bold text-[#111827]">
               Configurações da Lanchonete
             </h2>
-            <p className="text-xs text-[#9CA3AF] mt-1">
+            <p className="text-xs text-[#6B7280] mt-1">
               Todas as alterações são salvas permanentemente na nuvem.
             </p>
           </div>
 
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
-            <div className="flex items-start gap-3 rounded-xl border border-[#232834] bg-[#0B0D11] p-3.5">
-              <span className="w-9 h-9 rounded-lg bg-[#F5B731]/10 text-[#F5B731] flex items-center justify-center shrink-0">
+            <div className="flex items-start gap-3 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] p-3.5">
+              <span className="w-9 h-9 rounded-lg bg-[#EAB308]/10 text-[#EAB308] flex items-center justify-center shrink-0">
                 <Store className="w-4 h-4" />
               </span>
               <div>
-                <h3 className="text-sm font-semibold text-[#F3F4F6]">Identificação do estabelecimento</h3>
-                <p className="text-xs text-[#9CA3AF] mt-1">Defina o nome interno usado nos relatórios e a data de início das operações.</p>
+                <h3 className="text-sm font-semibold text-[#111827]">Identificação do estabelecimento</h3>
+                <p className="text-xs text-[#6B7280] mt-1">Defina o nome interno usado nos relatórios e a data de início das operações.</p>
               </div>
             </div>
             {error && (
@@ -299,7 +299,7 @@ export function SettingsView({
               <div>
                 <label
                   htmlFor="cfg-name"
-                  className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                  className="block text-xs font-medium text-[#4B5563] mb-1.5"
                 >
                   Nome do estabelecimento
                 </label>
@@ -310,14 +310,14 @@ export function SettingsView({
                   value={establishmentName}
                   onChange={(e) => setEstablishmentName(e.target.value)}
                   required
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="cfg-timezone"
-                  className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                  className="block text-xs font-medium text-[#4B5563] mb-1.5"
                 >
                   Fuso horário do estabelecimento
                 </label>
@@ -325,7 +325,7 @@ export function SettingsView({
                   id="cfg-timezone"
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
                 >
                   {BRAZIL_TIMEZONES.map((tzOption) => (
                     <option key={tzOption.value} value={tzOption.value}>
@@ -339,15 +339,15 @@ export function SettingsView({
               </div>
             </div>
 
-            <div className="pt-2 border-t border-[#232834]">
-              <h3 className="text-sm font-semibold text-[#F3F4F6]">Parâmetros operacionais</h3>
-              <p className="text-xs text-[#9CA3AF] mt-1">Valores padrão usados nos próximos lançamentos. Alterar aqui não modifica o histórico.</p>
+            <div className="pt-2 border-t border-[#E5E7EB]">
+              <h3 className="text-sm font-semibold text-[#111827]">Parâmetros operacionais</h3>
+              <p className="text-xs text-[#6B7280] mt-1">Valores padrão usados nos próximos lançamentos. Alterar aqui não modifica o histórico.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label
                   htmlFor="cfg-price"
-                  className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                  className="block text-xs font-medium text-[#4B5563] mb-1.5"
                 >
                   Preço atual do X-Salada (R$)
                 </label>
@@ -360,9 +360,9 @@ export function SettingsView({
                   value={xSaladaPrice}
                   onChange={(e) => setXSaladaPrice(e.target.value)}
                   required
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono tabular-nums"
                 />
-                <p className="text-[11px] text-[#9CA3AF] mt-1">
+                <p className="text-[11px] text-[#6B7280] mt-1">
                   Usado como padrão nas próximas vendas sem alterar o histórico antigo.
                 </p>
               </div>
@@ -370,7 +370,7 @@ export function SettingsView({
               <div>
                 <label
                   htmlFor="cfg-start-date"
-                  className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                  className="block text-xs font-medium text-[#4B5563] mb-1.5"
                 >
                   Data de início das operações
                 </label>
@@ -380,20 +380,20 @@ export function SettingsView({
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   required
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono"
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono"
                 />
               </div>
             </div>
 
-            <div className="pt-2 border-t border-[#232834]">
-              <h3 className="text-sm font-semibold text-[#F3F4F6]">Metas financeiras</h3>
-              <p className="text-xs text-[#9CA3AF] mt-1">Acompanhe o desempenho diário e mensal no painel inicial e nos relatórios.</p>
+            <div className="pt-2 border-t border-[#E5E7EB]">
+              <h3 className="text-sm font-semibold text-[#111827]">Metas financeiras</h3>
+              <p className="text-xs text-[#6B7280] mt-1">Acompanhe o desempenho diário e mensal no painel inicial e nos relatórios.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label
                   htmlFor="cfg-daily-goal"
-                  className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                  className="block text-xs font-medium text-[#4B5563] mb-1.5"
                 >
                   Meta diária de faturamento (R$)
                 </label>
@@ -406,14 +406,14 @@ export function SettingsView({
                   value={dailyGoal}
                   onChange={(e) => setDailyGoal(e.target.value)}
                   required
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono tabular-nums"
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="cfg-monthly-goal"
-                  className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                  className="block text-xs font-medium text-[#4B5563] mb-1.5"
                 >
                   Meta mensal de faturamento (R$)
                 </label>
@@ -426,7 +426,7 @@ export function SettingsView({
                   value={monthlyGoal}
                   onChange={(e) => setMonthlyGoal(e.target.value)}
                   required
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono tabular-nums"
                 />
               </div>
             </div>
@@ -436,7 +436,7 @@ export function SettingsView({
                 type="submit"
                 disabled={isSaving}
                 aria-busy={isSaving}
-                className="w-full sm:w-auto min-h-[46px] px-6 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-60"
+                className="w-full sm:w-auto min-h-[46px] px-6 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-sm font-bold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-60"
               >
                 {isSaving ? (
                   <>
