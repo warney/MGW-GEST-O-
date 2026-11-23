@@ -307,7 +307,7 @@ export function SaleModal({
             type="button"
             onClick={onClose}
             aria-label="Fechar janela de venda"
-            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E5E7EB] hover:border-[#374151] flex items-center justify-center text-[#6B7280] hover:text-white transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] rounded-xl border border-[#E5E7EB] hover:border-[#374151] flex items-center justify-center text-[#6B7280] hover:text-[#111827] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
