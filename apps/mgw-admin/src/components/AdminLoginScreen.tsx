@@ -43,7 +43,7 @@ export function AdminLoginScreen({ onSuccess, unauthorizedNotice }: AdminLoginSc
 
         <div className="pt-5">
           {!isSupabaseConfigured && (
-            <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-start gap-2">
+            <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-700 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>
                 Variáveis <code className="font-mono">VITE_SUPABASE_URL</code> e{' '}
@@ -53,14 +53,14 @@ export function AdminLoginScreen({ onSuccess, unauthorizedNotice }: AdminLoginSc
           )}
 
           {unauthorizedNotice && (
-            <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-start gap-2">
+            <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
               <span>{unauthorizedNotice}</span>
             </div>
           )}
 
           {error && (
-            <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-300 flex items-start gap-2">
+            <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-700 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
