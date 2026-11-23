@@ -246,17 +246,17 @@ export function OrdersCenterView({
       {counts.unviewed > 0 && (
         <div
           role="status"
-          className="bg-[#F5B731]/12 border border-[#F5B731]/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          className="bg-[#EAB308]/12 border border-[#EAB308]/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
         >
           <div className="flex items-center gap-3">
-            <Bell className="w-5 h-5 text-[#F5B731] shrink-0" />
+            <Bell className="w-5 h-5 text-[#EAB308] shrink-0" />
             <div>
-              <p className="text-sm font-bold text-[#F3F4F6]">
+              <p className="text-sm font-bold text-[#111827]">
                 {counts.unviewed === 1
                   ? 'Novo pedido recebido aguardando visualização!'
                   : `${counts.unviewed} novos pedidos recebidos aguardando confirmação!`}
               </p>
-              <p className="text-xs text-[#D1D5DB]">
+              <p className="text-xs text-[#4B5563]">
                 Revise os itens e clique em ACEITAR PEDIDO ou RECUSAR PEDIDO.
               </p>
             </div>
@@ -265,7 +265,7 @@ export function OrdersCenterView({
           <button
             type="button"
             onClick={() => setFilterTab('received')}
-            className="min-h-[40px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold shrink-0 cursor-pointer"
+            className="min-h-[40px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold shrink-0 cursor-pointer"
           >
             Ver novos pedidos
           </button>
@@ -273,21 +273,21 @@ export function OrdersCenterView({
       )}
 
       {/* Header Toolbar */}
-      <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-4 sm:p-5 space-y-4">
+      <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-4 sm:p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-[#F3F4F6]">
+            <h2 className="text-base font-bold text-[#111827]">
               Central de Pedidos Online
             </h2>
-            <p className="text-xs text-[#9CA3AF] mt-0.5">
+            <p className="text-xs text-[#6B7280] mt-0.5">
               Cardápio Digital:{' '}
               <span
                 className={
                   !digitalMenuSettings.isActive
-                    ? 'text-[#9CA3AF]'
+                    ? 'text-[#6B7280]'
                     : digitalMenuSettings.isOpen
                       ? 'text-[#22C55E] font-semibold'
-                      : 'text-[#F5B731] font-semibold'
+                      : 'text-[#EAB308] font-semibold'
                 }
               >
                 {!digitalMenuSettings.isActive
@@ -312,8 +312,8 @@ export function OrdersCenterView({
                   aria-pressed={pushEnabled}
                   className={`min-h-[40px] px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-2 cursor-pointer transition-colors ${
                     pushEnabled
-                      ? 'bg-[#0B0D11] border-[#22C55E]/40 text-[#86EFAC]'
-                      : 'bg-[#0B0D11] border-[#232834] text-[#9CA3AF]'
+                      ? 'bg-[#F9FAFB] border-[#22C55E]/40 text-[#86EFAC]'
+                      : 'bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]'
                   }`}
                 >
                   {pushEnabled ? (
@@ -332,9 +332,9 @@ export function OrdersCenterView({
                 <button
                   type="button"
                   onClick={onTestAlert}
-                  className="min-h-[40px] px-3 rounded-xl border border-[#232834] hover:border-[#F5B731]/50 bg-[#0B0D11] text-xs font-semibold text-[#D1D5DB] hover:text-[#F5B731] inline-flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-[40px] px-3 rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/50 bg-[#F9FAFB] text-xs font-semibold text-[#4B5563] hover:text-[#EAB308] inline-flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Bell className="w-3.5 h-3.5 text-[#F5B731]" />
+                  <Bell className="w-3.5 h-3.5 text-[#EAB308]" />
                   Testar alerta
                 </button>
               </>
@@ -342,7 +342,7 @@ export function OrdersCenterView({
               <button
                 type="button"
                 onClick={onEnableMobileNotifications}
-                className="min-h-[40px] px-3.5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                className="min-h-[40px] px-3.5 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <BellRing className="w-4 h-4" />
                 Ativar notificações no celular
@@ -357,8 +357,8 @@ export function OrdersCenterView({
               aria-pressed={soundEnabled}
               className={`min-h-[40px] px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-2 cursor-pointer transition-colors ${
                 soundEnabled
-                  ? 'bg-[#0B0D11] border-[#22C55E]/40 text-[#86EFAC]'
-                  : 'bg-[#0B0D11] border-[#232834] text-[#9CA3AF]'
+                  ? 'bg-[#F9FAFB] border-[#22C55E]/40 text-[#86EFAC]'
+                  : 'bg-[#F9FAFB] border-[#E5E7EB] text-[#6B7280]'
               }`}
             >
               {soundEnabled ? (
@@ -377,9 +377,9 @@ export function OrdersCenterView({
             <button
               type="button"
               onClick={onOpenDigitalMenuSettings}
-              className="min-h-[40px] px-3.5 rounded-xl border border-[#232834] hover:border-[#F5B731]/50 bg-[#0B0D11] text-xs font-semibold text-[#D1D5DB] inline-flex items-center gap-1.5 cursor-pointer"
+              className="min-h-[40px] px-3.5 rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/50 bg-[#F9FAFB] text-xs font-semibold text-[#4B5563] inline-flex items-center gap-1.5 cursor-pointer"
             >
-              <Settings className="w-3.5 h-3.5 text-[#F5B731]" />
+              <Settings className="w-3.5 h-3.5 text-[#EAB308]" />
               Configurar cardápio
             </button>
           </div>
@@ -406,8 +406,8 @@ export function OrdersCenterView({
               onClick={() => setFilterTab(tab.id)}
               className={`min-h-[38px] px-3 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
                 filterTab === tab.id
-                  ? 'bg-[#F5B731] text-[#0B0D11]'
-                  : 'bg-[#0B0D11] border border-[#232834] text-[#D1D5DB] hover:border-[#374151]'
+                  ? 'bg-[#EAB308] text-[#F9FAFB]'
+                  : 'bg-[#F9FAFB] border border-[#E5E7EB] text-[#4B5563] hover:border-[#374151]'
               }`}
             >
               <span>{tab.label}</span>
@@ -430,13 +430,13 @@ export function OrdersCenterView({
 
       {/* Orders Feed */}
       {filteredOrders.length === 0 ? (
-        <section className="bg-[#12151C] border border-[#232834] rounded-2xl p-10 text-center space-y-2">
-          <p className="text-sm font-semibold text-[#F3F4F6]">
+        <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-10 text-center space-y-2">
+          <p className="text-sm font-semibold text-[#111827]">
             {orders.length === 0
               ? 'Nenhum pedido online recebido ainda.'
               : 'Nenhum pedido nesta etapa no momento.'}
           </p>
-          <p className="text-xs text-[#9CA3AF]">
+          <p className="text-xs text-[#6B7280]">
             {orders.length === 0
               ? 'Quando um cliente enviar um pedido pelo cardápio digital, ele aparecerá aqui em tempo real.'
               : 'Selecione outra aba acima para visualizar os demais pedidos.'}
@@ -461,27 +461,27 @@ export function OrdersCenterView({
               <article
                 key={order.id}
                 data-testid={`admin-order-card-${order.orderNumber}`}
-                className={`bg-[#12151C] border rounded-2xl p-4 sm:p-5 space-y-4 ${
-                  unread ? 'border-[#F5B731]' : 'border-[#232834]'
+                className={`bg-[#FFFFFF] border rounded-2xl p-4 sm:p-5 space-y-4 ${
+                  unread ? 'border-[#EAB308]' : 'border-[#E5E7EB]'
                 }`}
               >
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#232834] pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E7EB] pb-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-base font-bold text-[#F5B731] font-mono tabular-nums">
+                    <span className="text-base font-bold text-[#EAB308] font-mono tabular-nums">
                       {formatOrderNumber(order.orderNumber)}
                     </span>
-                    <span className="text-xs text-[#9CA3AF]">·</span>
-                    <span className="text-sm font-bold text-[#F3F4F6]">
+                    <span className="text-xs text-[#6B7280]">·</span>
+                    <span className="text-sm font-bold text-[#111827]">
                       {order.customerName}
                     </span>
-                    <span className="text-xs text-[#9CA3AF]">·</span>
-                    <span className="text-xs text-[#9CA3AF] font-mono tabular-nums inline-flex items-center gap-1">
+                    <span className="text-xs text-[#6B7280]">·</span>
+                    <span className="text-xs text-[#6B7280] font-mono tabular-nums inline-flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5" />
                       {formatDateTimeBR(order.createdAtMs)}
                     </span>
                     {unread && (
-                      <span className="text-xs font-bold text-[#F5B731]">
+                      <span className="text-xs font-bold text-[#EAB308]">
                         · NOVO NÃO VISUALIZADO
                       </span>
                     )}
@@ -495,8 +495,8 @@ export function OrdersCenterView({
                           : order.status === 'completed'
                             ? 'bg-[#22C55E]/10 border-[#22C55E]/30 text-[#86EFAC]'
                             : order.status === 'received'
-                              ? 'bg-[#F5B731]/12 border-[#F5B731]/40 text-[#F5B731]'
-                              : 'bg-[#181C24] border-[#232834] text-[#F3F4F6]'
+                              ? 'bg-[#EAB308]/12 border-[#EAB308]/40 text-[#EAB308]'
+                              : 'bg-[#F1F3F5] border-[#E5E7EB] text-[#111827]'
                       }`}
                     >
                       {ORDER_STATUS_LABELS[order.status]}
@@ -508,32 +508,32 @@ export function OrdersCenterView({
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                   {/* Items */}
                   <div className="lg:col-span-7 space-y-2">
-                    <p className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">
+                    <p className="text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
                       Itens do pedido
                     </p>
-                    <div className="bg-[#0B0D11] border border-[#232834] rounded-xl divide-y divide-[#232834]">
+                    <div className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl divide-y divide-[#E5E7EB]">
                       {order.items.map((item) => (
                         <div
                           key={item.id}
                           className="p-3 flex items-start justify-between gap-3 text-xs"
                         >
                           <div className="min-w-0">
-                            <p className="font-semibold text-[#F3F4F6]">
+                            <p className="font-semibold text-[#111827]">
                               {item.quantity}x {item.itemName}
                             </p>
                             {item.selectedAddons?.map((group) => (
-                              <p key={group.groupId} className="text-[#D1D5DB] mt-1">
-                                <span className="text-[#F5B731]">{group.groupName}:</span>{' '}
+                              <p key={group.groupId} className="text-[#4B5563] mt-1">
+                                <span className="text-[#EAB308]">{group.groupName}:</span>{' '}
                                 {group.options.map((option) => `${option.name}${option.price > 0 ? ` (+${formatCurrencyBRL(option.price)})` : ''}`).join(', ')}
                               </p>
                             ))}
                             {item.itemNote && (
-                              <p className="text-[#F5B731] mt-0.5">
+                              <p className="text-[#EAB308] mt-0.5">
                                 Obs: {item.itemNote}
                               </p>
                             )}
                           </div>
-                          <span className="font-mono tabular-nums text-[#D1D5DB] shrink-0">
+                          <span className="font-mono tabular-nums text-[#4B5563] shrink-0">
                             {formatCurrencyBRL(item.lineTotal)}
                           </span>
                         </div>
@@ -541,7 +541,7 @@ export function OrdersCenterView({
                     </div>
 
                     {order.customerNote && (
-                      <p className="text-xs text-[#FCD34D] bg-[#F5B731]/10 border border-[#F5B731]/20 rounded-lg px-3 py-2">
+                      <p className="text-xs text-[#F5C842] bg-[#EAB308]/10 border border-[#EAB308]/20 rounded-lg px-3 py-2">
                         Observação geral: {order.customerNote}
                       </p>
                     )}
@@ -556,11 +556,11 @@ export function OrdersCenterView({
                   </div>
 
                   {/* Customer, Fulfillment & Totals */}
-                  <div className="lg:col-span-5 bg-[#0B0D11] border border-[#232834] rounded-xl p-3.5 space-y-2.5 text-xs">
+                  <div className="lg:col-span-5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl p-3.5 space-y-2.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-[#9CA3AF]">Contato</p>
-                        <p className="font-mono text-[#F3F4F6]">
+                        <p className="text-[#6B7280]">Contato</p>
+                        <p className="font-mono text-[#111827]">
                           {order.customerPhone}
                         </p>
                       </div>
@@ -577,16 +577,16 @@ export function OrdersCenterView({
                       )}
                     </div>
 
-                    <div className="flex items-start gap-2 pt-2 border-t border-[#232834]">
-                      <MapPin className="w-3.5 h-3.5 text-[#F5B731] shrink-0 mt-0.5" />
+                    <div className="flex items-start gap-2 pt-2 border-t border-[#E5E7EB]">
+                      <MapPin className="w-3.5 h-3.5 text-[#EAB308] shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-[#9CA3AF]">
+                        <p className="text-[#6B7280]">
                           {order.fulfillmentType === 'delivery'
                             ? 'Entrega'
                             : 'Retirada no balcão'}
                         </p>
                         {order.fulfillmentType === 'delivery' && (
-                          <p className="text-[#F3F4F6]">
+                          <p className="text-[#111827]">
                             {order.deliveryAddress}
                             {order.deliveryReference
                               ? ` · Ref: ${order.deliveryReference}`
@@ -596,33 +596,33 @@ export function OrdersCenterView({
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-[#232834] space-y-1">
-                      <div className="flex justify-between text-[#9CA3AF]">
+                    <div className="pt-2 border-t border-[#E5E7EB] space-y-1">
+                      <div className="flex justify-between text-[#6B7280]">
                         <span>Pagamento</span>
-                        <span className="text-[#F3F4F6] font-semibold">
+                        <span className="text-[#111827] font-semibold">
                           {order.paymentMethod}
                           {order.paymentMethod === 'Dinheiro' && order.changeFor
                             ? ` (Troco p/ ${formatCurrencyBRL(order.changeFor)})`
                             : ''}
                         </span>
                       </div>
-                      <div className="flex justify-between text-[#9CA3AF]">
+                      <div className="flex justify-between text-[#6B7280]">
                         <span>Subtotal</span>
-                        <span className="font-mono tabular-nums text-[#F3F4F6]">
+                        <span className="font-mono tabular-nums text-[#111827]">
                           {formatCurrencyBRL(order.subtotalAmount)}
                         </span>
                       </div>
                       {order.fulfillmentType === 'delivery' && (
-                        <div className="flex justify-between text-[#9CA3AF]">
+                        <div className="flex justify-between text-[#6B7280]">
                           <span>Taxa de entrega</span>
-                          <span className="font-mono tabular-nums text-[#F3F4F6]">
+                          <span className="font-mono tabular-nums text-[#111827]">
                             {order.deliveryFee <= 0
                               ? 'Grátis'
                               : formatCurrencyBRL(order.deliveryFee)}
                           </span>
                         </div>
                       )}
-                      <div className="flex justify-between text-sm font-bold text-[#F5B731] pt-1 border-t border-[#232834]">
+                      <div className="flex justify-between text-sm font-bold text-[#EAB308] pt-1 border-t border-[#E5E7EB]">
                         <span>Total</span>
                         <span className="font-mono tabular-nums">
                           {formatCurrencyBRL(order.totalAmount)}
@@ -633,16 +633,16 @@ export function OrdersCenterView({
                 </div>
 
                 {/* Actions Row */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#232834]">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E5E7EB]">
                   <div className="flex flex-wrap items-center gap-2">
                     {unread && (
                       <button
                         type="button"
                         disabled={isBusy}
                         onClick={() => void handleMarkAsViewed(order)}
-                        className="min-h-[42px] px-3.5 rounded-xl border border-[#232834] hover:border-[#F5B731]/60 bg-[#0B0D11] text-xs font-semibold text-[#D1D5DB] inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        className="min-h-[42px] px-3.5 rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/60 bg-[#F9FAFB] text-xs font-semibold text-[#4B5563] inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        <Eye className="w-3.5 h-3.5 text-[#F5B731]" />
+                        <Eye className="w-3.5 h-3.5 text-[#EAB308]" />
                         Confirmar visualização
                       </button>
                     )}
@@ -669,9 +669,9 @@ export function OrdersCenterView({
                         }}
                         className={`min-h-[42px] px-4 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50 ${
                           action.tone === 'success'
-                            ? 'bg-[#22C55E] hover:bg-[#16A34A] text-[#0B0D11]'
+                            ? 'bg-[#22C55E] hover:bg-[#16A34A] text-[#F9FAFB]'
                             : action.tone === 'primary'
-                              ? 'bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11]'
+                              ? 'bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB]'
                               : 'border border-[#EF4444]/40 hover:border-[#EF4444] bg-[#EF4444]/10 text-[#FCA5A5]'
                         }`}
                       >
@@ -697,7 +697,7 @@ export function OrdersCenterView({
                         )
                       }
                       aria-label={`Imprimir pedido ${formatOrderNumber(order.orderNumber)}`}
-                      className="min-h-[38px] px-3 rounded-xl border border-[#232834] hover:border-[#F5B731]/60 bg-[#0B0D11] text-xs font-semibold text-[#D1D5DB] hover:text-[#F5B731] inline-flex items-center gap-1.5 cursor-pointer"
+                      className="min-h-[38px] px-3 rounded-xl border border-[#E5E7EB] hover:border-[#EAB308]/60 bg-[#F9FAFB] text-xs font-semibold text-[#4B5563] hover:text-[#EAB308] inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <Printer className="w-3.5 h-3.5" />
                       <span>Imprimir</span>
@@ -712,7 +712,7 @@ export function OrdersCenterView({
                             [order.id]: !prev[order.id],
                           }))
                         }
-                        className="min-h-[38px] px-3 rounded-lg text-xs text-[#9CA3AF] hover:text-[#F3F4F6] inline-flex items-center gap-1 cursor-pointer"
+                        className="min-h-[38px] px-3 rounded-lg text-xs text-[#6B7280] hover:text-[#111827] inline-flex items-center gap-1 cursor-pointer"
                       >
                         <span>Histórico ({order.statusHistory.length})</span>
                         {timelineOpen ? (
@@ -727,17 +727,17 @@ export function OrdersCenterView({
 
                 {/* Expandable Timeline */}
                 {timelineOpen && order.statusHistory.length > 0 && (
-                  <div className="bg-[#0B0D11] border border-[#232834] rounded-xl p-3 space-y-1.5 text-xs">
+                  <div className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl p-3 space-y-1.5 text-xs">
                     {order.statusHistory.map((ev) => (
                       <div
                         key={ev.id}
-                        className="flex items-center justify-between gap-2 text-[#D1D5DB]"
+                        className="flex items-center justify-between gap-2 text-[#4B5563]"
                       >
                         <span>
                           {ORDER_STATUS_LABELS[ev.toStatus]}
                           {ev.reason ? ` — ${ev.reason}` : ''}
                         </span>
-                        <span className="font-mono tabular-nums text-[#9CA3AF]">
+                        <span className="font-mono tabular-nums text-[#6B7280]">
                           {formatTimeBR(ev.createdAtMs)}
                         </span>
                       </div>
@@ -760,19 +760,19 @@ export function OrdersCenterView({
         >
           <form
             onSubmit={(e) => void handleConfirmReasonSubmit(e)}
-            className="max-w-md w-full bg-[#12151C] border border-[#232834] rounded-2xl p-5 space-y-4"
+            className="max-w-md w-full bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 space-y-4"
           >
-            <div className="flex items-center justify-between gap-2 border-b border-[#232834] pb-3">
+            <div className="flex items-center justify-between gap-2 border-b border-[#E5E7EB] pb-3">
               <h3
                 id="reason-modal-title"
-                className="text-sm font-bold text-[#F3F4F6]"
+                className="text-sm font-bold text-[#111827]"
               >
                 {reasonModal.title}
               </h3>
               <button
                 type="button"
                 onClick={() => setReasonModal(null)}
-                className="w-8 h-8 rounded-lg text-[#9CA3AF] hover:text-[#F3F4F6] flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-lg text-[#6B7280] hover:text-[#111827] flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -788,7 +788,7 @@ export function OrdersCenterView({
             )}
 
             <div className="space-y-2">
-              <p className="text-xs text-[#9CA3AF]">
+              <p className="text-xs text-[#6B7280]">
                 Sugestões rápidas (o cliente verá este motivo):
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -797,7 +797,7 @@ export function OrdersCenterView({
                     key={suggestion}
                     type="button"
                     onClick={() => setReasonText(suggestion)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#0B0D11] border border-[#232834] hover:border-[#F5B731]/50 text-[11px] text-[#D1D5DB] cursor-pointer"
+                    className="px-2.5 py-1.5 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] hover:border-[#EAB308]/50 text-[11px] text-[#4B5563] cursor-pointer"
                   >
                     {suggestion}
                   </button>
@@ -808,7 +808,7 @@ export function OrdersCenterView({
             <div>
               <label
                 htmlFor="rejection-reason-input"
-                className="block text-xs font-medium text-[#D1D5DB] mb-1.5"
+                className="block text-xs font-medium text-[#4B5563] mb-1.5"
               >
                 Motivo obrigatório *
               </label>
@@ -821,7 +821,7 @@ export function OrdersCenterView({
                 value={reasonText}
                 onChange={(e) => setReasonText(e.target.value)}
                 placeholder="Descreva o motivo..."
-                className="w-full px-3 py-2 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                className="w-full px-3 py-2 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
               />
             </div>
 
@@ -829,7 +829,7 @@ export function OrdersCenterView({
               <button
                 type="button"
                 onClick={() => setReasonModal(null)}
-                className="min-h-[42px] px-4 rounded-xl border border-[#232834] text-xs font-semibold text-[#D1D5DB] cursor-pointer"
+                className="min-h-[42px] px-4 rounded-xl border border-[#E5E7EB] text-xs font-semibold text-[#4B5563] cursor-pointer"
               >
                 Voltar
               </button>
