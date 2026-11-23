@@ -442,13 +442,13 @@ export function ProductsCombosManager({
     <div className="space-y-5">
       {/* Quick Seed Banner if catalog is empty */}
       {products.length === 0 && combos.length === 0 && (
-        <section className="bg-[#12151C] border border-[#F5B731]/30 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <section className="bg-[#FFFFFF] border border-[#EAB308]/30 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h3 className="text-sm font-bold text-[#F3F4F6] flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#F5B731]" />
+            <h3 className="text-sm font-bold text-[#111827] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#EAB308]" />
               Catálogo inicial de exemplo
             </h3>
-            <p className="text-xs text-[#9CA3AF]">
+            <p className="text-xs text-[#6B7280]">
               Cadastre manualmente abaixo ou crie com 1 toque os produtos base (X-Salada, Refris 250 ml, 1 L, 1,5 L) e os Combos 1 a 4 para editar como quiser.
             </p>
           </div>
@@ -456,7 +456,7 @@ export function ProductsCombosManager({
             type="button"
             disabled={isSeeding}
             onClick={() => void handleSeedCatalog()}
-            className="min-h-[44px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+            className="min-h-[44px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
           >
             {isSeeding ? 'Criando...' : 'Criar catálogo inicial'}
           </button>
@@ -482,7 +482,7 @@ export function ProductsCombosManager({
         <div
           role="tablist"
           aria-label="Gerenciar combos ou produtos"
-          className="inline-flex p-1 bg-[#12151C] border border-[#232834] rounded-xl self-start"
+          className="inline-flex p-1 bg-[#FFFFFF] border border-[#E5E7EB] rounded-xl self-start"
         >
           <button
             type="button"
@@ -491,8 +491,8 @@ export function ProductsCombosManager({
             onClick={() => setSectionTab('combos')}
             className={`min-h-[38px] px-4 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               sectionTab === 'combos'
-                ? 'bg-[#F5B731] text-[#0B0D11]'
-                : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+                ? 'bg-[#EAB308] text-[#F9FAFB]'
+                : 'text-[#6B7280] hover:text-[#111827]'
             }`}
           >
             Combos ({combos.length})
@@ -504,8 +504,8 @@ export function ProductsCombosManager({
             onClick={() => setSectionTab('products')}
             className={`min-h-[38px] px-4 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               sectionTab === 'products'
-                ? 'bg-[#F5B731] text-[#0B0D11]'
-                : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+                ? 'bg-[#EAB308] text-[#F9FAFB]'
+                : 'text-[#6B7280] hover:text-[#111827]'
             }`}
           >
             Produtos ({products.length})
@@ -517,7 +517,7 @@ export function ProductsCombosManager({
             type="button"
             onClick={openNewCombo}
             disabled={products.length === 0}
-            className="min-h-[44px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="min-h-[44px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <Plus className="w-4 h-4" />
             Novo Combo
@@ -526,7 +526,7 @@ export function ProductsCombosManager({
           <button
             type="button"
             onClick={openNewProduct}
-            className="min-h-[44px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
+            className="min-h-[44px] px-4 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer"
           >
             <PackagePlus className="w-4 h-4" />
             Novo Produto
@@ -538,12 +538,12 @@ export function ProductsCombosManager({
       {sectionTab === 'combos' && (
         <div className="space-y-4">
           {products.length === 0 && (
-            <p className="text-xs text-[#9CA3AF] bg-[#12151C] border border-[#232834] rounded-xl p-4">
+            <p className="text-xs text-[#6B7280] bg-[#FFFFFF] border border-[#E5E7EB] rounded-xl p-4">
               Cadastre primeiro os produtos (ex: X-Salada, Refrigerante 250 ml) na aba{' '}
               <button
                 type="button"
                 onClick={() => setSectionTab('products')}
-                className="text-[#F5B731] underline font-semibold cursor-pointer"
+                className="text-[#EAB308] underline font-semibold cursor-pointer"
               >
                 Produtos
               </button>{' '}
@@ -554,17 +554,17 @@ export function ProductsCombosManager({
           {comboFormOpen && (
             <form
               onSubmit={(e) => void handleSaveCombo(e)}
-              className="bg-[#12151C] border border-[#F5B731]/40 rounded-2xl p-5 space-y-4"
+              className="bg-[#FFFFFF] border border-[#EAB308]/40 rounded-2xl p-5 space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-[#232834] pb-3">
-                <h3 className="text-sm font-bold text-[#F3F4F6]">
+              <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-3">
+                <h3 className="text-sm font-bold text-[#111827]">
                   {editingCombo ? `Editar ${editingCombo.name}` : 'Cadastrar Novo Combo'}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setComboFormOpen(false)}
                   aria-label="Fechar formulário de combo"
-                  className="min-w-[38px] min-h-[38px] rounded-lg border border-[#232834] flex items-center justify-center text-[#9CA3AF] hover:text-white cursor-pointer"
+                  className="min-w-[38px] min-h-[38px] rounded-lg border border-[#E5E7EB] flex items-center justify-center text-[#6B7280] hover:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -572,7 +572,7 @@ export function ProductsCombosManager({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="combo-name" className="block text-xs font-medium text-[#D1D5DB] mb-1.5">
+                  <label htmlFor="combo-name" className="block text-xs font-medium text-[#4B5563] mb-1.5">
                     Nome do combo
                   </label>
                   <input
@@ -583,13 +583,13 @@ export function ProductsCombosManager({
                     value={comboName}
                     onChange={(e) => setComboName(e.target.value)}
                     required
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="combo-price" className="block text-xs font-medium text-[#D1D5DB] mb-1.5">
+                    <label htmlFor="combo-price" className="block text-xs font-medium text-[#4B5563] mb-1.5">
                       Preço de venda (R$)
                     </label>
                     <input
@@ -602,11 +602,11 @@ export function ProductsCombosManager({
                       value={comboPrice}
                       onChange={(e) => setComboPrice(e.target.value)}
                       required
-                      className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
+                      className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono tabular-nums"
                     />
                   </div>
                   <div>
-                    <label htmlFor="combo-cost" className="block text-xs font-medium text-[#D1D5DB] mb-1.5">
+                    <label htmlFor="combo-cost" className="block text-xs font-medium text-[#4B5563] mb-1.5">
                       Custo est. (opcional)
                     </label>
                     <input
@@ -618,14 +618,14 @@ export function ProductsCombosManager({
                       placeholder="0,00"
                       value={comboCost}
                       onChange={(e) => setComboCost(e.target.value)}
-                      className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
+                      className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono tabular-nums"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <label htmlFor="combo-desc" className="block text-xs font-medium text-[#D1D5DB] mb-1.5">
+                <label htmlFor="combo-desc" className="block text-xs font-medium text-[#4B5563] mb-1.5">
                   Descrição (opcional — preenchida automaticamente se vazio)
                 </label>
                 <input
@@ -635,7 +635,7 @@ export function ProductsCombosManager({
                   placeholder="Ex: 2 X-Saladas + 1 Refrigerante Tuchaua 1 L"
                   value={comboDescription}
                   onChange={(e) => setComboDescription(e.target.value)}
-                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                  className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
                 />
               </div>
 
@@ -659,8 +659,8 @@ export function ProductsCombosManager({
               />
 
               {/* Products Composition */}
-              <div className="space-y-3 pt-2 border-t border-[#232834]">
-                <p className="text-xs font-semibold text-[#D1D5DB]">
+              <div className="space-y-3 pt-2 border-t border-[#E5E7EB]">
+                <p className="text-xs font-semibold text-[#4B5563]">
                   Produtos que compõem este combo
                 </p>
 
@@ -669,7 +669,7 @@ export function ProductsCombosManager({
                     aria-label="Selecionar produto para adicionar ao combo"
                     value={selectedProdToAdd}
                     onChange={(e) => setSelectedProdToAdd(e.target.value)}
-                    className="flex-1 min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                    className="flex-1 min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
                   >
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -680,7 +680,7 @@ export function ProductsCombosManager({
                   <button
                     type="button"
                     onClick={handleAddProductToCombo}
-                    className="min-h-[44px] px-4 rounded-xl border border-[#F5B731]/50 hover:bg-[#F5B731]/10 text-[#F5B731] text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="min-h-[44px] px-4 rounded-xl border border-[#EAB308]/50 hover:bg-[#EAB308]/10 text-[#EAB308] text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     Adicionar produto
@@ -688,18 +688,18 @@ export function ProductsCombosManager({
                 </div>
 
                 {comboItems.length === 0 ? (
-                  <p className="text-xs text-[#9CA3AF]">
+                  <p className="text-xs text-[#6B7280]">
                     Nenhum produto adicionado ao combo ainda.
                   </p>
                 ) : (
-                  <div className="divide-y divide-[#232834] border border-[#232834] rounded-xl bg-[#0B0D11]/60">
+                  <div className="divide-y divide-[#E5E7EB] border border-[#E5E7EB] rounded-xl bg-[#F9FAFB]/60">
                     {comboItems.map((item) => (
                       <div
                         key={item.productId}
                         className="px-3.5 py-2.5 flex items-center justify-between gap-3"
                       >
                         <div className="min-w-0">
-                          <p className="text-xs sm:text-sm font-medium text-[#F3F4F6] truncate">
+                          <p className="text-xs sm:text-sm font-medium text-[#111827] truncate">
                             {item.productName}
                           </p>
                           {item.countsAsXSalada && (
@@ -713,7 +713,7 @@ export function ProductsCombosManager({
                             type="button"
                             onClick={() => handleUpdateComboItemQty(item.productId, -1)}
                             aria-label={`Diminuir quantidade de ${item.productName}`}
-                            className="w-9 h-9 rounded-lg border border-[#232834] flex items-center justify-center text-[#D1D5DB] hover:border-[#F5B731] cursor-pointer"
+                            className="w-9 h-9 rounded-lg border border-[#E5E7EB] flex items-center justify-center text-[#4B5563] hover:border-[#EAB308] cursor-pointer"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
@@ -724,7 +724,7 @@ export function ProductsCombosManager({
                             type="button"
                             onClick={() => handleUpdateComboItemQty(item.productId, 1)}
                             aria-label={`Aumentar quantidade de ${item.productName}`}
-                            className="w-9 h-9 rounded-lg border border-[#232834] flex items-center justify-center text-[#D1D5DB] hover:border-[#F5B731] cursor-pointer"
+                            className="w-9 h-9 rounded-lg border border-[#E5E7EB] flex items-center justify-center text-[#4B5563] hover:border-[#EAB308] cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
@@ -732,7 +732,7 @@ export function ProductsCombosManager({
                             type="button"
                             onClick={() => handleUpdateComboItemQty(item.productId, -item.quantity)}
                             aria-label={`Remover ${item.productName} do combo`}
-                            className="w-9 h-9 rounded-lg border border-[#232834] flex items-center justify-center text-[#9CA3AF] hover:text-[#EF4444] cursor-pointer"
+                            className="w-9 h-9 rounded-lg border border-[#E5E7EB] flex items-center justify-center text-[#6B7280] hover:text-[#EF4444] cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -743,12 +743,12 @@ export function ProductsCombosManager({
                 )}
               </div>
 
-              <label className="inline-flex items-center gap-2.5 text-xs text-[#D1D5DB] cursor-pointer">
+              <label className="inline-flex items-center gap-2.5 text-xs text-[#4B5563] cursor-pointer">
                 <input
                   type="checkbox"
                   checked={comboActive}
                   onChange={(e) => setComboActive(e.target.checked)}
-                  className="w-4 h-4 accent-[#F5B731]"
+                  className="w-4 h-4 accent-[#EAB308]"
                 />
                 Combo ativo (disponível na tela de Nova Venda)
               </label>
@@ -757,7 +757,7 @@ export function ProductsCombosManager({
                 <button
                   type="submit"
                   disabled={savingCombo || uploadingComboImage}
-                  className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold cursor-pointer disabled:opacity-60"
+                  className="min-h-[44px] px-5 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold cursor-pointer disabled:opacity-60"
                 >
                   {savingCombo
                     ? 'Salvando...'
@@ -770,7 +770,7 @@ export function ProductsCombosManager({
                 <button
                   type="button"
                   onClick={() => setComboFormOpen(false)}
-                  className="min-h-[44px] px-4 rounded-xl border border-[#232834] text-xs font-medium text-[#D1D5DB] cursor-pointer"
+                  className="min-h-[44px] px-4 rounded-xl border border-[#E5E7EB] text-xs font-medium text-[#4B5563] cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -779,11 +779,11 @@ export function ProductsCombosManager({
           )}
 
           {combos.length === 0 ? (
-            <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-8 text-center space-y-2">
-              <p className="text-sm font-medium text-[#D1D5DB]">
+            <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-8 text-center space-y-2">
+              <p className="text-sm font-medium text-[#4B5563]">
                 Nenhum combo cadastrado ainda.
               </p>
-              <p className="text-xs text-[#9CA3AF]">
+              <p className="text-xs text-[#6B7280]">
                 Crie quantos combos desejar para agilizar o registro de vendas no celular.
               </p>
             </div>
@@ -797,13 +797,13 @@ export function ProductsCombosManager({
                 return (
                   <div
                     key={c.id}
-                    className={`bg-[#12151C] border rounded-2xl p-4 space-y-3 ${
-                      c.active ? 'border-[#232834]' : 'border-[#232834]/50 opacity-70'
+                    className={`bg-[#FFFFFF] border rounded-2xl p-4 space-y-3 ${
+                      c.active ? 'border-[#E5E7EB]' : 'border-[#E5E7EB]/50 opacity-70'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0">
-                        <div className="w-12 h-12 rounded-xl border border-[#232834] bg-[#0B0D11] overflow-hidden flex items-center justify-center shrink-0">
+                        <div className="w-12 h-12 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] overflow-hidden flex items-center justify-center shrink-0">
                           {c.imageUrl ? (
                             <img
                               src={c.imageUrl}
@@ -818,28 +818,28 @@ export function ProductsCombosManager({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-bold text-[#F3F4F6] truncate">
+                            <h4 className="text-sm font-bold text-[#111827] truncate">
                               {c.name}
                             </h4>
                             <span
                               className={`text-[11px] font-semibold ${
-                                c.active ? 'text-[#22C55E]' : 'text-[#9CA3AF]'
+                                c.active ? 'text-[#22C55E]' : 'text-[#6B7280]'
                               }`}
                             >
                               · {c.active ? 'Ativo' : 'Inativo'}
                             </span>
                           </div>
-                          <p className="text-xs text-[#9CA3AF] mt-0.5">
+                          <p className="text-xs text-[#6B7280] mt-0.5">
                             {c.description || c.items.map((i) => `${i.quantity}x ${i.productName}`).join(' + ')}
                           </p>
                         </div>
                       </div>
-                      <span className="text-base font-bold text-[#F5B731] font-mono tabular-nums shrink-0">
+                      <span className="text-base font-bold text-[#EAB308] font-mono tabular-nums shrink-0">
                         {formatCurrencyBRL(c.salePrice)}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#232834] text-[11px] text-[#9CA3AF]">
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E5E7EB] text-[11px] text-[#6B7280]">
                       <span className="font-mono tabular-nums">
                         {xSaladasInCombo > 0
                           ? `${xSaladasInCombo} X-Salada${xSaladasInCombo > 1 ? 's' : ''}`
@@ -854,7 +854,7 @@ export function ProductsCombosManager({
                           type="button"
                           onClick={() => openEditCombo(c)}
                           aria-label={`Editar combo ${c.name}`}
-                          className="min-h-[38px] px-3 rounded-lg border border-[#232834] hover:border-[#F5B731]/60 text-xs text-[#D1D5DB] hover:text-[#F5B731] inline-flex items-center gap-1.5 cursor-pointer"
+                          className="min-h-[38px] px-3 rounded-lg border border-[#E5E7EB] hover:border-[#EAB308]/60 text-xs text-[#4B5563] hover:text-[#EAB308] inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                           Editar
@@ -863,7 +863,7 @@ export function ProductsCombosManager({
                           type="button"
                           onClick={() => void handleToggleComboActive(c)}
                           aria-label={c.active ? `Desativar combo ${c.name}` : `Ativar combo ${c.name}`}
-                          className="min-h-[38px] px-3 rounded-lg border border-[#232834] hover:border-[#374151] text-xs text-[#D1D5DB] inline-flex items-center gap-1.5 cursor-pointer"
+                          className="min-h-[38px] px-3 rounded-lg border border-[#E5E7EB] hover:border-[#374151] text-xs text-[#4B5563] inline-flex items-center gap-1.5 cursor-pointer"
                         >
                           <Power className="w-3.5 h-3.5" />
                           {c.active ? 'Desativar' : 'Ativar'}
@@ -879,19 +879,19 @@ export function ProductsCombosManager({
       )}
 
       {sectionTab === 'products' && (
-        <section className="space-y-4 bg-[#12151C] border border-[#232834] rounded-2xl p-4">
-          <div><h3 className="text-sm font-bold text-white">Categorias personalizadas</h3><p className="text-xs text-[#9CA3AF]">Crie categorias como Pastéis, Kikão, Porções e Bebidas.</p></div>
-          <div className="flex gap-2"><input value={categoryDraft} onChange={(e) => setCategoryDraft(e.target.value)} maxLength={60} placeholder="Nova categoria" className="flex-1 min-h-[42px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] text-sm text-white"/><button type="button" disabled={catalogBusy || !categoryDraft.trim()} onClick={() => void addCustomCategory()} className="px-4 rounded-xl bg-[#F5B731] text-[#0B0D11] text-xs font-bold disabled:opacity-50">Criar</button></div>
-          <div className="flex flex-wrap gap-2">{customCategories.map((v) => <span key={v} className="px-3 py-1.5 rounded-full bg-[#0B0D11] border border-[#343B49] text-xs text-white">{v}</span>)}</div>
-          <div className="border-t border-[#232834] pt-4 space-y-3"><h3 className="text-sm font-bold text-white">Grupos de adicionais</h3>
-            <div className="flex gap-2"><input value={addonGroupDraft} onChange={(e) => setAddonGroupDraft(e.target.value)} maxLength={80} placeholder="Ex.: Sabores de pastel" className="flex-1 min-h-[42px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] text-sm text-white"/><button type="button" disabled={catalogBusy || !addonGroupDraft.trim()} onClick={() => void addAddonGroup()} className="px-4 rounded-xl border border-[#F5B731] text-[#F5B731] text-xs font-bold">Criar grupo</button></div>
+        <section className="space-y-4 bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-4">
+          <div><h3 className="text-sm font-bold text-white">Categorias personalizadas</h3><p className="text-xs text-[#6B7280]">Crie categorias como Pastéis, Kikão, Porções e Bebidas.</p></div>
+          <div className="flex gap-2"><input value={categoryDraft} onChange={(e) => setCategoryDraft(e.target.value)} maxLength={60} placeholder="Nova categoria" className="flex-1 min-h-[42px] px-3 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] text-sm text-white"/><button type="button" disabled={catalogBusy || !categoryDraft.trim()} onClick={() => void addCustomCategory()} className="px-4 rounded-xl bg-[#EAB308] text-[#F9FAFB] text-xs font-bold disabled:opacity-50">Criar</button></div>
+          <div className="flex flex-wrap gap-2">{customCategories.map((v) => <span key={v} className="px-3 py-1.5 rounded-full bg-[#F9FAFB] border border-[#343B49] text-xs text-white">{v}</span>)}</div>
+          <div className="border-t border-[#E5E7EB] pt-4 space-y-3"><h3 className="text-sm font-bold text-white">Grupos de adicionais</h3>
+            <div className="flex gap-2"><input value={addonGroupDraft} onChange={(e) => setAddonGroupDraft(e.target.value)} maxLength={80} placeholder="Ex.: Sabores de pastel" className="flex-1 min-h-[42px] px-3 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] text-sm text-white"/><button type="button" disabled={catalogBusy || !addonGroupDraft.trim()} onClick={() => void addAddonGroup()} className="px-4 rounded-xl border border-[#EAB308] text-[#EAB308] text-xs font-bold">Criar grupo</button></div>
             {addonGroups.map((g) => <div key={g.id} className="rounded-xl border border-[#343B49] p-3 space-y-2"><strong className="text-sm text-white">{g.name}</strong>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-[#D1D5DB]">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-[#4B5563]">
                 <label className="flex items-center gap-2"><input type="checkbox" checked={addonGroupRules[g.id]?.isRequired ?? false} onChange={(e) => setAddonGroupRules((prev) => ({ ...prev, [g.id]: { ...(prev[g.id] || { minSelect: 0, maxSelect: 1 }), isRequired: e.target.checked, minSelect: e.target.checked ? Math.max(1, prev[g.id]?.minSelect || 1) : Math.min(prev[g.id]?.minSelect || 0, prev[g.id]?.maxSelect || 1) } }))}/>Obrigatório</label>
-                <label> Mínimo <input type="number" min="0" max="30" value={addonGroupRules[g.id]?.minSelect ?? 0} onChange={(e) => setAddonGroupRules((prev) => ({ ...prev, [g.id]: { ...(prev[g.id] || { isRequired: false, maxSelect: 1 }), minSelect: Math.max(0, Number(e.target.value) || 0) } }))} className="w-14 ml-1 bg-[#0B0D11] border border-[#343B49] rounded px-1 py-1"/></label>
-                <label> Máximo <input type="number" min="1" max="30" value={addonGroupRules[g.id]?.maxSelect ?? 1} onChange={(e) => setAddonGroupRules((prev) => ({ ...prev, [g.id]: { ...(prev[g.id] || { isRequired: false, minSelect: 0 }), maxSelect: Math.max(1, Number(e.target.value) || 1) } }))} className="w-14 ml-1 bg-[#0B0D11] border border-[#343B49] rounded px-1 py-1"/></label>
-                <button type="button" onClick={() => { const rule = addonGroupRules[g.id] || { isRequired: false, minSelect: 0, maxSelect: 1 }; if (rule.minSelect > rule.maxSelect || (rule.isRequired && rule.minSelect < 1)) { showNotice('Revise mínimo e máximo deste grupo.', 'err'); return; } void getSupabaseClient().from('addon_groups').update({ is_required: rule.isRequired, min_select: rule.minSelect, max_select: rule.maxSelect }).eq('tenant_id', workspaceId).eq('id', g.id).then(({ error }) => { if (error) showNotice(error.message, 'err'); else { showNotice('Regras do grupo atualizadas.'); void refreshCustomCatalog(); } }); }} className="text-[#F5B731] underline">Salvar regras</button>
-              </div><div className="flex flex-wrap gap-2">{g.options.map((o) => <span key={o.id} className="text-xs px-2 py-1 rounded bg-[#0B0D11] text-[#D1D5DB]">{o.name} · {formatCurrencyBRL(o.price)}</span>)}</div><div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_auto] gap-2"><input value={optionDrafts[g.id]?.name || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: e.target.value, price: p[g.id]?.price || '' } }))} placeholder="Opção" className="min-h-[40px] px-3 rounded-lg bg-[#0B0D11] border border-[#232834] text-xs text-white"/><input type="number" min="0" step="0.01" value={optionDrafts[g.id]?.price || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: p[g.id]?.name || '', price: e.target.value } }))} placeholder="Preço" className="min-h-[40px] px-3 rounded-lg bg-[#0B0D11] border border-[#232834] text-xs text-white"/><button type="button" disabled={catalogBusy || !optionDrafts[g.id]?.name?.trim()} onClick={() => void addAddonOption(g.id)} className="px-3 rounded-lg bg-[#F5B731] text-[#0B0D11] text-xs font-bold">Adicionar</button></div></div>)}
+                <label> Mínimo <input type="number" min="0" max="30" value={addonGroupRules[g.id]?.minSelect ?? 0} onChange={(e) => setAddonGroupRules((prev) => ({ ...prev, [g.id]: { ...(prev[g.id] || { isRequired: false, maxSelect: 1 }), minSelect: Math.max(0, Number(e.target.value) || 0) } }))} className="w-14 ml-1 bg-[#F9FAFB] border border-[#343B49] rounded px-1 py-1"/></label>
+                <label> Máximo <input type="number" min="1" max="30" value={addonGroupRules[g.id]?.maxSelect ?? 1} onChange={(e) => setAddonGroupRules((prev) => ({ ...prev, [g.id]: { ...(prev[g.id] || { isRequired: false, minSelect: 0 }), maxSelect: Math.max(1, Number(e.target.value) || 1) } }))} className="w-14 ml-1 bg-[#F9FAFB] border border-[#343B49] rounded px-1 py-1"/></label>
+                <button type="button" onClick={() => { const rule = addonGroupRules[g.id] || { isRequired: false, minSelect: 0, maxSelect: 1 }; if (rule.minSelect > rule.maxSelect || (rule.isRequired && rule.minSelect < 1)) { showNotice('Revise mínimo e máximo deste grupo.', 'err'); return; } void getSupabaseClient().from('addon_groups').update({ is_required: rule.isRequired, min_select: rule.minSelect, max_select: rule.maxSelect }).eq('tenant_id', workspaceId).eq('id', g.id).then(({ error }) => { if (error) showNotice(error.message, 'err'); else { showNotice('Regras do grupo atualizadas.'); void refreshCustomCatalog(); } }); }} className="text-[#EAB308] underline">Salvar regras</button>
+              </div><div className="flex flex-wrap gap-2">{g.options.map((o) => <span key={o.id} className="text-xs px-2 py-1 rounded bg-[#F9FAFB] text-[#4B5563]">{o.name} · {formatCurrencyBRL(o.price)}</span>)}</div><div className="grid grid-cols-1 sm:grid-cols-[1fr_110px_auto] gap-2"><input value={optionDrafts[g.id]?.name || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: e.target.value, price: p[g.id]?.price || '' } }))} placeholder="Opção" className="min-h-[40px] px-3 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] text-xs text-white"/><input type="number" min="0" step="0.01" value={optionDrafts[g.id]?.price || ''} onChange={(e) => setOptionDrafts((p) => ({ ...p, [g.id]: { name: p[g.id]?.name || '', price: e.target.value } }))} placeholder="Preço" className="min-h-[40px] px-3 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] text-xs text-white"/><button type="button" disabled={catalogBusy || !optionDrafts[g.id]?.name?.trim()} onClick={() => void addAddonOption(g.id)} className="px-3 rounded-lg bg-[#EAB308] text-[#F9FAFB] text-xs font-bold">Adicionar</button></div></div>)}
           </div>
         </section>
       )}
@@ -902,17 +902,17 @@ export function ProductsCombosManager({
           {productFormOpen && (
             <form
               onSubmit={(e) => void handleSaveProduct(e)}
-              className="bg-[#12151C] border border-[#F5B731]/40 rounded-2xl p-5 space-y-4"
+              className="bg-[#FFFFFF] border border-[#EAB308]/40 rounded-2xl p-5 space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-[#232834] pb-3">
-                <h3 className="text-sm font-bold text-[#F3F4F6]">
+              <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-3">
+                <h3 className="text-sm font-bold text-[#111827]">
                   {editingProduct ? `Editar ${editingProduct.name}` : 'Cadastrar Produto'}
                 </h3>
                 <button
                   type="button"
                   onClick={() => setProductFormOpen(false)}
                   aria-label="Fechar formulário de produto"
-                  className="min-w-[38px] min-h-[38px] rounded-lg border border-[#232834] flex items-center justify-center text-[#9CA3AF] hover:text-white cursor-pointer"
+                  className="min-w-[38px] min-h-[38px] rounded-lg border border-[#E5E7EB] flex items-center justify-center text-[#6B7280] hover:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -920,7 +920,7 @@ export function ProductsCombosManager({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2">
-                  <label htmlFor="prod-name" className="block text-xs font-medium text-[#D1D5DB] mb-1.5">
+                  <label htmlFor="prod-name" className="block text-xs font-medium text-[#4B5563] mb-1.5">
                     Nome do produto
                   </label>
                   <input
@@ -931,19 +931,19 @@ export function ProductsCombosManager({
                     value={prodName}
                     onChange={(e) => setProdName(e.target.value)}
                     required
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="prod-cat" className="block text-xs font-medium text-[#D1D5DB] mb-1.5">
+                  <label htmlFor="prod-cat" className="block text-xs font-medium text-[#4B5563] mb-1.5">
                     Categoria
                   </label>
                   <select
                     id="prod-cat"
                     value={prodCategory}
                     onChange={(e) => setProdCategory(e.target.value as ProductCategory)}
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827]"
                   >
                     {customCategories.map((c) => (
                       <option key={c} value={c}>
@@ -954,13 +954,13 @@ export function ProductsCombosManager({
                 </div>
               </div>
 
-              <section className="rounded-xl border border-[#343B49] bg-[#0B0D11] p-3 space-y-2">
-                <div><h4 className="text-xs font-bold text-[#F3F4F6]">Grupos de adicionais deste produto</h4><p className="text-[11px] text-[#9CA3AF]">Selecione os grupos que o cliente poderá escolher no cardápio. Um grupo pode ser reutilizado em vários produtos.</p></div>
-                {addonGroups.length === 0 ? <p className="text-xs text-[#9CA3AF]">Crie primeiro um grupo de adicionais nesta tela.</p> : addonGroups.map((group) => <label key={group.id} className="flex items-center gap-2 py-1 text-xs text-[#D1D5DB]"><input type="checkbox" checked={selectedAddonGroupIds.includes(group.id)} onChange={(e) => setSelectedAddonGroupIds((prev) => e.target.checked ? [...prev, group.id] : prev.filter((id) => id !== group.id))} className="accent-[#F5B731]"/><span>{group.name} · {group.options.length} opções</span></label>)}
+              <section className="rounded-xl border border-[#343B49] bg-[#F9FAFB] p-3 space-y-2">
+                <div><h4 className="text-xs font-bold text-[#111827]">Grupos de adicionais deste produto</h4><p className="text-[11px] text-[#6B7280]">Selecione os grupos que o cliente poderá escolher no cardápio. Um grupo pode ser reutilizado em vários produtos.</p></div>
+                {addonGroups.length === 0 ? <p className="text-xs text-[#6B7280]">Crie primeiro um grupo de adicionais nesta tela.</p> : addonGroups.map((group) => <label key={group.id} className="flex items-center gap-2 py-1 text-xs text-[#4B5563]"><input type="checkbox" checked={selectedAddonGroupIds.includes(group.id)} onChange={(e) => setSelectedAddonGroupIds((prev) => e.target.checked ? [...prev, group.id] : prev.filter((id) => id !== group.id))} className="accent-[#EAB308]"/><span>{group.name} · {group.options.length} opções</span></label>)}
               </section>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
                 <div>
-                  <label htmlFor="prod-price" className="block text-xs font-medium text-[#D1D5DB] mb-1.5">
+                  <label htmlFor="prod-price" className="block text-xs font-medium text-[#4B5563] mb-1.5">
                     Preço de venda individual (R$)
                   </label>
                   <input
@@ -973,26 +973,26 @@ export function ProductsCombosManager({
                     value={prodPrice}
                     onChange={(e) => setProdPrice(e.target.value)}
                     required
-                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] font-mono tabular-nums"
+                    className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono tabular-nums"
                   />
                 </div>
 
                 <div className="space-y-2 pt-1">
-                  <label className="flex items-center gap-2.5 text-xs text-[#D1D5DB] cursor-pointer">
+                  <label className="flex items-center gap-2.5 text-xs text-[#4B5563] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={prodCountsXSalada}
                       onChange={(e) => setProdCountsXSalada(e.target.checked)}
-                      className="w-4 h-4 accent-[#F5B731]"
+                      className="w-4 h-4 accent-[#EAB308]"
                     />
                     Contabiliza como X-Salada nos indicadores
                   </label>
-                  <label className="flex items-center gap-2.5 text-xs text-[#D1D5DB] cursor-pointer">
+                  <label className="flex items-center gap-2.5 text-xs text-[#4B5563] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={prodActive}
                       onChange={(e) => setProdActive(e.target.checked)}
-                      className="w-4 h-4 accent-[#F5B731]"
+                      className="w-4 h-4 accent-[#EAB308]"
                     />
                     Produto ativo
                   </label>
@@ -1022,7 +1022,7 @@ export function ProductsCombosManager({
                 <button
                   type="submit"
                   disabled={savingProduct || uploadingProdImage}
-                  className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold cursor-pointer disabled:opacity-60"
+                  className="min-h-[44px] px-5 rounded-xl bg-[#EAB308] hover:bg-[#F5C842] text-[#F9FAFB] text-xs font-bold cursor-pointer disabled:opacity-60"
                 >
                   {savingProduct
                     ? 'Salvando...'
@@ -1035,7 +1035,7 @@ export function ProductsCombosManager({
                 <button
                   type="button"
                   onClick={() => setProductFormOpen(false)}
-                  className="min-h-[44px] px-4 rounded-xl border border-[#232834] text-xs font-medium text-[#D1D5DB] cursor-pointer"
+                  className="min-h-[44px] px-4 rounded-xl border border-[#E5E7EB] text-xs font-medium text-[#4B5563] cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -1044,16 +1044,16 @@ export function ProductsCombosManager({
           )}
 
           {products.length === 0 ? (
-            <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-8 text-center space-y-2">
-              <p className="text-sm font-medium text-[#D1D5DB]">
+            <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-8 text-center space-y-2">
+              <p className="text-sm font-medium text-[#4B5563]">
                 Nenhum produto cadastrado ainda.
               </p>
-              <p className="text-xs text-[#9CA3AF]">
+              <p className="text-xs text-[#6B7280]">
                 Cadastre seus lanches e bebidas para utilizá-los em vendas individuais e na montagem de combos.
               </p>
             </div>
           ) : (
-            <div className="bg-[#12151C] border border-[#232834] rounded-2xl divide-y divide-[#232834]">
+            <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl divide-y divide-[#E5E7EB]">
               {products.map((p) => (
                 <div
                   key={p.id}
@@ -1062,7 +1062,7 @@ export function ProductsCombosManager({
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-xl border border-[#232834] bg-[#0B0D11] overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="w-11 h-11 rounded-xl border border-[#E5E7EB] bg-[#F9FAFB] overflow-hidden flex items-center justify-center shrink-0">
                       {p.imageUrl ? (
                         <img
                           src={p.imageUrl}
@@ -1077,18 +1077,18 @@ export function ProductsCombosManager({
                     </div>
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-[#F3F4F6] truncate">
+                        <span className="text-sm font-semibold text-[#111827] truncate">
                           {p.name}
                         </span>
                         <span
                           className={`text-[11px] font-semibold ${
-                            p.active ? 'text-[#22C55E]' : 'text-[#9CA3AF]'
+                            p.active ? 'text-[#22C55E]' : 'text-[#6B7280]'
                           }`}
                         >
                           · {p.active ? 'Ativo' : 'Inativo'}
                         </span>
                       </div>
-                      <p className="text-xs text-[#9CA3AF] font-mono tabular-nums">
+                      <p className="text-xs text-[#6B7280] font-mono tabular-nums">
                         {p.category} · {formatCurrencyBRL(p.unitPrice)}
                         {p.countsAsXSalada ? ' · Conta como X-Salada' : ''}
                       </p>
@@ -1100,7 +1100,7 @@ export function ProductsCombosManager({
                       type="button"
                       onClick={() => openEditProduct(p)}
                       aria-label={`Editar produto ${p.name}`}
-                      className="min-h-[38px] px-3 rounded-lg border border-[#232834] hover:border-[#F5B731]/60 text-xs text-[#D1D5DB] hover:text-[#F5B731] inline-flex items-center gap-1.5 cursor-pointer"
+                      className="min-h-[38px] px-3 rounded-lg border border-[#E5E7EB] hover:border-[#EAB308]/60 text-xs text-[#4B5563] hover:text-[#EAB308] inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                       Editar
@@ -1109,7 +1109,7 @@ export function ProductsCombosManager({
                       type="button"
                       onClick={() => void handleToggleProductActive(p)}
                       aria-label={p.active ? `Desativar produto ${p.name}` : `Ativar produto ${p.name}`}
-                      className="min-h-[38px] px-3 rounded-lg border border-[#232834] hover:border-[#374151] text-xs text-[#D1D5DB] inline-flex items-center gap-1.5 cursor-pointer"
+                      className="min-h-[38px] px-3 rounded-lg border border-[#E5E7EB] hover:border-[#374151] text-xs text-[#4B5563] inline-flex items-center gap-1.5 cursor-pointer"
                     >
                       <Power className="w-3.5 h-3.5" />
                       {p.active ? 'Desativar' : 'Ativar'}
