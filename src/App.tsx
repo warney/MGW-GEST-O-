@@ -1027,7 +1027,7 @@ export default function App() {
     )[visibleNavItems.length] ?? 'grid-cols-6';
 
   return (
-    <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex flex-col lg:flex-row">
+    <div className="mgw-app-theme min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex flex-col lg:flex-row">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-[#12151C] border-r border-[#232834]">
         <div className="h-16 px-5 flex items-center gap-3 border-b border-[#232834]">
