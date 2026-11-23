@@ -162,6 +162,12 @@ export default function App() {
   useEffect(() => {
     const isPublicMenuApp =
       publicRoute.kind === 'menu' || publicRoute.kind === 'tracking';
+
+    // Mantém o tema independente do Cardápio Digital público.
+    document.documentElement.classList.toggle('dark', isPublicMenuApp);
+    document.documentElement.style.colorScheme = isPublicMenuApp ? 'dark' : 'light';
+    document.body.style.backgroundColor = isPublicMenuApp ? '#0B0D11' : '#F6F7F9';
+
     const manifestHref = isPublicMenuApp
       ? '/manifest-cardapio.webmanifest'
       : '/manifest.webmanifest';
