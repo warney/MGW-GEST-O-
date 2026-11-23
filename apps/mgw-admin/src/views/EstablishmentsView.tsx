@@ -149,7 +149,7 @@ export function EstablishmentsView({
     return (
       <div className="space-y-5">
         <div>
-          <h1 className="text-xl font-bold text-white">Estabelecimentos (Tenants)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Estabelecimentos (Tenants)</h1>
           <p className="text-xs text-slate-400 mt-0.5">
             Controle multi-tenant, proprietários, situação operacional e cardápio digital.
           </p>
@@ -178,7 +178,7 @@ export function EstablishmentsView({
     <div className="space-y-5">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-white">Estabelecimentos (Tenants)</h1>
+          <h1 className="text-xl font-bold text-slate-900">Estabelecimentos (Tenants)</h1>
           <p className="text-xs text-slate-400 mt-0.5">
             Controle multi-tenant de lojas, equipe, operação e cardápio digital ({total} registros
             totais · {visibleItems.length} visíveis).
@@ -201,12 +201,12 @@ export function EstablishmentsView({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Nome, slug ou e-mail..."
-                className="w-56 rounded-md border border-[#2A3040] bg-[#12151C] pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:border-[#F5B731] focus:outline-none"
+                className="w-56 rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
               />
             </div>
             <button
               type="submit"
-              className="rounded-md border border-[#2A3040] bg-[#12151C] px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-[#1B202C] cursor-pointer"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 cursor-pointer"
             >
               Buscar
             </button>
@@ -216,7 +216,7 @@ export function EstablishmentsView({
             type="button"
             onClick={() => exportEstablishmentsToExcel(visibleItems)}
             disabled={visibleItems.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-md border border-[#2A3040] bg-[#12151C] px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-[#1B202C] disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
           >
             <Download className="h-3.5 w-3.5" />
             <span>Exportar Excel</span>
@@ -225,9 +225,9 @@ export function EstablishmentsView({
       </div>
 
       {/* Filters Toolbar */}
-      <div className="rounded-lg border border-[#222733] bg-[#12151C] p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-md border border-[#222733] bg-[#0B0D11] p-0.5 text-xs">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
             {[
               { id: 'all', label: 'Todos' },
               { id: 'active', label: 'Ativos' },
@@ -243,8 +243,8 @@ export function EstablishmentsView({
                 }}
                 className={`rounded px-2.5 py-1 font-medium cursor-pointer whitespace-nowrap ${
                   statusFilter === tab.id
-                    ? 'bg-[#F5B731] text-[#0B0D11]'
-                    : 'text-slate-300 hover:text-white'
+                    ? 'bg-[#F5B731] text-slate-900'
+                    : 'text-slate-300 hover:text-slate-900'
                 }`}
               >
                 {tab.label}
@@ -257,7 +257,7 @@ export function EstablishmentsView({
             onChange={(e) =>
               setSubscriptionFilter(e.target.value as EstablishmentSubscriptionFilter)
             }
-            className="rounded-md border border-[#2A3040] bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white focus:border-[#F5B731] focus:outline-none"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
           >
             <option value="all">Assinatura: Todas</option>
             <option value="trialing">Em Trial</option>
@@ -270,7 +270,7 @@ export function EstablishmentsView({
           <select
             value={menuFilter}
             onChange={(e) => setMenuFilter(e.target.value as EstablishmentMenuFilter)}
-            className="rounded-md border border-[#2A3040] bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white focus:border-[#F5B731] focus:outline-none"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
           >
             <option value="all">Cardápio: Todos</option>
             <option value="published">Cardápio Publicado</option>
@@ -280,7 +280,7 @@ export function EstablishmentsView({
           <select
             value={onboardingFilter}
             onChange={(e) => setOnboardingFilter(e.target.value as EstablishmentOnboardingFilter)}
-            className="rounded-md border border-[#2A3040] bg-[#0B0D11] px-2.5 py-1.5 text-xs text-white focus:border-[#F5B731] focus:outline-none"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
           >
             <option value="all">Onboarding: Todos</option>
             <option value="completed">Concluído</option>
@@ -312,18 +312,18 @@ export function EstablishmentsView({
       </div>
 
       {Boolean(error) && (
-        <div className="rounded-lg border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error instanceof Error ? error.message : String(error)}
         </div>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         {/* Table Column */}
-        <div className="xl:col-span-2 rounded-lg border border-[#222733] bg-[#12151C] overflow-hidden flex flex-col justify-between">
+        <div className="xl:col-span-2 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col justify-between">
           {loading ? (
             <div className="p-6 space-y-3">
               {[0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-11 rounded bg-[#181C26] animate-pulse" />
+                <div key={i} className="h-11 rounded bg-slate-100 animate-pulse" />
               ))}
             </div>
           ) : visibleItems.length === 0 ? (
@@ -333,7 +333,7 @@ export function EstablishmentsView({
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#0F1218] text-slate-400 border-b border-[#222733]">
+                <thead className="bg-slate-50 text-slate-400 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Estabelecimento</th>
                     <th className="px-4 py-2.5 font-medium">Status</th>
@@ -344,7 +344,7 @@ export function EstablishmentsView({
                     <th className="px-4 py-2.5 font-medium text-right">Criado em</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#1D222E]">
+                <tbody className="divide-y divide-slate-100">
                   {visibleItems.map((tenant) => {
                     const isSelected = selectedTenant?.id === tenant.id;
                     return (
@@ -352,11 +352,11 @@ export function EstablishmentsView({
                         key={tenant.id}
                         onClick={() => setSelectedTenant(tenant)}
                         className={`cursor-pointer transition-colors ${
-                          isSelected ? 'bg-[#F5B731]/8' : 'hover:bg-[#161A23]'
+                          isSelected ? 'bg-[#F5B731]/8' : 'hover:bg-slate-50'
                         }`}
                       >
                         <td className="px-4 py-3">
-                          <div className="font-medium text-white">
+                          <div className="font-medium text-slate-900">
                             {tenant.name}
                             {tenant.is_founder_account && (
                               <span className="ml-2 font-mono text-[11px] text-[#F5B731]">
@@ -403,7 +403,7 @@ export function EstablishmentsView({
           )}
 
           {total > PAGE_SIZE && (
-            <div className="px-4 py-3 border-t border-[#222733] bg-[#0F1218] flex items-center justify-between text-xs text-slate-400">
+            <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-400">
               <span className="font-mono tabular-nums">
                 Página {page + 1} de {totalPages} · {total} registros
               </span>
@@ -412,7 +412,7 @@ export function EstablishmentsView({
                   type="button"
                   disabled={page === 0 || loading}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  className="inline-flex items-center gap-1 rounded border border-[#2A3040] px-2.5 py-1 text-slate-200 hover:bg-[#1B202C] disabled:opacity-40 cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-slate-200 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                   <span>Anterior</span>
@@ -421,7 +421,7 @@ export function EstablishmentsView({
                   type="button"
                   disabled={page + 1 >= totalPages || loading}
                   onClick={() => setPage((p) => p + 1)}
-                  className="inline-flex items-center gap-1 rounded border border-[#2A3040] px-2.5 py-1 text-slate-200 hover:bg-[#1B202C] disabled:opacity-40 cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-slate-200 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
                 >
                   <span>Próxima</span>
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -432,7 +432,7 @@ export function EstablishmentsView({
         </div>
 
         {/* Establishment Detail Inspector */}
-        <div className="rounded-lg border border-[#222733] bg-[#12151C] p-5 h-fit space-y-5">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 h-fit space-y-5">
           {!selectedTenant ? (
             <div className="py-10 text-center text-xs text-slate-400">
               Selecione um estabelecimento na tabela para inspecionar dados cadastrais, membros,
@@ -441,10 +441,10 @@ export function EstablishmentsView({
           ) : (
             <>
               {/* Header & Protected Actions */}
-              <div className="pb-3 border-b border-[#222733] space-y-2">
+              <div className="pb-3 border-b border-slate-200 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                       <Building2 className="h-4 w-4 text-[#F5B731] shrink-0" />
                       <span className="truncate">{selectedTenant.name}</span>
                     </h2>
@@ -466,7 +466,7 @@ export function EstablishmentsView({
                             nextStatus: 'suspended',
                           })
                         }
-                        className="inline-flex items-center gap-1.5 rounded border border-rose-500/35 px-2.5 py-1.5 text-[11px] font-medium text-rose-300 hover:bg-rose-500/15 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-500/15 cursor-pointer"
                       >
                         <PauseCircle className="h-3.5 w-3.5" />
                         <span>Suspender loja</span>
@@ -480,7 +480,7 @@ export function EstablishmentsView({
                             nextStatus: 'active',
                           })
                         }
-                        className="inline-flex items-center gap-1.5 rounded border border-emerald-500/35 px-2.5 py-1.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/15 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/35 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-500/15 cursor-pointer"
                       >
                         <PlayCircle className="h-3.5 w-3.5" />
                         <span>Reativar loja</span>
@@ -497,7 +497,7 @@ export function EstablishmentsView({
                               nextStatus: 'archived',
                             })
                           }
-                          className="inline-flex items-center gap-1.5 rounded border border-[#2A3040] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:bg-[#1B202C] cursor-pointer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:bg-slate-100 cursor-pointer"
                         >
                           <Archive className="h-3.5 w-3.5" />
                           <span>Arquivar</span>
@@ -546,14 +546,14 @@ export function EstablishmentsView({
                   {selectedTenant.trial_ends_at && (
                     <div className="flex justify-between gap-2">
                       <span className="text-slate-400">Fim do trial</span>
-                      <span className="font-mono text-amber-300 tabular-nums">
+                      <span className="font-mono text-amber-800 tabular-nums">
                         {formatDateTimeBr(selectedTenant.trial_ends_at)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between gap-2">
                     <span className="text-slate-400">Produtos / Vendas / Pedidos</span>
-                    <span className="font-mono text-white tabular-nums">
+                    <span className="font-mono text-slate-900 tabular-nums">
                       {selectedTenant.products_count} / {selectedTenant.sales_count} /{' '}
                       {selectedTenant.online_orders_count}
                     </span>
@@ -574,10 +574,10 @@ export function EstablishmentsView({
               </div>
 
               {/* Cardapio Digital */}
-              <div className="pt-3 border-t border-[#222733] space-y-2 text-xs">
+              <div className="pt-3 border-t border-slate-200 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <Globe className="h-3.5 w-3.5 text-sky-400" />
+                    <Globe className="h-3.5 w-3.5 text-sky-700" />
                     <span>Cardápio Digital</span>
                   </h3>
                   <StatusIndicator
@@ -585,7 +585,7 @@ export function EstablishmentsView({
                     labelOverride={selectedTenant.digital_menu_active ? 'Publicado' : 'Oculto'}
                   />
                 </div>
-                <div className="rounded-md border border-[#222733] bg-[#0B0D11] p-2.5 flex items-center justify-between gap-2">
+                <div className="rounded-lg border border-slate-200 bg-white p-2.5 flex items-center justify-between gap-2">
                   <code className="text-[11px] font-mono text-slate-300 truncate">
                     {selectedTenant.digital_menu_slug
                       ? `/?menu=${selectedTenant.digital_menu_slug}`
@@ -595,7 +595,7 @@ export function EstablishmentsView({
                     <button
                       type="button"
                       onClick={() => void handleCopyMenuSlug(selectedTenant.digital_menu_slug!)}
-                      className="inline-flex items-center gap-1 rounded border border-[#2A3040] px-2 py-1 text-[10px] text-slate-300 hover:bg-[#1B202C] shrink-0 cursor-pointer"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-100 shrink-0 cursor-pointer"
                     >
                       <Copy className="h-3 w-3" />
                       <span>{copiedSlug ? 'Copiado' : 'Copiar'}</span>
@@ -605,7 +605,7 @@ export function EstablishmentsView({
               </div>
 
               {/* Proprietario e Membros */}
-              <div className="pt-3 border-t border-[#222733] space-y-2.5 text-xs">
+              <div className="pt-3 border-t border-slate-200 space-y-2.5 text-xs">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-slate-300 flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5 text-[#F5B731]" />
@@ -617,11 +617,11 @@ export function EstablishmentsView({
 
                 {membersLoading ? (
                   <div className="space-y-2">
-                    <div className="h-10 rounded bg-[#181C26] animate-pulse" />
-                    <div className="h-10 rounded bg-[#181C26] animate-pulse" />
+                    <div className="h-10 rounded bg-slate-100 animate-pulse" />
+                    <div className="h-10 rounded bg-slate-100 animate-pulse" />
                   </div>
                 ) : membersError ? (
-                  <p className="text-[11px] text-amber-300">{membersError}</p>
+                  <p className="text-[11px] text-amber-800">{membersError}</p>
                 ) : members.length === 0 ? (
                   <p className="text-[11px] text-slate-500">
                     Nenhum membro vinculado localizado para este tenant.
@@ -631,11 +631,11 @@ export function EstablishmentsView({
                     {members.map((member) => (
                       <div
                         key={member.memberId}
-                        className="rounded-md border border-[#222733] bg-[#0B0D11] p-2.5 space-y-1.5"
+                        className="rounded-lg border border-slate-200 bg-white p-2.5 space-y-1.5"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="font-medium text-white truncate">
+                            <p className="font-medium text-slate-900 truncate">
                               {member.fullName || member.email}
                               {member.isFounder && (
                                 <span className="ml-1.5 font-mono text-[10px] text-[#F5B731]">
@@ -662,16 +662,16 @@ export function EstablishmentsView({
                                 nextActive: !member.memberActive,
                               })
                             }
-                            className="w-full inline-flex items-center justify-center gap-1 rounded border border-[#2A3040] px-2 py-1 text-[10px] font-medium text-slate-300 hover:bg-[#1B202C] cursor-pointer"
+                            className="w-full inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-300 hover:bg-slate-100 cursor-pointer"
                           >
                             {member.memberActive ? (
                               <>
-                                <UserX className="h-3 w-3 text-rose-400" />
+                                <UserX className="h-3 w-3 text-rose-700" />
                                 <span>Suspender membro</span>
                               </>
                             ) : (
                               <>
-                                <UserCheck className="h-3 w-3 text-emerald-400" />
+                                <UserCheck className="h-3 w-3 text-emerald-700" />
                                 <span>Reativar membro</span>
                               </>
                             )}
@@ -681,7 +681,7 @@ export function EstablishmentsView({
                     ))}
 
                     {membersTruncated && (
-                      <p className="text-[11px] text-amber-300">
+                      <p className="text-[11px] text-amber-800">
                         Listagem limitada aos primeiros 200 clientes; RPC dedicado de membros por
                         tenant pendente para bases maiores.
                       </p>
