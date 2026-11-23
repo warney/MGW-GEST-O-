@@ -35,7 +35,12 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const mpEnvironment = Deno.env.get("MP_ENVIRONMENT") === "production" ? "production" : "test";
+  const configuredEnvironment = Deno.env.get("MP_ENVIRONMENT");
+  if (configuredEnvironment !== "production" && configuredEnvironment !== "test") {
+    console.error("[create-mp-subscription] MP_ENVIRONMENT ausente ou inválido; operação bloqueada.");
+    return json({ error: "Ambiente do Mercado Pago não configurado." }, 503);
+  }
+  const mpEnvironment = configuredEnvironment;
   const accessToken = (Deno.env.get(mpEnvironment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
   if (!supabaseUrl || !serviceRoleKey || !accessToken) {
     console.error("[create-mp-subscription] Configuração ausente.");
