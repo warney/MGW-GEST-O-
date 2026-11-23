@@ -78,7 +78,7 @@ export function AdminLayout({
             title={collapsed && !mobile ? item.label : undefined}
             className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-left text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
               isActive
-                ? 'bg-[#F5B731]/12 text-[#F5B731] border border-[#F5B731]/25'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-transparent'
             }`}
           >
