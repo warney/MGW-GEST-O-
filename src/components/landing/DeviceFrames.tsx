@@ -20,23 +20,23 @@ export function DesktopFrame({
 
   return (
     <figure
-      className={`rounded-2xl overflow-hidden border border-[#232834] bg-[#12151C] shadow-[0_24px_60px_rgba(0,0,0,0.55)] ${className}`}
+      className={`rounded-2xl overflow-hidden border border-[#E5E7EB] bg-white shadow-[0_12px_32px_rgba(15,23,42,0.10)] ${className}`}
     >
-      <div className="h-9 px-3.5 bg-[#0F1218] border-b border-[#232834] flex items-center justify-between gap-3">
+      <div className="h-9 px-3.5 bg-[#F9FAFB] border-b border-[#E5E7EB] flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 shrink-0" aria-hidden="true">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#2A303E]" />
-          <span className="w-2.5 h-2.5 rounded-full bg-[#2A303E]" />
-          <span className="w-2.5 h-2.5 rounded-full bg-[#2A303E]" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#D1D5DB]" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#D1D5DB]" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#D1D5DB]" />
         </div>
-        <span className="text-[11px] font-mono text-[#9CA3AF] truncate">
+        <span className="text-[11px] font-mono text-[#6B7280] truncate">
           {urlLabel}
         </span>
         <span className="w-8 shrink-0" aria-hidden="true" />
       </div>
 
-      <div className="bg-[#0B0D11] relative aspect-[16/10] w-full overflow-hidden">
+      <div className="bg-[#F6F7F9] relative aspect-[16/10] w-full overflow-hidden">
         {failed ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-xs text-[#9CA3AF]">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center text-xs text-[#6B7280]">
             <Monitor className="w-6 h-6 text-[#F5B731]" />
             <span>{alt}</span>
           </div>
@@ -73,15 +73,15 @@ export function PhoneFrame({
 
   return (
     <figure
-      className={`rounded-[28px] overflow-hidden border-2 border-[#2A3140] bg-[#0B0D11] shadow-[0_24px_60px_rgba(0,0,0,0.65)] ${className}`}
+      className={`rounded-[28px] overflow-hidden border-2 border-[#D1D5DB] bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)] ${className}`}
     >
-      <div className="h-5 bg-[#0F1218] border-b border-[#1E2330] flex items-center justify-center" aria-hidden="true">
-        <span className="w-12 h-1 rounded-full bg-[#262C3A]" />
+      <div className="h-5 bg-[#F9FAFB] border-b border-[#E5E7EB] flex items-center justify-center" aria-hidden="true">
+        <span className="w-12 h-1 rounded-full bg-[#D1D5DB]" />
       </div>
 
-      <div className="bg-[#0B0D11] relative aspect-[390/844] w-full overflow-hidden">
+      <div className="bg-[#F6F7F9] relative aspect-[390/844] w-full overflow-hidden">
         {failed ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center text-xs text-[#9CA3AF]">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center text-xs text-[#6B7280]">
             <Smartphone className="w-6 h-6 text-[#F5B731]" />
             <span>{alt}</span>
           </div>
