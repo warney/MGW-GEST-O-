@@ -258,7 +258,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const eventId = `preapproval:${resourceId}:${String(mp.status || "unknown")}:${String(mp.last_modified || mp.date_created || "")}`;
-    const { error: eventError } = await supabase.from("mp_webhook_events").insert({
+    // Upsert allows retries to recover events previously marked failed/received.
+    // Reapplying a verified provider snapshot is idempotent for this subscription row.
+    const { error: eventError } = await supabase.from("mp_webhook_events").upsert({
       id: eventId,
       event_type: eventType,
       action: action || null,
@@ -266,13 +268,14 @@ Deno.serve(async (req: Request) => {
       tenant_id: tenantId,
       signature_verified: true,
       processing_status: "received",
+      error_message: null,
+      processed_at: null,
       payload: { id: resourceId, status: mp.status, external_reference: tenantId },
-    });
-    if (eventError && !String(eventError.code || "").includes("23505")) {
+    }, { onConflict: "id" });
+    if (eventError) {
       console.error("[mp-webhook] Falha ao registrar evento:", eventError.message);
       return json({ error: "Could not record webhook event" }, 500);
     }
-    if (eventError?.code === "23505") return json({ received: true, duplicate: true });
 
     const now = new Date();
     const statusMap: Record<string, string> = {
@@ -282,7 +285,16 @@ Deno.serve(async (req: Request) => {
       cancelled: "cancelled",
       canceled: "cancelled",
     };
-    const nextStatus = statusMap[String(mp.status)] || "pending";
+    const providerStatus = String(mp.status || "").toLowerCase();
+    const nextStatus = statusMap[providerStatus];
+    if (!nextStatus) {
+      await supabase.from("mp_webhook_events").update({
+        processing_status: "failed",
+        error_message: `Status de assinatura não reconhecido: ${providerStatus || "vazio"}`,
+        processed_at: new Date().toISOString(),
+      }).eq("id", eventId);
+      return json({ error: "Unsupported subscription status" }, 422);
+    }
     const startDate = mp.date_created ? new Date(mp.date_created) : now;
     const endDate = mp.next_payment_date ? new Date(mp.next_payment_date) : null;
     const graceUntil = nextStatus === "paused"
