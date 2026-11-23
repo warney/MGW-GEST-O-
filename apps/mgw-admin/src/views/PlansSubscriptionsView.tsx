@@ -133,7 +133,7 @@ export function PlansSubscriptionsView({
       </div>
 
       {error && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-200">
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 p-4 text-xs text-rose-700">
           {error}
         </div>
       )}
@@ -320,7 +320,7 @@ export function PlansSubscriptionsView({
                               }
                               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
                             >
-                              <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                              <ShieldCheck className="h-3 w-3 text-emerald-700" />
                               <span>Isentar</span>
                             </button>
                           )}
@@ -337,7 +337,7 @@ export function PlansSubscriptionsView({
                                   tone: 'accent',
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/35 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-500/15 cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/35 px-2 py-1 text-[11px] text-emerald-700 hover:bg-emerald-500/15 cursor-pointer whitespace-nowrap"
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               <span>Ativar 30d</span>
@@ -356,7 +356,7 @@ export function PlansSubscriptionsView({
                                   tone: 'danger',
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded-lg border border-rose-500/35 px-2 py-1 text-[11px] text-rose-300 hover:bg-rose-500/15 cursor-pointer whitespace-nowrap"
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-500/35 px-2 py-1 text-[11px] text-rose-700 hover:bg-rose-500/15 cursor-pointer whitespace-nowrap"
                             >
                               <ShieldAlert className="h-3 w-3" />
                               <span>Suspender</span>
@@ -391,7 +391,7 @@ export function PlansSubscriptionsView({
             </div>
 
             {!mfaVerified && (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200 flex items-center justify-between gap-2">
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 flex items-center justify-between gap-2">
                 <span>Requer MFA AAL2 ativo.</span>
                 <button
                   type="button"
