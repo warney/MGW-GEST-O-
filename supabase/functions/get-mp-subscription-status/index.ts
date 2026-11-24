@@ -42,6 +42,47 @@ Deno.serve(async (req: Request) => {
       .eq("tenant_id", tenantId).maybeSingle();
     if (error || !subscription) return json({ error: "Assinatura não encontrada." }, 404);
 
+    // A legacy recurring preapproval may coexist with a completed one-off Pix
+    // payment (for example when the customer opened both checkout options).
+    // If the latest successful payment is Pix, cancel that old recurring agreement.
+    if (subscription.status === "authorized" && subscription.mp_preapproval_id) {
+      const { data: latestApproved } = await admin.from("platform_payments")
+        .select("payment_method,status").eq("tenant_id", tenantId).eq("status", "approved")
+        .order("paid_at", { ascending: false }).limit(1).maybeSingle();
+      if (latestApproved?.payment_method === "pix") {
+        const environment = subscription.mp_environment || "production";
+        const token = (Deno.env.get(environment === "test" ? "MP_ACCESS_TOKEN_TEST" : "MP_ACCESS_TOKEN") || "").trim();
+        if (token) {
+          const url = "https://api.mercadopago.com/preapproval/" + encodeURIComponent(subscription.mp_preapproval_id);
+          const providerResponse = await fetch(url, { headers: { "Authorization": "Bearer " + token, ...(environment === "test" ? { "X-scope": "stage" } : {}) } });
+          const provider = await providerResponse.json().catch(() => ({}));
+          if (providerResponse.ok && String(provider.external_reference || "") === tenantId) {
+            if (!["cancelled", "canceled"].includes(String(provider.status || "").toLowerCase())) {
+              const cancelResponse = await fetch(url, {
+                method: "PUT",
+                headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json", ...(environment === "test" ? { "X-scope": "stage" } : {}) },
+                body: JSON.stringify({ status: "canceled" })
+              });
+              const cancelled = await cancelResponse.json().catch(() => ({}));
+              if (!cancelResponse.ok || String(cancelled.id || "") !== subscription.mp_preapproval_id || !["cancelled", "canceled"].includes(String(cancelled.status || "").toLowerCase())) {
+                console.error("[get-mp-subscription-status] Falha ao cancelar autorização recorrente antiga:", cancelResponse.status);
+              } else {
+                await admin.from("subscriptions").update({ mp_preapproval_id: null, mp_init_point: null, updated_at: new Date().toISOString() })
+                  .eq("id", subscription.id).eq("mp_preapproval_id", subscription.mp_preapproval_id);
+                subscription.mp_preapproval_id = null;
+              }
+            } else {
+              await admin.from("subscriptions").update({ mp_preapproval_id: null, mp_init_point: null, updated_at: new Date().toISOString() })
+                .eq("id", subscription.id).eq("mp_preapproval_id", subscription.mp_preapproval_id);
+              subscription.mp_preapproval_id = null;
+            }
+          } else {
+            console.error("[get-mp-subscription-status] Não foi possível validar a autorização recorrente antiga; mantendo vínculo.");
+          }
+        }
+      }
+    }
+
     // Reconcile pending Pix payments on status checks as a recovery path if the
     // provider webhook was delayed or previously rejected. The provider API is
     // authoritative; never trust browser state or webhook payload for activation.
