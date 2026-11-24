@@ -280,11 +280,11 @@ export function AppShell({
         icon: Globe,
       });
     }
-    if (canAccessSettingsRoute) {
+    if (canWriteSettings) {
       items.push({
         id: 'settings',
         route: 'settings',
-        settingsTab: canWriteSettings ? 'shop' : 'catalog',
+        settingsTab: 'shop',
         section: 'catalog_settings',
         label: 'Configurações',
         mobileLabel: 'Ajustes',
