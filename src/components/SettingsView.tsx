@@ -10,6 +10,7 @@ import type {
   ShopSettings,
 } from '../types/finance';
 import { DigitalMenuSettingsPanel } from './DigitalMenuSettingsPanel';
+import { SubscriptionManagementPanel } from './SubscriptionManagementPanel';
 import { ProductsCombosManager } from './ProductsCombosManager';
 
 interface SettingsViewProps {
@@ -32,6 +33,10 @@ interface SettingsViewProps {
   onLogout: () => Promise<void>;
   canManageShopSettings?: boolean;
   canManageDigitalMenu?: boolean;
+  tenantId: string;
+  tenantRole: string;
+  subscriptionStatus: string;
+  billingExempt: boolean;
 }
 
 const BRAZIL_TIMEZONES = [
@@ -64,6 +69,10 @@ export function SettingsView({
   onLogout,
   canManageShopSettings = true,
   canManageDigitalMenu = true,
+  tenantId,
+  tenantRole,
+  subscriptionStatus,
+  billingExempt,
 }: SettingsViewProps) {
   const defaultTab = canManageShopSettings
     ? initialTab
@@ -263,6 +272,7 @@ export function SettingsView({
             {isSigningOut ? 'Saindo...' : 'Sair da conta'}
           </button>
         </section>
+        <SubscriptionManagementPanel tenantId={tenantId} tenantRole={tenantRole} subscriptionStatus={subscriptionStatus} billingExempt={billingExempt} />
         <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 space-y-5">
           <div className="border-b border-[#E5E7EB] pb-4">
             <h2 className="text-lg font-bold text-[#111827]">

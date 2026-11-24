@@ -190,8 +190,8 @@ FOR UPDATE TO authenticated
 USING (public.has_tenant_role(tenant_id, ARRAY['owner','admin','manager']))
 WITH CHECK (
   public.has_tenant_role(tenant_id, ARRAY['owner','admin','manager'])
-  AND EXISTS (SELECT 1 FROM public.products p WHERE p.id=product_id AND p.tenant_id=tenant_id)
-  AND EXISTS (SELECT 1 FROM public.addon_groups g WHERE g.id=group_id AND g.tenant_id=tenant_id)
+  AND EXISTS (SELECT 1 FROM public.products p WHERE p.id=product_id AND p.tenant_id=product_addon_groups.tenant_id)
+  AND EXISTS (SELECT 1 FROM public.addon_groups g WHERE g.id=group_id AND g.tenant_id=product_addon_groups.tenant_id)
 );
 DROP POLICY IF EXISTS product_addon_groups_admin_delete ON public.product_addon_groups;
 CREATE POLICY product_addon_groups_admin_delete ON public.product_addon_groups
