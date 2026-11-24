@@ -389,13 +389,6 @@ Deno.serve(async (req: Request) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
       return json({ error: "Invalid external reference" }, 400);
     }
-    const amount = Number(mp.auto_recurring?.transaction_amount);
-    const currency = String(mp.auto_recurring?.currency_id || "");
-    if (Math.round(amount * 100) !== current.plan_amount_cents || currency !== "BRL") {
-      console.error("[mp-webhook] Valor/moeda divergente; assinatura não atualizada.");
-      return json({ error: "Subscription amount mismatch" }, 409);
-    }
-
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
@@ -407,6 +400,13 @@ Deno.serve(async (req: Request) => {
       console.warn("[mp-webhook] Evento de ambiente diferente da assinatura recusado.");
       return json({ error: "Subscription environment mismatch" }, 409);
     }
+    const amount = Number(mp.auto_recurring?.transaction_amount);
+    const currency = String(mp.auto_recurring?.currency_id || "");
+    if (Math.round(amount * 100) !== current.plan_amount_cents || currency !== "BRL") {
+      console.error("[mp-webhook] Valor/moeda divergente; assinatura não atualizada.");
+      return json({ error: "Subscription amount mismatch" }, 409);
+    }
+
     if (current.mp_preapproval_id && current.mp_preapproval_id !== resourceId) {
       return json({ error: "Subscription ID mismatch" }, 409);
     }
