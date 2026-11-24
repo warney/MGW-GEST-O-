@@ -138,7 +138,7 @@ export function PlansSubscriptionsView({
       <div>
         <h1 className="text-xl font-bold text-slate-900">Planos &amp; Assinaturas</h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Catálogo oficial MGW Gestão (R$ 49,90/mês, trial de 3 dias, isenção fundadora e retenção de 6 meses).
+          Catálogo oficial MGW Gestão. O preço vigente é definido exclusivamente neste painel.
         </p>
       </div>
 
@@ -342,7 +342,7 @@ export function PlansSubscriptionsView({
                                   sub,
                                   action: 'activate_manual',
                                   title: 'Ativar assinatura manualmente (30d)',
-                                  description: `Ativar "${sub.tenant_name}" no plano R$ 49,90 por 30 dias.`,
+                                  description: `Ativar "${sub.tenant_name}" no valor vigente de ${formatCurrencyCents(sub.plan_amount_cents)} por 30 dias.`,
                                   tone: 'accent',
                                 })
                               }

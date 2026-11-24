@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
       if (String(payment.payment_method_id || "") !== "pix") return json({ received: true, ignored: true });
       const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
       const { data: subscription, error: subscriptionError } = await supabase.from("subscriptions")
-        .select("id,tenant_id,status,plan_amount_cents,currency,mp_payer_email,current_period_start,current_period_end,mp_environment")
+        .select("id,tenant_id,status,plan_amount_cents,currency,mp_payer_email,current_period_start,current_period_end,mp_environment,mp_preapproval_id")
         .eq("tenant_id", tenantId).maybeSingle();
       if (subscriptionError || !subscription) return json({ error: "MGW subscription not found" }, 404);
       if (subscription.mp_environment !== mpEnvironment) return json({ error: "Subscription environment mismatch" }, 409);
@@ -171,6 +171,27 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Could not reconcile Pix payment" }, 500);
       }
       if (paymentStatus === "approved") {
+        // A paid Pix settles the current month. Cancel any other pending Pix
+        // charge for this tenant (especially stale amounts created before an
+        // Admin price change) so the payer is not reminded about a second amount.
+        const { data: otherPendingPix } = await supabase.from("platform_payments")
+          .select("id,mp_payment_id").eq("tenant_id", tenantId).eq("payment_method", "pix").eq("status", "pending")
+          .neq("mp_payment_id", resourceId).limit(20);
+        for (const oldPayment of otherPendingPix || []) {
+          const cancelResponse = await fetch("https://api.mercadopago.com/v1/payments/" + encodeURIComponent(oldPayment.mp_payment_id), {
+            method: "PUT",
+            headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json", ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}) },
+            body: JSON.stringify({ status: "cancelled" })
+          });
+          const cancelled = await cancelResponse.json().catch(() => ({}));
+          if (cancelResponse.ok && String(cancelled.id || "") === oldPayment.mp_payment_id && ["cancelled", "canceled"].includes(String(cancelled.status || "").toLowerCase())) {
+            await supabase.from("platform_payments").update({
+              status: "cancelled", failure_reason: "Cobrança Pix substituída por pagamento aprovado.", updated_at: now.toISOString()
+            }).eq("id", oldPayment.id).eq("status", "pending");
+          } else {
+            console.error("[mp-webhook] Não foi possível cancelar Pix pendente antigo:", oldPayment.mp_payment_id, cancelResponse.status);
+          }
+        }
         const paidAt = payment.date_approved ? new Date(payment.date_approved) : now;
         const currentEnd = subscription.current_period_end ? new Date(subscription.current_period_end) : null;
         const paidStart = currentEnd && currentEnd.getTime() > paidAt.getTime() ? currentEnd : paidAt;
@@ -189,6 +210,38 @@ Deno.serve(async (req: Request) => {
         if (tenantError) {
           await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: tenantError.message, processed_at: now.toISOString() }).eq("id", eventId);
           return json({ error: "Could not restore tenant after Pix payment" }, 500);
+        }
+        // Pix is a one-time monthly payment, not a recurring authorization.
+        // Cancel any legacy card/preapproval checkout previously opened for this
+        // tenant so Mercado Pago cannot continue sending a second recurring charge.
+        if (subscription.mp_preapproval_id) {
+          const preapprovalResponse = await fetch("https://api.mercadopago.com/preapproval/" + encodeURIComponent(subscription.mp_preapproval_id), {
+            headers: { "Authorization": "Bearer " + accessToken, ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}) }
+          });
+          const preapproval = await preapprovalResponse.json().catch(() => ({}));
+          if (preapprovalResponse.ok && String(preapproval.external_reference || "") === tenantId && !["cancelled", "canceled"].includes(String(preapproval.status || "").toLowerCase())) {
+            const cancelResponse = await fetch("https://api.mercadopago.com/preapproval/" + encodeURIComponent(subscription.mp_preapproval_id), {
+              method: "PUT",
+              headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json", ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}) },
+              body: JSON.stringify({ status: "canceled" })
+            });
+            const cancelled = await cancelResponse.json().catch(() => ({}));
+            if (!cancelResponse.ok || String(cancelled.id || "") !== subscription.mp_preapproval_id || !["cancelled", "canceled"].includes(String(cancelled.status || "").toLowerCase())) {
+              console.error("[mp-webhook] Falha ao cancelar preapproval antigo após pagamento Pix:", cancelResponse.status);
+              await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: "Não foi possível cancelar autorização recorrente antiga.", processed_at: now.toISOString() }).eq("id", eventId);
+              return json({ error: "Could not cancel legacy recurring authorization after Pix payment" }, 502);
+            }
+          } else if (!preapprovalResponse.ok || String(preapproval.external_reference || "") !== tenantId) {
+            console.error("[mp-webhook] Não foi possível validar preapproval antigo antes do cancelamento.");
+            return json({ error: "Could not verify legacy recurring authorization" }, 502);
+          }
+          const { error: clearPreapprovalError } = await supabase.from("subscriptions").update({
+            mp_preapproval_id: null, mp_init_point: null, updated_at: now.toISOString()
+          }).eq("id", subscription.id).eq("mp_preapproval_id", subscription.mp_preapproval_id);
+          if (clearPreapprovalError) {
+            console.error("[mp-webhook] Falha ao limpar vínculo de preapproval cancelado:", clearPreapprovalError.message);
+            return json({ error: "Could not clear legacy recurring authorization" }, 500);
+          }
         }
       }
       await supabase.from("mp_webhook_events").update({ processing_status: "processed", processed_at: now.toISOString() }).eq("id", eventId);
