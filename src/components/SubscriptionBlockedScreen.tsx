@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Building2, Clock, CreditCard, Lock, LogOut, ShieldAlert } from 'lucide-react';
 import type { TenantBillingBlockReason, TenantContext } from '../types/finance';
+import { getSupabaseClient } from '../lib/supabase';
 
 interface SubscriptionBlockedScreenProps {
   accountEmail: string;
@@ -71,8 +72,39 @@ export function SubscriptionBlockedScreen({
   onLogout,
 }: SubscriptionBlockedScreenProps) {
   const [signingOut, setSigningOut] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const copy = getBlockCopy(tenant.accessBlockReason);
   const hasMultipleTenants = tenants.length > 1;
+
+  async function handleCheckoutClick() {
+    if (checkoutLoading) return;
+    setCheckoutLoading(true);
+    setCheckoutError(null);
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.functions.invoke('create-mp-subscription', {
+        body: { tenantId: tenant.tenantId },
+      });
+      if (error) throw new Error(error.message || 'Não foi possível iniciar o checkout.');
+      const checkoutUrl = typeof data?.checkoutUrl === 'string' ? data.checkoutUrl : '';
+      if (!checkoutUrl) {
+        throw new Error(typeof data?.error === 'string' ? data.error : 'O Mercado Pago não retornou o endereço de pagamento.');
+      }
+      const destination = new URL(checkoutUrl);
+      const allowedHost = destination.hostname === 'mercadopago.com.br'
+        || destination.hostname.endsWith('.mercadopago.com.br')
+        || destination.hostname === 'mercadopago.com'
+        || destination.hostname.endsWith('.mercadopago.com');
+      if (destination.protocol !== 'https:' || !allowedHost) {
+        throw new Error('O endereço de checkout retornado não é válido.');
+      }
+      window.location.assign(destination.toString());
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'Não foi possível iniciar a contratação.');
+      setCheckoutLoading(false);
+    }
+  }
 
   async function handleLogoutClick() {
     if (signingOut) return;
@@ -130,6 +162,18 @@ export function SubscriptionBlockedScreen({
           <p className="text-xs text-[#4B5563] leading-relaxed">
             Inclui controle financeiro completo, catálogo de produtos e combos, cardápio digital e gestão de pedidos online.
           </p>
+          <button
+            type="button"
+            onClick={() => void handleCheckoutClick()}
+            disabled={checkoutLoading}
+            className="w-full min-h-[46px] rounded-xl bg-[#EAB308] hover:bg-[#FACC15] text-[#111827] text-sm font-bold inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait"
+          >
+            <CreditCard className="w-4 h-4" />
+            {checkoutLoading ? 'Preparando pagamento...' : 'Assinar agora com Mercado Pago'}
+          </button>
+          {checkoutError && (
+            <p role="alert" className="text-xs text-[#DC2626] leading-relaxed">{checkoutError}</p>
+          )}
         </div>
 
         <div className="space-y-2 text-xs text-[#6B7280]">
@@ -142,7 +186,7 @@ export function SubscriptionBlockedScreen({
           <div className="flex items-start gap-2">
             <Clock className="w-3.5 h-3.5 text-[#EAB308] shrink-0 mt-0.5" />
             <p>
-              A contratação direta pelo sistema estará disponível após a ativação do módulo de pagamentos. Sua sessão permanece autenticada como{' '}
+              Você será direcionado ao ambiente seguro do Mercado Pago para cadastrar a forma de pagamento. Sua sessão permanece autenticada como{' '}
               <span className="text-[#4B5563] font-medium break-all">{accountEmail}</span>.
             </p>
           </div>
