@@ -5,6 +5,7 @@ import { StatusIndicator } from '../components/StatusIndicator';
 import {
   fetchPlansAndSubscriptions,
   manageSubscription,
+  manageSubscriptionExpiry,
   updatePlan,
 } from '../services/adminApi';
 import {
@@ -217,6 +218,7 @@ export function PlansSubscriptionsView({
               <option value="past_due">Em atraso</option>
               <option value="suspended">Suspensos</option>
               <option value="cancelled">Cancelados</option>
+              <option value="expired">Expirados</option>
             </select>
 
             <form
