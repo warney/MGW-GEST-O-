@@ -121,6 +121,7 @@ import { AppShell } from './components/AppShell';
 import { LandingPageView } from './components/landing/LandingPageView';
 import { LegalDocumentView } from './components/landing/LegalDocumentView';
 import { isDemoSandboxActive } from './services/demoSandbox';
+import { getSupabaseClient } from './lib/supabase';
 import {
   hasAuthCallbackParams,
   isAuthShellRoute,
@@ -909,6 +910,30 @@ export default function App() {
     await updateAccountPassword(password);
   }
 
+  async function handleSubscribe(tenantId: string) {
+    if (!activeTenant || activeTenant.tenantId !== tenantId || activeTenant.role !== 'owner') {
+      throw new Error('Somente o proprietário do estabelecimento pode contratar.');
+    }
+    const { data, error } = await getSupabaseClient().functions.invoke('create-mp-subscription', {
+      body: { tenantId },
+    });
+    if (error) throw new Error(data?.error || 'Não foi possível conectar ao serviço de cobrança. Tente novamente.');
+    const checkoutUrl = typeof data?.checkoutUrl === 'string' ? data.checkoutUrl : '';
+    let parsed: URL;
+    try {
+      parsed = new URL(checkoutUrl);
+    } catch {
+      throw new Error(data?.error || 'O Mercado Pago não retornou um checkout válido.');
+    }
+    if (
+      parsed.protocol !== 'https:' ||
+      !['www.mercadopago.com.br', 'mercadopago.com.br', 'sandbox.mercadopago.com.br'].includes(parsed.hostname)
+    ) {
+      throw new Error('O endereço de checkout retornado não é oficial do Mercado Pago.');
+    }
+    window.location.assign(parsed.toString());
+  }
+
   async function handleLogout() {
     try {
       await logoutSession();
@@ -1247,6 +1272,7 @@ export default function App() {
         tenants={tenants}
         onSelectTenant={handleSelectTenant}
         onLogout={handleLogout}
+        onSubscribe={handleSubscribe}
       />
     );
   }

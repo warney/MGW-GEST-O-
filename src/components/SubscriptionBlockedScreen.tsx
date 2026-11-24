@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Building2, Clock, CreditCard, Lock, LogOut, ShieldAlert } from 'lucide-react';
 import type { TenantBillingBlockReason, TenantContext } from '../types/finance';
 
@@ -8,6 +8,7 @@ interface SubscriptionBlockedScreenProps {
   tenants: TenantContext[];
   onSelectTenant: (tenantId: string) => void;
   onLogout: () => Promise<void>;
+  onSubscribe: (tenantId: string) => Promise<void>;
 }
 
 function getBlockCopy(reason: TenantBillingBlockReason | null | undefined): {
@@ -69,8 +70,49 @@ export function SubscriptionBlockedScreen({
   tenants,
   onSelectTenant,
   onLogout,
+  onSubscribe,
 }: SubscriptionBlockedScreenProps) {
   const [signingOut, setSigningOut] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('billing') !== 'return') return;
+    let active = true;
+    let attempts = 0;
+    setCheckingPayment(true);
+    const check = async () => {
+      attempts += 1;
+      try {
+        const { data, error } = await (await import('../lib/supabase')).getSupabaseClient().functions.invoke('get-mp-subscription-status', { body: { tenantId: tenant.tenantId } });
+        if (error) throw error;
+        if (!active) return;
+        if (data?.status === 'authorized' || data?.status === 'active') {
+          setPaymentConfirmed(true);
+          window.history.replaceState({}, '', window.location.pathname);
+          window.location.reload();
+          return;
+        }
+        if (attempts >= 12) setCheckingPayment(false);
+      } catch {
+        if (active && attempts >= 12) setCheckingPayment(false);
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => { if (attempts < 12) void check(); else window.clearInterval(timer); }, 3000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [tenant.tenantId]);
+
+  async function handleSubscribe() {
+    if (submitting) return;
+    setSubmitting(true);
+    setBillingError(null);
+    try { await onSubscribe(tenant.tenantId); }
+    catch (error) { setBillingError(error instanceof Error ? error.message : 'Não foi possível iniciar a contratação.'); }
+    finally { setSubmitting(false); }
+  }
   const copy = getBlockCopy(tenant.accessBlockReason);
   const hasMultipleTenants = tenants.length > 1;
 
@@ -141,12 +183,18 @@ export function SubscriptionBlockedScreen({
           </div>
           <div className="flex items-start gap-2">
             <Clock className="w-3.5 h-3.5 text-[#EAB308] shrink-0 mt-0.5" />
-            <p>
-              A contratação direta pelo sistema estará disponível após a ativação do módulo de pagamentos. Sua sessão permanece autenticada como{' '}
-              <span className="text-[#4B5563] font-medium break-all">{accountEmail}</span>.
-            </p>
+            <p>Contrate com segurança pelo checkout do Mercado Pago. Sua sessão permanece autenticada como <span className="text-[#4B5563] font-medium break-all">{accountEmail}</span>.</p>
           </div>
         </div>
+
+        {checkingPayment && <p role="status" className="text-xs text-[#EAB308]">Estamos confirmando seu pagamento com o Mercado Pago. Esta tela será atualizada automaticamente.</p>}
+        {paymentConfirmed && <p role="status" className="text-xs text-green-600">Pagamento confirmado. Atualizando seu acesso...</p>}
+        {billingError && <p role="alert" className="text-xs text-red-600">{billingError}</p>}
+        {tenant.role === 'owner' && !tenant.billingExempt && (
+          <button type="button" onClick={() => void handleSubscribe()} disabled={submitting || checkingPayment} className="w-full min-h-[48px] rounded-xl bg-[#EAB308] hover:bg-[#FACC15] text-[#111827] font-bold text-sm disabled:opacity-60">
+            {submitting ? 'Preparando checkout...' : checkingPayment ? 'Confirmando pagamento...' : 'Assinar agora — R$ 49,90/mês'}
+          </button>
+        )}
 
         {hasMultipleTenants && (
           <div className="pt-2 border-t border-[#E5E7EB]">
