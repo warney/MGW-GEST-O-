@@ -33,7 +33,7 @@ export function isPendingMigrationMessage(message: string): boolean {
     message.includes('42883') ||
     message.includes('Could not find the function') ||
     (message.includes('function public.admin_') && message.includes('does not exist')) ||
-    message.includes('migration 20261122000001 pendente')
+    /migration 20261122(?:000001|171114|171122) pendente/i.test(message)
   );
 }
 
@@ -54,7 +54,7 @@ export function formatAdminError(error: unknown): string {
       : String(error);
 
   if (isPendingMigrationMessage(message)) {
-    return 'Os RPCs administrativos da Etapa 4.1 ainda nao foram aplicados no Supabase remoto (migration 20261122000001 pendente).';
+    return 'Os RPCs administrativos da Etapa 4.1 ainda nao estao disponiveis no Supabase remoto. Reconcile e aplique as migrations administrativas pendentes antes de usar este recurso.';
   }
 
   if (message.includes('MFA/AAL2')) {
@@ -309,6 +309,24 @@ export async function manageSubscription(params: {
     p_tenant_id: params.tenantId,
     p_action: params.action,
     p_days: params.days ?? null,
+    p_reason: params.reason,
+  });
+}
+
+export async function manageSubscriptionExpiry(params: {
+  tenantId: string;
+  mode: 'extend' | 'set' | 'expire';
+  duration?: number;
+  unit?: 'days' | 'months' | 'years';
+  expiresAt?: string;
+  reason: string;
+}): Promise<{ tenantId: string; action: string; ok: boolean; expiresAt?: string }> {
+  return callRpc('admin_set_subscription_expiry', {
+    p_tenant_id: params.tenantId,
+    p_mode: params.mode,
+    p_duration: params.duration ?? null,
+    p_unit: params.unit ?? 'days',
+    p_expires_at: params.expiresAt ?? null,
     p_reason: params.reason,
   });
 }
