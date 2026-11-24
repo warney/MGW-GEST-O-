@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { CreditCard, QrCode, Copy } from 'lucide-react';
+import { getSupabaseClient } from '../lib/supabase';
 import {
   ArrowRight,
   Check,
@@ -16,6 +18,9 @@ interface StoreOnboardingScreenProps {
   initialStoreName?: string;
   onComplete: (storeName: string, ownerName: string) => Promise<void>;
   onLogout: () => Promise<void>;
+  onSubscribe: (tenantId: string) => Promise<void>;
+  onSubscribePix: (tenantId: string) => Promise<{ paymentId: string; amountCents: number; qrCode: string; qrCodeBase64: string; ticketUrl: string; expiresAt: string | null }>;
+  tenantId: string;
 }
 
 const ONBOARDING_ROADMAP_ITEMS = [
@@ -41,6 +46,9 @@ export function StoreOnboardingScreen({
   initialStoreName = '',
   onComplete,
   onLogout,
+  onSubscribe,
+  onSubscribePix,
+  tenantId,
 }: StoreOnboardingScreenProps) {
   const defaultDraft =
     initialStoreName && initialStoreName !== 'Meu Estabelecimento'
@@ -52,6 +60,49 @@ export function StoreOnboardingScreen({
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [heroImageFailed, setHeroImageFailed] = useState(false);
+  const [planAmountCents, setPlanAmountCents] = useState(4990);
+  const [pixPayment, setPixPayment] = useState<{ paymentId: string; amountCents: number; qrCode: string; qrCodeBase64: string; ticketUrl: string; expiresAt: string | null } | null>(null);
+  const [pixSubmitting, setPixSubmitting] = useState(false);
+  const [cardSubmitting, setCardSubmitting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void getSupabaseClient().from('plans').select('amount_cents').eq('code', 'mgw_mensal_49').eq('active', true).maybeSingle()
+      .then(({ data }) => { if (active && Number.isInteger(data?.amount_cents) && data.amount_cents > 0) setPlanAmountCents(data.amount_cents); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!pixPayment) return;
+    let active = true;
+    const check = async () => {
+      try {
+        const { data, error } = await getSupabaseClient().functions.invoke('get-mp-subscription-status', { body: { tenantId } });
+        if (!error && active && (data?.status === 'authorized' || data?.status === 'active')) window.location.reload();
+      } catch { /* aguarda próxima tentativa */ }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 3000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [pixPayment?.paymentId, tenantId]);
+
+  async function handlePixSubscribe() {
+    if (pixSubmitting) return;
+    setPixSubmitting(true);
+    setError(null);
+    try { setPixPayment(await onSubscribePix(tenantId)); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível gerar o Pix.'); }
+    finally { setPixSubmitting(false); }
+  }
+
+  async function handleCardSubscribe() {
+    if (cardSubmitting) return;
+    setCardSubmitting(true);
+    setError(null);
+    try { await onSubscribe(tenantId); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível abrir o checkout.'); }
+    finally { setCardSubmitting(false); }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -242,6 +293,33 @@ export function StoreOnboardingScreen({
                 <span className="font-medium leading-relaxed">{error}</span>
               </div>
             )}
+
+            <div className="rounded-xl border border-[#E8EAF0] bg-[#F8F9FC] p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold text-[#172033]">Prefere já contratar o MGW?</p>
+                <span className="text-xs font-bold text-[#172033]">{(planAmountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês</span>
+              </div>
+              <p className="text-[11px] text-[#778094]">Seu teste grátis continua disponível. Se quiser, você pode contratar agora por Pix ou cartão.</p>
+              {!pixPayment ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button type="button" onClick={() => void handlePixSubscribe()} disabled={pixSubmitting || cardSubmitting || submitting} className="min-h-[42px] rounded-lg bg-[#16A34A] text-white text-xs font-bold inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                    <QrCode className="w-4 h-4" /> {pixSubmitting ? 'Gerando Pix...' : 'Pagar com Pix'}
+                  </button>
+                  <button type="button" onClick={() => void handleCardSubscribe()} disabled={cardSubmitting || pixSubmitting || submitting} className="min-h-[42px] rounded-lg bg-[#F5B900] text-[#172033] text-xs font-bold inline-flex items-center justify-center gap-2 disabled:opacity-60">
+                    <CreditCard className="w-4 h-4" /> {cardSubmitting ? 'Abrindo checkout...' : 'Cartão de crédito'}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <img src={'data:image/png;base64,' + pixPayment.qrCodeBase64} alt="QR Code Pix" className="mx-auto w-44 h-44 object-contain bg-white rounded-lg p-2" />
+                  <button type="button" onClick={() => void navigator.clipboard.writeText(pixPayment.qrCode)} className="w-full min-h-[40px] rounded-lg bg-green-700 text-white text-xs font-bold inline-flex items-center justify-center gap-2">
+                    <Copy className="w-4 h-4" /> Copiar código Pix
+                  </button>
+                  {pixPayment.ticketUrl && <a href={pixPayment.ticketUrl} target="_blank" rel="noreferrer" className="block text-center text-xs font-semibold text-green-800 underline">Abrir pagamento</a>}
+                  <p role="status" className="text-center text-[11px] text-green-800">Aguardando confirmação do pagamento. O teste grátis permanece ativo até a confirmação.</p>
+                </div>
+              )}
+            </div>
 
             <form
               noValidate
