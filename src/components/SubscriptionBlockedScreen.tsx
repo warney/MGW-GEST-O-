@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Building2, Clock, CreditCard, Lock, LogOut, ShieldAlert } from 'lucide-react';
+import { Building2, Clock, CreditCard, Lock, LogOut, ShieldAlert, QrCode, Copy } from 'lucide-react';
+import { getSupabaseClient } from '../lib/supabase';
 import type { TenantBillingBlockReason, TenantContext } from '../types/finance';
 
 interface SubscriptionBlockedScreenProps {
@@ -9,6 +10,7 @@ interface SubscriptionBlockedScreenProps {
   onSelectTenant: (tenantId: string) => void;
   onLogout: () => Promise<void>;
   onSubscribe: (tenantId: string) => Promise<void>;
+  onSubscribePix: (tenantId: string) => Promise<{ paymentId: string; amountCents: number; qrCode: string; qrCodeBase64: string; ticketUrl: string; expiresAt: string | null }>;
 }
 
 function getBlockCopy(reason: TenantBillingBlockReason | null | undefined): {
@@ -71,12 +73,16 @@ export function SubscriptionBlockedScreen({
   onSelectTenant,
   onLogout,
   onSubscribe,
+  onSubscribePix,
 }: SubscriptionBlockedScreenProps) {
   const [signingOut, setSigningOut] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [billingError, setBillingError] = useState<string | null>(null);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [planAmountCents, setPlanAmountCents] = useState(4990);
+  const [pixPayment, setPixPayment] = useState<{ paymentId: string; amountCents: number; qrCode: string; qrCodeBase64: string; ticketUrl: string; expiresAt: string | null } | null>(null);
+  const [pixSubmitting, setPixSubmitting] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('billing') !== 'return') return;
@@ -104,6 +110,39 @@ export function SubscriptionBlockedScreen({
     const timer = window.setInterval(() => { if (attempts < 12) void check(); else window.clearInterval(timer); }, 3000);
     return () => { active = false; window.clearInterval(timer); };
   }, [tenant.tenantId]);
+
+  useEffect(() => {
+    let active = true;
+    void getSupabaseClient().from('plans').select('amount_cents').eq('code', 'mgw_mensal_49').eq('active', true).maybeSingle()
+      .then(({ data }) => { if (active && data && Number.isInteger(data.amount_cents) && data.amount_cents > 0) setPlanAmountCents(data.amount_cents); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!pixPayment) return;
+    let active = true;
+    let attempts = 0;
+    const check = async () => {
+      attempts += 1;
+      try {
+        const { data, error } = await getSupabaseClient().functions.invoke('get-mp-subscription-status', { body: { tenantId: tenant.tenantId } });
+        if (error) throw error;
+        if (active && (data?.status === 'authorized' || data?.status === 'active')) window.location.reload();
+      } catch { /* próxima tentativa */ }
+    };
+    void check();
+    const timer = window.setInterval(() => { if (attempts < 60) void check(); else window.clearInterval(timer); }, 3000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [pixPayment?.paymentId, tenant.tenantId]);
+
+  async function handlePixSubscribe() {
+    if (pixSubmitting) return;
+    setPixSubmitting(true);
+    setBillingError(null);
+    try { setPixPayment(await onSubscribePix(tenant.tenantId)); }
+    catch (error) { setBillingError(error instanceof Error ? error.message : 'Não foi possível gerar o Pix.'); }
+    finally { setPixSubmitting(false); }
+  }
 
   async function handleSubscribe() {
     if (submitting) return;
@@ -166,7 +205,7 @@ export function SubscriptionBlockedScreen({
               Plano único MGW Gestão
             </span>
             <span className="text-sm font-bold font-mono text-[#111827]">
-              R$ 49,90/mês
+              {(planAmountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
             </span>
           </div>
           <p className="text-xs text-[#4B5563] leading-relaxed">
@@ -190,10 +229,28 @@ export function SubscriptionBlockedScreen({
         {checkingPayment && <p role="status" className="text-xs text-[#EAB308]">Estamos confirmando seu pagamento com o Mercado Pago. Esta tela será atualizada automaticamente.</p>}
         {paymentConfirmed && <p role="status" className="text-xs text-green-600">Pagamento confirmado. Atualizando seu acesso...</p>}
         {billingError && <p role="alert" className="text-xs text-red-600">{billingError}</p>}
-        {tenant.role === 'owner' && !tenant.billingExempt && (
-          <button type="button" onClick={() => void handleSubscribe()} disabled={submitting || checkingPayment} className="w-full min-h-[48px] rounded-xl bg-[#EAB308] hover:bg-[#FACC15] text-[#111827] font-bold text-sm disabled:opacity-60">
-            {submitting ? 'Preparando checkout...' : checkingPayment ? 'Confirmando pagamento...' : 'Assinar agora — R$ 49,90/mês'}
-          </button>
+        {tenant.role === 'owner' && !tenant.billingExempt && !pixPayment && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button type="button" onClick={() => void handlePixSubscribe()} disabled={pixSubmitting || submitting || checkingPayment} className="w-full min-h-[48px] rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white font-bold text-sm disabled:opacity-60 inline-flex items-center justify-center gap-2">
+              <QrCode className="w-4 h-4" /> {pixSubmitting ? 'Gerando Pix...' : 'Pagar com Pix'}
+            </button>
+            <button type="button" onClick={() => void handleSubscribe()} disabled={submitting || pixSubmitting || checkingPayment} className="w-full min-h-[48px] rounded-xl bg-[#EAB308] hover:bg-[#FACC15] text-[#111827] font-bold text-sm disabled:opacity-60 inline-flex items-center justify-center gap-2">
+              <CreditCard className="w-4 h-4" /> {submitting ? 'Preparando...' : 'Cartão de crédito'}
+            </button>
+          </div>
+        )}
+        {pixPayment && (
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-3">
+            <h3 className="text-sm font-bold text-green-900 text-center">Pague com Pix para ativar sua assinatura</h3>
+            <p className="text-xs text-green-800 text-center">{(pixPayment.amountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+            <img src={'data:image/png;base64,' + pixPayment.qrCodeBase64} alt="QR Code Pix do Mercado Pago" className="mx-auto w-52 h-52 object-contain bg-white rounded-lg p-2" />
+            <button type="button" onClick={() => void navigator.clipboard.writeText(pixPayment.qrCode)} className="w-full min-h-[44px] rounded-lg bg-green-700 text-white text-xs font-bold inline-flex items-center justify-center gap-2">
+              <Copy className="w-4 h-4" /> Copiar código Pix
+            </button>
+            {pixPayment.ticketUrl && <a href={pixPayment.ticketUrl} target="_blank" rel="noreferrer" className="block text-center text-xs font-semibold text-green-800 underline">Abrir página do pagamento</a>}
+            <p role="status" className="text-center text-xs text-green-900">Aguardando confirmação do Mercado Pago. O acesso será liberado automaticamente após a aprovação.</p>
+            <button type="button" onClick={() => setPixPayment(null)} className="w-full text-xs text-green-800 underline">Voltar às formas de pagamento</button>
+          </div>
         )}
 
         {hasMultipleTenants && (

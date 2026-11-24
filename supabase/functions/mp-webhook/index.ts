@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     const resourceId = String(data.id || url.searchParams.get("data.id") || url.searchParams.get("id") || "");
     const eventType = String(body.type || url.searchParams.get("type") || body.topic || url.searchParams.get("topic") || "");
     const action = String(body.action || "");
-    if (!resourceId || !["subscription_preapproval", "subscription_authorized_payment"].includes(eventType)) {
+    if (!resourceId || !["subscription_preapproval", "subscription_authorized_payment", "payment"].includes(eventType)) {
       return json({ received: true, ignored: true });
     }
 
@@ -109,6 +109,75 @@ Deno.serve(async (req: Request) => {
     if (!accessToken) {
       console.error("[mp-webhook] Access Token ausente para o ambiente validado.");
       return json({ error: "Webhook access token not configured" }, 503);
+    }
+
+    if (eventType === "payment") {
+      const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(resourceId)}`, {
+        headers: { "Authorization": `Bearer ${accessToken}`, ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}) },
+      });
+      const payment = await paymentResponse.json().catch(() => ({}));
+      if (!paymentResponse.ok || String(payment.id || "") !== resourceId) return json({ error: "Could not verify Pix payment" }, 502);
+      const tenantId = String(payment.external_reference || "");
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) return json({ error: "Invalid Pix external reference" }, 400);
+      if (String(payment.payment_method_id || "") !== "pix") return json({ received: true, ignored: true });
+      const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data: subscription, error: subscriptionError } = await supabase.from("subscriptions")
+        .select("id,tenant_id,status,plan_amount_cents,currency,mp_payer_email,current_period_start,current_period_end,mp_environment")
+        .eq("tenant_id", tenantId).maybeSingle();
+      if (subscriptionError || !subscription) return json({ error: "MGW subscription not found" }, 404);
+      if (subscription.mp_environment !== mpEnvironment) return json({ error: "Subscription environment mismatch" }, 409);
+      const amountCents = Math.round(Number(payment.transaction_amount) * 100);
+      if (!Number.isInteger(amountCents) || amountCents !== subscription.plan_amount_cents || String(payment.currency_id || "") !== subscription.currency) {
+        console.error("[mp-webhook] Valor Pix divergente do valor registrado para a assinatura.");
+        return json({ error: "Pix amount mismatch" }, 409);
+      }
+      const now = new Date();
+      const rawStatus = String(payment.status || "pending").toLowerCase();
+      const statusMap: Record<string, string> = { approved: "approved", pending: "pending", in_process: "in_process", rejected: "rejected", cancelled: "cancelled", refunded: "refunded" };
+      const paymentStatus = statusMap[rawStatus] || "pending";
+      const eventId = `pix_payment:${resourceId}:${rawStatus}:${String(payment.date_last_updated || payment.date_created || "")}`;
+      const { error: eventError } = await supabase.from("mp_webhook_events").upsert({
+        id: eventId, event_type: eventType, action: action || null, resource_id: resourceId, tenant_id: tenantId,
+        signature_verified: true, processing_status: "received",
+        payload: { id: resourceId, status: paymentStatus, external_reference: tenantId, payment_method: "pix" },
+      }, { onConflict: "id" });
+      if (eventError) return json({ error: "Could not record Pix webhook event" }, 500);
+      const { error: ledgerError } = await supabase.from("platform_payments").upsert({
+        tenant_id: tenantId, subscription_id: subscription.id, provider: "mercadopago",
+        mp_payment_id: resourceId, mp_preapproval_id: null, amount_cents: amountCents, currency: subscription.currency,
+        status: paymentStatus, payment_method: "pix", payer_email: String(payment.payer?.email || subscription.mp_payer_email || ""),
+        failure_reason: paymentStatus === "rejected" ? String(payment.status_detail || "Pagamento Pix recusado") : "",
+        paid_at: paymentStatus === "approved" && payment.date_approved ? new Date(payment.date_approved).toISOString() : null,
+        due_at: payment.date_of_expiration ? new Date(payment.date_of_expiration).toISOString() : null,
+        updated_at: now.toISOString(),
+      }, { onConflict: "mp_payment_id" });
+      if (ledgerError) {
+        await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: ledgerError.message, processed_at: now.toISOString() }).eq("id", eventId);
+        return json({ error: "Could not reconcile Pix payment" }, 500);
+      }
+      if (paymentStatus === "approved") {
+        const paidAt = payment.date_approved ? new Date(payment.date_approved) : now;
+        const currentEnd = subscription.current_period_end ? new Date(subscription.current_period_end) : null;
+        const paidStart = currentEnd && currentEnd.getTime() > paidAt.getTime() ? currentEnd : paidAt;
+        const paidEnd = new Date(paidStart);
+        paidEnd.setMonth(paidEnd.getMonth() + 1);
+        const { error: updateError } = await supabase.from("subscriptions").update({
+          status: "authorized", current_period_start: paidStart.toISOString(), current_period_end: paidEnd.toISOString(),
+          grace_until: null, last_event_at: now.toISOString(), updated_at: now.toISOString(),
+        }).eq("id", subscription.id);
+        if (updateError) {
+          await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: updateError.message, processed_at: now.toISOString() }).eq("id", eventId);
+          return json({ error: "Could not activate Pix-paid subscription" }, 500);
+        }
+        const { error: tenantError } = await supabase.from("tenants").update({ status: "active", billing_suspended: false, updated_at: now.toISOString() })
+          .eq("id", tenantId).eq("billing_suspended", true);
+        if (tenantError) {
+          await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: tenantError.message, processed_at: now.toISOString() }).eq("id", eventId);
+          return json({ error: "Could not restore tenant after Pix payment" }, 500);
+        }
+      }
+      await supabase.from("mp_webhook_events").update({ processing_status: "processed", processed_at: now.toISOString() }).eq("id", eventId);
+      return json({ received: true, processed: true, paymentStatus });
     }
 
     if (eventType === "subscription_authorized_payment") {
@@ -320,24 +389,24 @@ Deno.serve(async (req: Request) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
       return json({ error: "Invalid external reference" }, 400);
     }
-    const amount = Number(mp.auto_recurring?.transaction_amount);
-    const currency = String(mp.auto_recurring?.currency_id || "");
-    if (Math.round(amount * 100) !== 4990 || currency !== "BRL") {
-      console.error("[mp-webhook] Valor/moeda divergente; assinatura não atualizada.");
-      return json({ error: "Subscription amount mismatch" }, 409);
-    }
-
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: current, error: currentError } = await supabase
-      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_start,current_period_end,grace_until,last_event_at,mp_environment")
+      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,plan_amount_cents,current_period_start,current_period_end,grace_until,last_event_at,mp_environment")
       .eq("tenant_id", tenantId).maybeSingle();
     if (currentError || !current) return json({ error: "MGW subscription not found" }, 404);
     if (current.mp_environment !== mpEnvironment) {
       console.warn("[mp-webhook] Evento de ambiente diferente da assinatura recusado.");
       return json({ error: "Subscription environment mismatch" }, 409);
     }
+    const amount = Number(mp.auto_recurring?.transaction_amount);
+    const currency = String(mp.auto_recurring?.currency_id || "");
+    if (Math.round(amount * 100) !== current.plan_amount_cents || currency !== "BRL") {
+      console.error("[mp-webhook] Valor/moeda divergente; assinatura não atualizada.");
+      return json({ error: "Subscription amount mismatch" }, 409);
+    }
+
     if (current.mp_preapproval_id && current.mp_preapproval_id !== resourceId) {
       return json({ error: "Subscription ID mismatch" }, 409);
     }

@@ -96,7 +96,7 @@ Deno.serve(async (req: Request) => {
       .eq("code", "mgw_mensal_49")
       .eq("active", true)
       .maybeSingle();
-    if (planError || !plan || plan.amount_cents !== 4990 || plan.currency !== "BRL" || plan.billing_interval !== "monthly") {
+    if (planError || !plan || !Number.isInteger(plan.amount_cents) || plan.amount_cents <= 0 || plan.currency !== "BRL" || plan.billing_interval !== "monthly") {
       console.error("[create-mp-subscription] Plano comercial ausente ou inválido.");
       return json({ error: "Plano mensal do MGW não está configurado corretamente." }, 503);
     }
@@ -144,7 +144,7 @@ Deno.serve(async (req: Request) => {
         auto_recurring: {
           frequency: 1,
           frequency_type: "months",
-          transaction_amount: 49.90,
+          transaction_amount: plan.amount_cents / 100,
           currency_id: "BRL",
         },
         back_url: `${getReturnUrl(req)}/?billing=return`,
