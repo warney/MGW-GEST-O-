@@ -85,7 +85,8 @@ export function SubscriptionBlockedScreen({
   const [pixSubmitting, setPixSubmitting] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || new URLSearchParams(window.location.search).get('billing') !== 'return') return;
+    if (typeof window === 'undefined') return;
+    const cameBackFromCheckout = new URLSearchParams(window.location.search).get('billing') === 'return';
     let active = true;
     let attempts = 0;
     setCheckingPayment(true);
@@ -97,7 +98,7 @@ export function SubscriptionBlockedScreen({
         if (!active) return;
         if (data?.status === 'authorized' || data?.status === 'active') {
           setPaymentConfirmed(true);
-          window.history.replaceState({}, '', window.location.pathname);
+          if (cameBackFromCheckout) window.history.replaceState({}, '', window.location.pathname);
           window.location.reload();
           return;
         }
