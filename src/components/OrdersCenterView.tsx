@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Clock,
   Eye,
+  Laptop,
   MessageCircle,
   MoreHorizontal,
   Plus,
@@ -20,7 +21,10 @@ import {
   RefreshCw,
   Search,
   Settings,
+  ShieldCheck,
   ShoppingCart,
+  Smartphone,
+  Trash2,
   UtensilsCrossed,
   Volume2,
   VolumeX,
@@ -44,6 +48,7 @@ import {
   type PrintableOrderSource,
 } from '../utils/orderPrint';
 import type { BrowserNotificationPermissionState } from '../utils/orderNotifications';
+import type { OrderPushDiagnosticsSnapshot } from '../services/orderPushNotifications';
 import {
   computeOrdersCenterSummary,
   filterAndSearchOrders,
@@ -65,9 +70,13 @@ interface OrdersCenterViewProps {
   soundEnabled: boolean;
   pushEnabled: boolean;
   notificationPermission: BrowserNotificationPermissionState;
+  pushDiagnostics?: OrderPushDiagnosticsSnapshot | null;
+  pushDiagnosticsLoading?: boolean;
   isLoading?: boolean;
   errorMessage?: string | null;
   onRefreshOrders?: () => Promise<void> | void;
+  onRefreshPushDiagnostics?: () => void;
+  onRemovePushDevice?: (subscriptionId: string) => void;
   onOpenNewOrder?: () => void;
   onToggleSound: () => void;
   onTogglePush: () => void;
@@ -127,9 +136,13 @@ export function OrdersCenterView({
   soundEnabled,
   pushEnabled,
   notificationPermission,
+  pushDiagnostics = null,
+  pushDiagnosticsLoading = false,
   isLoading = false,
   errorMessage = null,
   onRefreshOrders,
+  onRefreshPushDiagnostics,
+  onRemovePushDevice,
   onOpenNewOrder,
   onToggleSound,
   onTogglePush,
@@ -150,6 +163,7 @@ export function OrdersCenterView({
     null,
   );
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showPushDiagnostics, setShowPushDiagnostics] = useState(false);
   const [reasonModal, setReasonModal] = useState<{
     order: OnlineOrderRecord;
     nextStatus: 'rejected' | 'cancelled';
@@ -501,7 +515,7 @@ export function OrdersCenterView({
                   {pushEnabled ? (
                     <>
                       <BellRing className="w-3.5 h-3.5 shrink-0" />
-                      <span>Notificações no celular ativas</span>
+                      <span>Notificações Push ativas</span>
                     </>
                   ) : (
                     <>
@@ -517,7 +531,7 @@ export function OrdersCenterView({
                   className="min-h-[36px] px-3 rounded-xl border border-[#E8EAF0] hover:border-[#D5D9E4] bg-white text-xs font-semibold text-[#172033] inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Bell className="w-3.5 h-3.5 text-[#D97706] shrink-0" />
-                  <span>Testar alerta</span>
+                  <span>Testar Push</span>
                 </button>
               </>
             ) : (
@@ -527,7 +541,7 @@ export function OrdersCenterView({
                 className="min-h-[36px] px-3 rounded-xl bg-[#FFFBEB] border border-[#FDE68A] hover:bg-[#FEF3C7] text-[#B45309] text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
               >
                 <BellRing className="w-3.5 h-3.5 shrink-0" />
-                <span>Ativar notificações no celular</span>
+                <span>Ativar notificações</span>
               </button>
             )}
 
@@ -558,6 +572,27 @@ export function OrdersCenterView({
 
             <button
               type="button"
+              onClick={() => {
+                const nextOpen = !showPushDiagnostics;
+                setShowPushDiagnostics(nextOpen);
+                if (nextOpen) onRefreshPushDiagnostics?.();
+              }}
+              aria-expanded={showPushDiagnostics}
+              className={`min-h-[36px] px-3 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0 ${
+                showPushDiagnostics
+                  ? 'bg-[#F5F6FA] border-[#CBD5E1] text-[#172033]'
+                  : 'bg-white border-[#E8EAF0] hover:border-[#D5D9E4] text-[#4B5563] hover:text-[#172033]'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-[#D97706] shrink-0" />
+              <span>
+                Dispositivos
+                {pushDiagnostics ? ` (${pushDiagnostics.devices.length})` : ''}
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={onOpenDigitalMenuSettings}
               className="min-h-[36px] px-3 rounded-xl border border-[#E8EAF0] hover:border-[#D5D9E4] bg-white text-xs font-semibold text-[#172033] inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
             >
@@ -569,8 +604,208 @@ export function OrdersCenterView({
 
         {notificationPermission === 'denied' && (
           <p className="text-xs text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3.5 py-2">
-            As notificações estão bloqueadas nas permissões do navegador. Toque no ícone de cadeado ao lado do endereço do site para permitir notificações e receber os alertas no celular.
+            As notificações estão bloqueadas nas permissões do navegador. Toque no ícone de cadeado (ou ajustes do site) ao lado do endereço para permitir notificações e receber pedidos em segundo plano.
           </p>
+        )}
+
+        {pushDiagnostics?.needsIOSHomeScreenInstall && (
+          <p className="text-xs text-[#92400E] bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-3.5 py-2">
+            No iPhone/iPad, o Web Push só funciona quando o MGW Gestão está instalado na Tela de Início (iOS 16.4+). Toque em <strong>Compartilhar</strong> no Safari e escolha <strong>Adicionar à Tela de Início</strong>.
+          </p>
+        )}
+
+        {pushDiagnostics?.backend &&
+          pushDiagnostics.backend.available &&
+          (!pushDiagnostics.backend.hasWebhookSecret ||
+            !pushDiagnostics.backend.hasVapidPublicKey ||
+            !pushDiagnostics.backend.hasVapidPrivateKey ||
+            pushDiagnostics.backend.vapidKeyMatchesFrontend === false) && (
+            <div className="text-xs text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3.5 py-2.5 space-y-1">
+              <p className="font-bold">
+                Configuração pendente no servidor Supabase para Web Push em segundo plano:
+              </p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                {!pushDiagnostics.backend.hasWebhookSecret && (
+                  <li>Secret PUSH_WEBHOOK_SECRET ausente na Edge Function send-order-push.</li>
+                )}
+                {(!pushDiagnostics.backend.hasVapidPublicKey ||
+                  !pushDiagnostics.backend.hasVapidPrivateKey) && (
+                  <li>Chaves VAPID_PUBLIC_KEY e/ou VAPID_PRIVATE_KEY não configuradas no Supabase.</li>
+                )}
+                {pushDiagnostics.backend.vapidKeyMatchesFrontend === false && (
+                  <li>VAPID_PUBLIC_KEY do servidor não coincide com a chave pública do frontend.</li>
+                )}
+              </ul>
+            </div>
+          )}
+
+        {showPushDiagnostics && (
+          <div
+            data-testid="push-diagnostics-panel"
+            className="mt-2 pt-3 border-t border-[#E8EAF0] space-y-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-xs font-bold text-[#172033]">
+                  Status das notificações e dispositivos inscritos
+                </h3>
+                <p className="text-[11px] text-[#778094]">
+                  Com o painel aberto toca o alerta sonoro do MGW; em segundo plano ou fechado o alerta usa Web Push e o som padrão do dispositivo.
+                </p>
+              </div>
+              {onRefreshPushDiagnostics && (
+                <button
+                  type="button"
+                  onClick={onRefreshPushDiagnostics}
+                  disabled={pushDiagnosticsLoading}
+                  className="min-h-[32px] px-2.5 rounded-lg border border-[#E8EAF0] bg-white hover:bg-[#F7F8FC] text-[11px] font-semibold text-[#172033] inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                >
+                  <RefreshCw
+                    className={`w-3 h-3 ${pushDiagnosticsLoading ? 'animate-spin' : ''}`}
+                    aria-hidden="true"
+                  />
+                  <span>Verificar agora</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+              <div className="rounded-xl bg-[#F8FAFC] border border-[#E8EAF0] p-2.5">
+                <p className="text-[11px] text-[#778094]">Permissão do navegador</p>
+                <p className="font-bold text-[#172033] mt-0.5">
+                  {notificationPermission === 'granted'
+                    ? 'Autorizada'
+                    : notificationPermission === 'denied'
+                      ? 'Bloqueada'
+                      : notificationPermission === 'unsupported'
+                        ? 'Não suportada'
+                        : 'Aguardando ativação'}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-[#F8FAFC] border border-[#E8EAF0] p-2.5">
+                <p className="text-[11px] text-[#778094]">Service Worker</p>
+                <p className="font-bold text-[#172033] mt-0.5">
+                  {pushDiagnostics?.serviceWorkerStatus === 'active'
+                    ? 'Ativo'
+                    : pushDiagnostics?.serviceWorkerStatus === 'installing'
+                      ? 'Instalando...'
+                      : pushDiagnostics?.serviceWorkerStatus === 'unsupported'
+                        ? 'Indisponível'
+                        : 'Inativo'}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-[#F8FAFC] border border-[#E8EAF0] p-2.5">
+                <p className="text-[11px] text-[#778094]">Este dispositivo</p>
+                <p className="font-bold text-[#172033] mt-0.5">
+                  {pushDiagnostics?.hasBrowserSubscription
+                    ? pushEnabled
+                      ? 'Inscrito e ativo'
+                      : 'Inscrito (pausado)'
+                    : 'Não inscrito ainda'}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-[#F8FAFC] border border-[#E8EAF0] p-2.5">
+                <p className="text-[11px] text-[#778094]">Servidor Push</p>
+                <p className="font-bold text-[#172033] mt-0.5">
+                  {pushDiagnostics?.backend
+                    ? pushDiagnostics.backend.available
+                      ? pushDiagnostics.backend.hasVapidPublicKey &&
+                        pushDiagnostics.backend.hasVapidPrivateKey &&
+                        pushDiagnostics.backend.hasWebhookSecret &&
+                        pushDiagnostics.backend.vapidKeyMatchesFrontend !== false
+                        ? 'Configurado'
+                        : 'Ajuste necessário'
+                      : 'Atualize a Edge Function'
+                    : 'Verificando...'}
+                </p>
+              </div>
+            </div>
+
+            {pushDiagnostics && pushDiagnostics.devices.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold text-[#172033]">
+                  Dispositivos cadastrados neste estabelecimento
+                </p>
+                <div className="divide-y divide-[#E8EAF0] rounded-xl border border-[#E8EAF0] bg-white overflow-hidden">
+                  {pushDiagnostics.devices.map((device) => (
+                    <div
+                      key={device.id}
+                      className="px-3 py-2 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {device.deviceLabel.includes('Android') ||
+                        device.deviceLabel.includes('iPhone') ||
+                        device.deviceLabel.includes('iPad') ? (
+                          <Smartphone className="w-4 h-4 text-[#778094] shrink-0" />
+                        ) : (
+                          <Laptop className="w-4 h-4 text-[#778094] shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold text-[#172033] truncate">
+                            {device.deviceLabel}
+                            {device.isCurrentDevice ? ' (Este dispositivo)' : ''}
+                          </p>
+                          <p className="text-[11px] text-[#778094] truncate">
+                            {device.memberEmail ? `${device.memberEmail} · ` : ''}
+                            {device.isEnabled ? 'Recebendo alertas' : 'Pausado'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {device.isCurrentUser && onRemovePushDevice && (
+                        <button
+                          type="button"
+                          onClick={() => onRemovePushDevice(device.id)}
+                          aria-label={`Remover ${device.deviceLabel}`}
+                          className="p-1.5 rounded-lg text-[#778094] hover:text-[#DC2626] hover:bg-[#FEF2F2] cursor-pointer transition-colors shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pushDiagnostics && pushDiagnostics.recentLogs.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold text-[#172033]">
+                  Últimos registros de envio do servidor
+                </p>
+                <div className="rounded-xl border border-[#E8EAF0] bg-[#F8FAFC] px-3 py-2 space-y-1 text-[11px] text-[#4B5563]">
+                  {pushDiagnostics.recentLogs.slice(0, 3).map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <span className="font-medium text-[#172033]">
+                        {log.eventType === 'manual_test' ? 'Teste manual' : 'Novo pedido'} ·{' '}
+                        <span
+                          className={
+                            log.status === 'sent'
+                              ? 'text-[#15803D]'
+                              : log.status === 'no_subscriptions'
+                                ? 'text-[#B45309]'
+                                : 'text-[#DC2626]'
+                          }
+                        >
+                          {log.status}
+                        </span>
+                      </span>
+                      <span className="text-[#778094]">
+                        Enviados: {log.sentCount}
+                        {log.errorMessage ? ` · ${log.errorMessage}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </section>
 

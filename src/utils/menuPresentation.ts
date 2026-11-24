@@ -242,3 +242,194 @@ export function groupProductsByCategory<T extends { category: string }>(
       items,
     }));
 }
+
+export interface ComboTitleHighlightParts {
+  prefix: string;
+  highlightNumber: string | null;
+  suffix: string;
+}
+
+export function splitComboTitleHighlight(title: string): ComboTitleHighlightParts {
+  const clean = title.trim();
+  const match = clean.match(/^(.*?\b)(\d{1,2})(?![0-9a-zA-ZÀ-ÿ])(.*)$/);
+  if (!match || !match[1].trim()) {
+    return { prefix: clean, highlightNumber: null, suffix: '' };
+  }
+  return {
+    prefix: match[1],
+    highlightNumber: match[2],
+    suffix: match[3] || '',
+  };
+}
+
+export type ComboPromoBadgeKind = 'most_ordered' | 'best_value' | 'shareable';
+
+export interface ComboPromoBadge {
+  kind: ComboPromoBadgeKind;
+  line1: string;
+  line2: string;
+}
+
+export interface ComboPromoCandidate {
+  id: string;
+  name: string;
+  description: string;
+  salePrice: number;
+  items: Array<{
+    productId: string;
+    productName: string;
+    quantity: number;
+    countsAsXSalada: boolean;
+  }>;
+  orderCount?: number;
+  salesCount?: number;
+  isMostOrdered?: boolean;
+  promoTag?: string;
+}
+
+export interface ProductPriceLookupItem {
+  id: string;
+  unitPrice: number;
+}
+
+export function resolveComboPromoBadges(
+  combos: ComboPromoCandidate[],
+  products: ProductPriceLookupItem[],
+): Record<string, ComboPromoBadge> {
+  const result: Record<string, ComboPromoBadge> = {};
+  if (combos.length === 0) return result;
+
+  const productPriceById = new Map<string, number>();
+  for (const p of products) {
+    if (p.id && Number.isFinite(p.unitPrice) && p.unitPrice > 0) {
+      productPriceById.set(p.id, p.unitPrice);
+    }
+  }
+
+  // 1) MAIS PEDIDO — strictly from explicit admin config or positive real sales/order count
+  let topOrderComboId: string | null = null;
+  let topOrderCount = 0;
+  for (const combo of combos) {
+    if (combo.promoTag === 'MAIS PEDIDO' || combo.isMostOrdered) {
+      result[combo.id] = { kind: 'most_ordered', line1: 'MAIS', line2: 'PEDIDO' };
+    }
+    const count = Math.max(
+      0,
+      Number(combo.orderCount ?? combo.salesCount ?? 0) || 0,
+    );
+    if (count > topOrderCount) {
+      topOrderCount = count;
+      topOrderComboId = combo.id;
+    }
+  }
+  if (topOrderComboId && !Object.values(result).some((b) => b.kind === 'most_ordered')) {
+    result[topOrderComboId] = { kind: 'most_ordered', line1: 'MAIS', line2: 'PEDIDO' };
+  }
+
+  // 2) MELHOR CUSTO-BENEFÍCIO — strictly computed from real standalone product prices vs combo salePrice
+  let bestValueComboId: string | null = null;
+  let bestSavingsPct = 0;
+  let bestAbsoluteSavings = 0;
+
+  for (const combo of combos) {
+    if (result[combo.id]) continue;
+    if (combo.promoTag === 'MELHOR CUSTO-BENEFÍCIO') {
+      result[combo.id] = {
+        kind: 'best_value',
+        line1: 'MELHOR',
+        line2: 'CUSTO-BENEFÍCIO',
+      };
+      continue;
+    }
+    if (combo.items.length === 0 || combo.salePrice <= 0) continue;
+
+    let allResolved = true;
+    let standaloneTotal = 0;
+    for (const item of combo.items) {
+      const unitPrice = productPriceById.get(item.productId);
+      if (unitPrice === undefined || item.quantity <= 0) {
+        allResolved = false;
+        break;
+      }
+      standaloneTotal += unitPrice * item.quantity;
+    }
+
+    if (!allResolved || standaloneTotal <= combo.salePrice) continue;
+    const absoluteSavings = standaloneTotal - combo.salePrice;
+    const savingsPct = absoluteSavings / standaloneTotal;
+    if (savingsPct < 0.05) continue;
+
+    if (
+      savingsPct > bestSavingsPct + 0.0001 ||
+      (Math.abs(savingsPct - bestSavingsPct) <= 0.0001 &&
+        absoluteSavings > bestAbsoluteSavings)
+    ) {
+      bestValueComboId = combo.id;
+      bestSavingsPct = savingsPct;
+      bestAbsoluteSavings = absoluteSavings;
+    }
+  }
+
+  if (bestValueComboId) {
+    result[bestValueComboId] = {
+      kind: 'best_value',
+      line1: 'MELHOR',
+      line2: 'CUSTO-BENEFÍCIO',
+    };
+  }
+
+  // 3) IDEAL PARA COMPARTILHAR — strictly grounded in >= 3 main snack units or explicit sharing text
+  for (const combo of combos) {
+    if (result[combo.id]) continue;
+    const totalMainUnits = combo.items.reduce(
+      (sum, item) => sum + (item.countsAsXSalada ? Math.max(0, item.quantity) : 0),
+      0,
+    );
+    const mentionsSharing = /\b(compartilhar|fam[ií]lia|galera|amigos)\b/i.test(
+      `${combo.name} ${combo.description}`,
+    );
+
+    if (
+      combo.promoTag === 'IDEAL PARA COMPARTILHAR' ||
+      totalMainUnits >= 3 ||
+      mentionsSharing
+    ) {
+      result[combo.id] = {
+        kind: 'shareable',
+        line1: 'IDEAL',
+        line2: 'PARA COMPARTILHAR',
+      };
+    }
+  }
+
+  return result;
+}
+
+export function formatCategorySectionTitle(category: string): string {
+  const clean = category.trim();
+  if (!clean) return 'Outros';
+  const normalized = clean
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (normalized === 'bebida' || normalized === 'bebidas') {
+    return 'Bebidas Geladas';
+  }
+  if (normalized === 'lanche') {
+    return 'Lanches';
+  }
+  return clean;
+}
+
+export function formatCategoryTabLabel(category: string): string {
+  const clean = category.trim();
+  if (!clean) return 'Outros';
+  const normalized = clean
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (normalized === 'bebida') return 'Bebidas';
+  if (normalized === 'lanche') return 'Lanches';
+  return clean;
+}
+

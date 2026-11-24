@@ -19,6 +19,7 @@ export default defineConfig(() => {
           'pwa-512x512.png',
           'pwa-maskable-512x512.png',
           'sw-notifications.js',
+          'sounds/mgw-new-order.wav',
           'icon-cardapio.svg',
           'manifest-cardapio.webmanifest',
         ],
@@ -58,7 +59,7 @@ export default defineConfig(() => {
           importScripts: ['/sw-notifications.js'],
           navigateFallback: null,
           maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,wav}'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

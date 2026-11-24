@@ -10,6 +10,12 @@ export type BrowserNotificationPermissionState =
   | 'default'
   | 'unsupported';
 
+export type ServiceWorkerStatusState =
+  | 'active'
+  | 'installing'
+  | 'not_registered'
+  | 'unsupported';
+
 export interface OrderSystemNotificationPayload {
   title: string;
   body: string;
@@ -81,11 +87,76 @@ export function resolveInitialRouteFromSearch(search: string): AppRoute {
   return 'dashboard';
 }
 
+export function isIOSBrowserDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+  const ua = navigator.userAgent.toLowerCase();
+  const isAppleMobile = /iphone|ipad|ipod/.test(ua);
+  const isIPadOS =
+    navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  return isAppleMobile || isIPadOS;
+}
+
+export function isStandalonePwaSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  const standaloneMedia = window.matchMedia?.(
+    '(display-mode: standalone)',
+  )?.matches;
+  const navStandalone =
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+  return Boolean(standaloneMedia || navStandalone);
+}
+
+export function needsIOSHomeScreenForWebPush(): boolean {
+  return isIOSBrowserDevice() && !isStandalonePwaSession();
+}
+
 export function getBrowserNotificationPermission(): BrowserNotificationPermissionState {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return 'unsupported';
   }
   return window.Notification.permission;
+}
+
+export async function getServiceWorkerHealth(): Promise<{
+  status: ServiceWorkerStatusState;
+  scope: string | null;
+  scriptUrl: string | null;
+}> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    return { status: 'unsupported', scope: null, scriptUrl: null };
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.getRegistration('/');
+    if (!registration) {
+      return { status: 'not_registered', scope: null, scriptUrl: null };
+    }
+    const activeWorker = registration.active;
+    if (activeWorker) {
+      return {
+        status: 'active',
+        scope: registration.scope,
+        scriptUrl: activeWorker.scriptURL,
+      };
+    }
+    if (registration.installing || registration.waiting) {
+      return {
+        status: 'installing',
+        scope: registration.scope,
+        scriptUrl:
+          (registration.waiting || registration.installing)?.scriptURL ?? null,
+      };
+    }
+    return {
+      status: 'not_registered',
+      scope: registration.scope,
+      scriptUrl: null,
+    };
+  } catch {
+    return { status: 'not_registered', scope: null, scriptUrl: null };
+  }
 }
 
 export async function requestMobileOrderNotificationsPermission(): Promise<BrowserNotificationPermissionState> {
@@ -104,7 +175,7 @@ export function vibrateMobileDevice(): void {
   if (typeof navigator === 'undefined') return;
   try {
     if (typeof navigator.vibrate === 'function') {
-      navigator.vibrate([250, 120, 250, 120, 350]);
+      navigator.vibrate([300, 120, 300, 120, 450]);
     }
   } catch {
     // Dispositivo sem suporte a vibracao
@@ -141,6 +212,7 @@ export async function sendMobileSystemNotification(
   const options: NotificationOptions & {
     renotify?: boolean;
     vibrate?: number[];
+    actions?: Array<{ action: string; title: string }>;
   } = {
     body: payload.body,
     icon: '/pwa-192x192.png',
@@ -148,19 +220,21 @@ export async function sendMobileSystemNotification(
     tag: payload.tag,
     renotify: true,
     requireInteraction: true,
-    vibrate: [250, 120, 250, 120, 350],
+    silent: false,
+    vibrate: [300, 120, 300, 120, 450],
     data: {
       url: '/?view=orders',
       orderId: payload.orderId,
     },
+    actions: [{ action: 'open-orders', title: 'Ver pedido agora' }],
   };
 
-  // No Android Chrome e PWAs instalados, a exibicao precisa passar pelo Service Worker
+  // No Android Chrome, desktop e PWAs instalados, a exibicao passa pelo Service Worker
   if ('serviceWorker' in navigator) {
     try {
       const reg = await Promise.race([
         navigator.serviceWorker.ready,
-        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 1200)),
+        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 1800)),
       ]);
       if (reg && typeof reg.showNotification === 'function') {
         await reg.showNotification(payload.title, options);

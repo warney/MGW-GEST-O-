@@ -8,15 +8,19 @@ import {
   buildCartStorageKey,
   computeCashChangeAmount,
   computeMenuCategoryCounts,
+  formatCategorySectionTitle,
+  formatCategoryTabLabel,
   formatComboComposition,
   getStoreMonogram,
   groupProductsByCategory,
   isBeverageCategory,
   parseStoredCart,
   parseStoredCustomerProfile,
+  resolveComboPromoBadges,
   serializeStoredCart,
   serializeStoredCustomerProfile,
   shouldShowComboComposition,
+  splitComboTitleHighlight,
 } from './menuPresentation';
 
 test('getStoreMonogram extracts dynamic initial with safe fallback', () => {
@@ -267,6 +271,8 @@ test('PublicMenuView preserves each establishment visual identity, dynamic catal
   assert.ok(htmlA.includes('data-testid="menu-category-tabs"'));
   assert.ok(htmlA.includes('Combos Especiais'));
   assert.ok(htmlA.includes('Combo Villa Duplo'));
+  assert.ok(htmlA.includes('Bebidas Geladas'));
+  assert.ok(htmlA.includes('w-[44%] sm:w-[45%]'));
   assert.ok(htmlA.includes('Porções'));
   assert.ok(htmlA.includes('Batata Rústica'));
   assert.ok(htmlA.includes('Toque para escolher adicionais'));
@@ -276,9 +282,10 @@ test('PublicMenuView preserves each establishment visual identity, dynamic catal
   assert.ok(htmlA.includes('Meu Pedido'));
   assert.ok(htmlA.includes('Ver Carrinho'));
 
-  // No fabricated promo badges or hard-coded other store branding
-  assert.ok(!htmlA.includes('MAIS PEDIDO'));
-  assert.ok(!htmlA.includes('MELHOR CUSTO-BENEFÍCIO'));
+  // No fabricated promo badges when price savings / sharing / order counts are not grounded
+  assert.ok(!htmlA.includes('MAIS'));
+  assert.ok(!htmlA.includes('CUSTO-BENEFÍCIO'));
+  assert.ok(!htmlA.includes('PARA COMPARTILHAR'));
   assert.ok(!htmlA.includes('MGW Burger'));
 
   // Store B: completely isolated second establishment
@@ -369,4 +376,175 @@ test('PublicMenuView preserves each establishment visual identity, dynamic catal
   assert.ok(!htmlC.includes('villa-logo.png'));
   assert.ok(!htmlC.includes('aurora-logo.png'));
 });
+
+test('splitComboTitleHighlight, category display helpers, and grounded promo badges behave accurately', () => {
+  assert.deepEqual(splitComboTitleHighlight('COMBO 1'), {
+    prefix: 'COMBO ',
+    highlightNumber: '1',
+    suffix: '',
+  });
+  assert.deepEqual(splitComboTitleHighlight('Combo 2 - Especial'), {
+    prefix: 'Combo ',
+    highlightNumber: '2',
+    suffix: ' - Especial',
+  });
+  assert.deepEqual(splitComboTitleHighlight('Combo 500ml'), {
+    prefix: 'Combo 500ml',
+    highlightNumber: null,
+    suffix: '',
+  });
+  assert.deepEqual(splitComboTitleHighlight('Combo Villa Duplo'), {
+    prefix: 'Combo Villa Duplo',
+    highlightNumber: null,
+    suffix: '',
+  });
+
+  assert.equal(formatCategorySectionTitle('Bebida'), 'Bebidas Geladas');
+  assert.equal(formatCategorySectionTitle('Porções'), 'Porções');
+  assert.equal(formatCategoryTabLabel('Bebida'), 'Bebidas');
+  assert.equal(formatCategoryTabLabel('Lanche'), 'Lanches');
+  assert.equal(formatCategoryTabLabel('Porções'), 'Porções');
+
+  const products = [
+    { id: 'x-salada', unitPrice: 15.0 },
+    { id: 'refri-1l', unitPrice: 8.0 },
+  ];
+
+  // Without real telemetry, MAIS PEDIDO is never invented; real savings & >=3 snacks earn grounded badges
+  const badgesWithoutTelemetry = resolveComboPromoBadges(
+    [
+      {
+        id: 'c1',
+        name: 'COMBO 1',
+        description: '1 X-Salada + 1 Refrigerante',
+        salePrice: 18.0,
+        items: [{ productId: 'x-salada', productName: 'X-Salada', quantity: 1, countsAsXSalada: true }],
+      },
+      {
+        id: 'c2',
+        name: 'COMBO 2',
+        description: '2 X-Saladas + 1 Refrigerante 1L',
+        salePrice: 24.0, // standalone: 2*15 + 8 = 38 (36.8% real savings)
+        items: [
+          { productId: 'x-salada', productName: 'X-Salada', quantity: 2, countsAsXSalada: true },
+          { productId: 'refri-1l', productName: 'Refri 1L', quantity: 1, countsAsXSalada: false },
+        ],
+      },
+      {
+        id: 'c3',
+        name: 'COMBO 3',
+        description: '3 X-Saladas + 1 Refrigerante 1L',
+        salePrice: 44.0, // standalone: 3*15 + 8 = 53 (~17% savings), 3 main snacks => shareable
+        items: [
+          { productId: 'x-salada', productName: 'X-Salada', quantity: 3, countsAsXSalada: true },
+          { productId: 'refri-1l', productName: 'Refri 1L', quantity: 1, countsAsXSalada: false },
+        ],
+      },
+    ],
+    products,
+  );
+
+  assert.equal(badgesWithoutTelemetry.c1, undefined);
+  assert.deepEqual(badgesWithoutTelemetry.c2, {
+    kind: 'best_value',
+    line1: 'MELHOR',
+    line2: 'CUSTO-BENEFÍCIO',
+  });
+  assert.deepEqual(badgesWithoutTelemetry.c3, {
+    kind: 'shareable',
+    line1: 'IDEAL',
+    line2: 'PARA COMPARTILHAR',
+  });
+
+  // When real orderCount is supplied, MAIS PEDIDO appears on the genuine top seller
+  const badgesWithTelemetry = resolveComboPromoBadges(
+    [
+      {
+        id: 'c1',
+        name: 'COMBO 1',
+        description: '',
+        salePrice: 15.0,
+        orderCount: 142,
+        items: [{ productId: 'x-salada', productName: 'X-Salada', quantity: 1, countsAsXSalada: true }],
+      },
+    ],
+    products,
+  );
+  assert.deepEqual(badgesWithTelemetry.c1, {
+    kind: 'most_ordered',
+    line1: 'MAIS',
+    line2: 'PEDIDO',
+  });
+
+  // Render check with numbered combos and grounded badges in PublicMenuView
+  const htmlGrounded = renderToStaticMarkup(
+    createElement(PublicMenuView, {
+      slug: 'sabor-teste',
+      onOrderCreated: () => {},
+      initialPayload: {
+        found: true,
+        store: {
+          slug: 'sabor-teste',
+          isActive: true,
+          isOpen: true,
+          storeName: 'Sabor Teste',
+          description: 'Lanches na chapa',
+          phoneWhatsapp: '92999990000',
+          address: 'Rua Teste, 10',
+          openingHours: '18h às 23h',
+          pixKey: '',
+          deliveryFee: 5,
+          minimumOrderAmount: 0,
+          acceptsDelivery: true,
+          acceptsPickup: true,
+        },
+        combos: [
+          {
+            id: 'c2',
+            name: 'COMBO 2',
+            description: '2 X-Saladas + 1 Refri 1L',
+            salePrice: 24.0,
+            items: [
+              { productId: 'x-salada', productName: 'X-Salada', quantity: 2, countsAsXSalada: true },
+              { productId: 'refri-1l', productName: 'Refri 1L', quantity: 1, countsAsXSalada: false },
+            ],
+          },
+          {
+            id: 'c3',
+            name: 'COMBO 3',
+            description: '3 X-Saladas + 1 Refri 1L',
+            salePrice: 44.0,
+            items: [
+              { productId: 'x-salada', productName: 'X-Salada', quantity: 3, countsAsXSalada: true },
+              { productId: 'refri-1l', productName: 'Refri 1L', quantity: 1, countsAsXSalada: false },
+            ],
+          },
+        ],
+        products: [
+          {
+            id: 'x-salada',
+            name: 'X-Salada',
+            category: 'Lanche',
+            unitPrice: 15.0,
+            countsAsXSalada: true,
+          },
+          {
+            id: 'refri-1l',
+            name: 'Refri 1L',
+            category: 'Bebida',
+            unitPrice: 8.0,
+            countsAsXSalada: false,
+          },
+        ],
+      },
+    }),
+  );
+
+  assert.ok(htmlGrounded.includes('CUSTO-BENEFÍCIO'));
+  assert.ok(htmlGrounded.includes('PARA COMPARTILHAR'));
+  assert.ok(htmlGrounded.includes('<span class="text-[#F5B900]">2</span>'));
+  assert.ok(htmlGrounded.includes('<span class="text-[#F5B900]">3</span>'));
+  assert.ok(!htmlGrounded.includes('MAIS PEDIDO'));
+});
+
 

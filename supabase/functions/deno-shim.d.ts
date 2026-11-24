@@ -22,6 +22,8 @@ declare module 'npm:web-push@3.6.7' {
   export interface PushSendOptions {
     TTL?: number;
     urgency?: 'very-low' | 'low' | 'normal' | 'high';
+    topic?: string;
+    headers?: Record<string, string>;
   }
 
   const webpush: {

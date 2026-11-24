@@ -10,6 +10,8 @@ import {
   CreditCard,
   Crown,
   CupSoda,
+  Flame,
+  Hamburger,
   Layers,
   MapPin,
   MessageCircle,
@@ -25,8 +27,10 @@ import {
   ShoppingBag,
   ShoppingCart,
   Store,
+  ThumbsUp,
   Trash2,
   Truck,
+  Users,
   UtensilsCrossed,
   X,
 } from 'lucide-react';
@@ -34,6 +38,7 @@ import { PWAInstallButton } from './PWAInstallButton';
 import {
   createPublicOnlineOrder,
   fetchPublicDigitalMenu,
+  fetchPublicOrderByToken,
 } from '../services/dataService';
 import type {
   OnlineOrderCartItem,
@@ -48,28 +53,42 @@ import { formatCurrencyBRL } from '../utils/finance';
 import {
   buildWhatsappUrl,
   computeCartSummary,
+  formatOrderNumber,
+  ORDER_STATUS_LABELS,
   validateCheckoutPayload,
 } from '../utils/onlineOrders';
 import {
+  readActiveTrackedOrders,
+  reconcileActiveTrackedOrders,
+  type StoredTrackedOrder,
+  upsertTrackedOrder,
+} from '../utils/orderTrackingRecovery';
+import {
   buildCartStorageKey,
+  type ComboPromoBadge,
   computeCashChangeAmount,
   computeMenuCategoryCounts,
   CUSTOMER_PROFILE_STORAGE_KEY,
+  formatCategorySectionTitle,
+  formatCategoryTabLabel,
   formatComboComposition,
   getStoreMonogram,
   groupProductsByCategory,
   isBeverageCategory,
   parseStoredCart,
   parseStoredCustomerProfile,
+  resolveComboPromoBadges,
   serializeStoredCart,
   serializeStoredCustomerProfile,
   shouldShowComboComposition,
+  splitComboTitleHighlight,
 } from '../utils/menuPresentation';
 
 interface PublicMenuViewProps {
   slug?: string;
   onOrderCreated: (trackingToken: string) => void;
   initialPayload?: PublicDigitalMenuPayload | null;
+  initialActiveOrders?: StoredTrackedOrder[];
 }
 
 type MenuCategoryFilter = 'all' | 'combos' | string;
@@ -89,9 +108,21 @@ function CategoryGlyph({
   className?: string;
 }) {
   if (category === 'combo') return <Crown className={className} />;
-  if (category === 'all') return <UtensilsCrossed className={className} />;
+  if (category === 'all') return <Hamburger className={className} />;
   if (isBeverageCategory(category)) return <CupSoda className={className} />;
-  const normalized = category.trim().toLowerCase();
+  const normalized = category
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (
+    normalized === 'lanche' ||
+    normalized === 'lanches' ||
+    normalized.includes('burger') ||
+    normalized.includes('hamburguer')
+  ) {
+    return <Hamburger className={className} />;
+  }
   if (normalized === 'adicional' || normalized.includes('adicional')) {
     return <PlusCircle className={className} />;
   }
@@ -101,7 +132,37 @@ function CategoryGlyph({
   return <UtensilsCrossed className={className} />;
 }
 
-export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicMenuViewProps) {
+function ComboPromoBadgePill({ badge }: { badge: ComboPromoBadge }) {
+  const Icon =
+    badge.kind === 'most_ordered'
+      ? Flame
+      : badge.kind === 'best_value'
+        ? ThumbsUp
+        : Users;
+
+  return (
+    <span className="pointer-events-none absolute top-2 left-2 z-10 inline-flex items-center gap-1.5 rounded-full bg-[#0B0D11]/88 backdrop-blur-sm border border-[#F5B900]/35 px-2 py-1 shadow-[0_4px_12px_rgba(0,0,0,0.55)]">
+      <span className="w-5 h-5 rounded-full bg-[#F5B900] text-[#0B0D11] flex items-center justify-center shrink-0">
+        <Icon className="w-3 h-3 stroke-[2.4]" aria-hidden="true" />
+      </span>
+      <span className="flex flex-col leading-none text-left">
+        <span className="text-[9px] font-extrabold tracking-wide text-[#F5B900] uppercase">
+          {badge.line1}
+        </span>
+        <span className="text-[8.5px] font-extrabold tracking-wide text-white uppercase mt-0.5">
+          {badge.line2}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+export function PublicMenuView({
+  slug,
+  onOrderCreated,
+  initialPayload,
+  initialActiveOrders,
+}: PublicMenuViewProps) {
   const initialStoredProfile = useMemo(() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -117,6 +178,9 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
   const [loading, setLoading] = useState(initialPayload === undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const [activeTrackedOrders, setActiveTrackedOrders] = useState<StoredTrackedOrder[]>(
+    initialActiveOrders ?? [],
+  );
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] =
     useState<MenuCategoryFilter>('all');
@@ -212,6 +276,17 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
           // Ignora bloqueio de storage
         }
         restoredCartSlugRef.current = res.store.slug;
+
+        const storedOrders = readActiveTrackedOrders(res.store.slug);
+        setActiveTrackedOrders(storedOrders);
+        if (storedOrders.length > 0) {
+          void reconcileActiveTrackedOrders(
+            res.store.slug,
+            fetchPublicOrderByToken,
+          ).then((reconciled) => {
+            setActiveTrackedOrders(reconciled);
+          });
+        }
       }
     } catch (err) {
       setLoadError(
@@ -232,6 +307,27 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
   const store = payload?.store ?? null;
   const products = payload?.products ?? [];
   const combos = payload?.combos ?? [];
+
+  useEffect(() => {
+    if (!store || initialPayload !== undefined || typeof document === 'undefined') {
+      return;
+    }
+    const storeSlug = store.slug;
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      const stored = readActiveTrackedOrders(storeSlug);
+      if (stored.length === 0) {
+        setActiveTrackedOrders([]);
+        return;
+      }
+      setActiveTrackedOrders(stored);
+      void reconcileActiveTrackedOrders(storeSlug, fetchPublicOrderByToken).then(
+        (reconciled) => setActiveTrackedOrders(reconciled),
+      );
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [store, initialPayload]);
 
   useEffect(() => {
     if (!store) return;
@@ -525,6 +621,19 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
     setSubmitting(true);
     try {
       const response = await createPublicOnlineOrder(payloadToSend);
+      const nowMs = Date.now();
+      const updatedOrders = upsertTrackedOrder(store.slug, {
+        trackingToken: response.trackingToken,
+        storeSlug: store.slug,
+        orderNumber: response.orderNumber,
+        orderCode: response.orderCode,
+        status: response.status,
+        fulfillmentType,
+        totalAmount: response.totalAmount,
+        createdAtMs: nowMs,
+        updatedAtMs: nowMs,
+      });
+      setActiveTrackedOrders(updatedOrders);
       try {
         window.localStorage.removeItem(buildCartStorageKey(store.slug));
       } catch {
@@ -642,13 +751,25 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
       .sort((a, b) => a.localeCompare(b, 'pt-BR'))
       .map((category) => ({
         id: category,
-        label: category,
+        label: formatCategoryTabLabel(category),
         count: products.filter((p) => p.category === category).length,
         glyph: category,
       })),
   ];
 
   const groupedProductSections = groupProductsByCategory(filteredProducts);
+  const comboPromoBadges = resolveComboPromoBadges(combos, products);
+  const infoStripCount = [
+    Boolean(store.openingHours),
+    Boolean(store.address),
+    Boolean(store.phoneWhatsapp),
+  ].filter(Boolean).length;
+  const infoStripGridClass =
+    infoStripCount >= 3
+      ? 'grid-cols-1 min-[360px]:grid-cols-3'
+      : infoStripCount === 2
+        ? 'grid-cols-1 min-[360px]:grid-cols-2'
+        : 'grid-cols-1';
 
   const cartPanelContent = (
     <div className="space-y-4">
@@ -1177,7 +1298,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
   return (
     <div className="min-h-screen w-full overflow-x-clip bg-[#0A0C10] text-[#F3F4F6] pb-28 lg:pb-14">
       {/* Dark Premium Multi-Tenant Storefront Header */}
-      <header className="relative overflow-hidden bg-[#0E1117] border-b border-[#242936]">
+      <header className="relative overflow-hidden bg-[#0E1117]">
         {hasUsableImage(store.bannerUrl) ? (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0">
             <img
@@ -1187,7 +1308,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
               onError={() => markImageBroken(store.bannerUrl)}
               className="w-full h-full object-cover object-center opacity-50"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0A0C10]/55 via-[#0A0C10]/82 to-[#0A0C10]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0A0C10]/45 via-[#0A0C10]/82 to-[#0A0C10]" />
           </div>
         ) : (
           <div
@@ -1196,10 +1317,10 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
           />
         )}
 
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-4 sm:pt-7 sm:pb-5 space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="relative max-w-6xl mx-auto px-3.5 sm:px-6 pt-4 pb-3 sm:pt-6 sm:pb-4 space-y-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             {/* Store Logo + Name + Open Status + Custom Tagline */}
-            <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className="w-16 h-16 sm:w-[74px] sm:h-[74px] rounded-full overflow-hidden bg-gradient-to-br from-[#F5B900]/25 via-[#181C24] to-[#0A0C10] border-2 border-[#F5B900]/75 flex items-center justify-center text-[#F5B900] font-display font-extrabold text-2xl shadow-[0_8px_24px_rgba(0,0,0,0.5)] shrink-0">
                 {hasUsableImage(store.logoUrl) ? (
                   <img
@@ -1214,7 +1335,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                 )}
               </div>
 
-              <div className="min-w-0 flex-1 space-y-1">
+              <div className="min-w-0 flex-1 space-y-0.5">
                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                   <h1 className="font-display text-xl sm:text-2xl lg:text-[28px] font-extrabold tracking-tight text-white truncate">
                     {store.storeName}
@@ -1236,7 +1357,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                 </div>
 
                 {store.description && (
-                  <p className="text-xs sm:text-sm text-[#D1D5DB] line-clamp-2 max-w-2xl leading-relaxed">
+                  <p className="text-xs sm:text-sm text-[#D1D5DB] line-clamp-2 max-w-2xl leading-snug">
                     {store.description}
                   </p>
                 )}
@@ -1249,7 +1370,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                 type="button"
                 onClick={() => void handleShareStore()}
                 aria-label="Compartilhar link do cardápio"
-                className="min-h-[40px] px-4 rounded-full border border-[#2C3344] hover:border-[#F5B900]/60 bg-[#161922]/95 text-xs font-semibold text-[#F3F4F6] inline-flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                className="min-h-[38px] px-4 rounded-full border border-[#2C3344] hover:border-[#F5B900]/60 bg-[#161922]/95 text-xs font-semibold text-[#F3F4F6] inline-flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap shrink-0"
               >
                 {shareCopied ? (
                   <>
@@ -1270,7 +1391,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Falar no WhatsApp da loja"
-                  className="min-h-[40px] px-4 rounded-full border border-[#22C55E]/60 hover:border-[#22C55E] bg-[#0E2417]/95 hover:bg-[#13311F] text-xs font-semibold text-white inline-flex items-center gap-2 shrink-0 transition-colors whitespace-nowrap"
+                  className="min-h-[38px] px-4 rounded-full border border-[#22C55E]/70 hover:border-[#22C55E] bg-[#0E2417]/95 hover:bg-[#13311F] text-xs font-semibold text-white inline-flex items-center gap-2 shrink-0 transition-colors whitespace-nowrap"
                 >
                   <MessageCircle className="w-4 h-4 text-[#22C55E]" aria-hidden="true" />
                   <span>Falar no WhatsApp</span>
@@ -1286,24 +1407,32 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
             </div>
           </div>
 
-          {/* Commercial Details Strip: Hours | Address | Phone */}
-          {(store.openingHours || store.address || store.phoneWhatsapp) && (
-            <div className="pt-3 border-t border-[#242936]/90 grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 text-xs text-[#D1D5DB]">
+          {/* Commercial Details Strip: Hours | Address | Phone (Compact Horizontal Composition) */}
+          {infoStripCount > 0 && (
+            <div
+              className={`pt-2.5 border-t border-[#242936]/80 grid ${infoStripGridClass} gap-2 sm:gap-4 text-[11px] sm:text-xs text-[#D1D5DB]`}
+            >
               {store.openingHours && (
-                <div className="flex items-start gap-2 min-w-0 sm:pr-3 sm:border-r sm:border-[#242936]/90">
-                  <Clock className="w-4 h-4 text-[#F5B900] shrink-0 mt-0.5" aria-hidden="true" />
-                  <span className="leading-snug">{store.openingHours}</span>
+                <div className="flex items-start gap-1.5 sm:gap-2 min-w-0 min-[360px]:pr-2 min-[360px]:border-r min-[360px]:border-[#242936]/80">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F5B900] shrink-0 mt-0.5" aria-hidden="true" />
+                  <span className="leading-tight break-words">{store.openingHours}</span>
                 </div>
               )}
               {store.address && (
-                <div className="flex items-start gap-2 min-w-0 sm:pr-3 sm:border-r sm:border-[#242936]/90">
-                  <MapPin className="w-4 h-4 text-[#F5B900] shrink-0 mt-0.5" aria-hidden="true" />
-                  <span className="leading-snug">{store.address}</span>
+                <div
+                  className={`flex items-start gap-1.5 sm:gap-2 min-w-0 ${
+                    store.phoneWhatsapp
+                      ? 'min-[360px]:pr-2 min-[360px]:border-r min-[360px]:border-[#242936]/80'
+                      : ''
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F5B900] shrink-0 mt-0.5" aria-hidden="true" />
+                  <span className="leading-tight break-words">{store.address}</span>
                 </div>
               )}
               {store.phoneWhatsapp && (
-                <div className="flex items-center gap-2 min-w-0 font-mono tabular-nums">
-                  <Phone className="w-4 h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 font-mono tabular-nums">
+                  <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
                   <span className="truncate">{store.phoneWhatsapp}</span>
                 </div>
               )}
@@ -1311,7 +1440,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
           )}
 
           {/* Delivery Fee & Pickup Availability Bar */}
-          <div className="pt-2.5 border-t border-[#242936]/80 flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1 text-xs font-semibold text-white">
+          <div className="pt-2 border-t border-[#242936]/75 flex flex-wrap items-center justify-center lg:justify-start gap-x-2.5 gap-y-1 text-xs font-semibold text-white">
             <Truck className="w-4 h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
             <span className="font-mono tabular-nums">
               {store.acceptsDelivery
@@ -1343,9 +1472,71 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
       </header>
 
       {/* Main Content Grid */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <main className="max-w-6xl mx-auto px-3.5 sm:px-6 pt-2 pb-4 sm:py-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Catalog Column */}
-        <div className="lg:col-span-7 space-y-5 min-w-0">
+        <div className="lg:col-span-7 space-y-4 min-w-0">
+          {/* Active Order Recovery Banner */}
+          {activeTrackedOrders.length > 0 && (
+            <section
+              data-testid="active-orders-recovery-banner"
+              aria-label="Recuperar acompanhamento de pedido em andamento"
+              className="rounded-2xl bg-[#14171F] border border-[#F5B900]/70 p-3.5 sm:p-4 space-y-3 shadow-[0_10px_28px_rgba(245,185,0,0.12)]"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-xl bg-[#F5B900]/15 border border-[#F5B900]/40 flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-4 h-4 text-[#F5B900]" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-[15px] font-extrabold text-white leading-tight">
+                    {activeTrackedOrders.length === 1
+                      ? 'Você tem um pedido em andamento'
+                      : `Você tem ${activeTrackedOrders.length} pedidos em andamento`}
+                  </h2>
+                  <p className="text-[11px] text-[#A0A8B8]">
+                    Toque abaixo para voltar ao acompanhamento em tempo real.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {activeTrackedOrders.map((entry) => (
+                  <div
+                    key={entry.trackingToken}
+                    className="rounded-xl bg-[#0B0D11] border border-[#282D3A] px-3 py-2.5 flex flex-wrap items-center justify-between gap-2.5"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-extrabold font-mono tabular-nums text-white">
+                          Pedido {formatOrderNumber(entry.orderNumber)}
+                        </span>
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#F5B900]/15 border border-[#F5B900]/45 text-[#F5B900]">
+                          {ORDER_STATUS_LABELS[entry.status]}
+                        </span>
+                      </div>
+                      {entry.totalAmount > 0 && (
+                        <p className="text-xs text-[#9CA3AF] font-mono tabular-nums">
+                          Total {formatCurrencyBRL(entry.totalAmount)} ·{' '}
+                          {entry.fulfillmentType === 'delivery'
+                            ? 'Entrega'
+                            : 'Retirada'}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => onOrderCreated(entry.trackingToken)}
+                      className="min-h-[38px] px-3.5 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap shadow-[0_4px_12px_rgba(245,185,0,0.22)]"
+                    >
+                      <span>Acompanhar pedido</span>
+                      <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Search Bar & Dynamic Category Filters */}
           <div className="space-y-3">
             <div className="relative">
@@ -1359,7 +1550,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                 placeholder="Buscar combos, lanches ou bebidas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full min-h-[46px] pl-11 pr-10 rounded-2xl bg-[#14171F] border border-[#262B38] focus:border-[#F5B900] focus:outline-none text-sm text-white placeholder:text-[#7B8396] transition-colors"
+                className="w-full min-h-[48px] pl-11 pr-10 rounded-2xl bg-[#14171F] border border-[#262B38] focus:border-[#F5B900] focus:outline-none text-sm text-white placeholder:text-[#7B8396] transition-colors"
               />
               {searchTerm.length > 0 && (
                 <button
@@ -1392,7 +1583,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                     className={`min-h-[38px] px-3.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer inline-flex items-center gap-1.5 ${
                       isSelected
                         ? 'bg-[#F5B900] text-[#0B0D11] border border-[#F5B900] shadow-[0_4px_14px_rgba(245,185,0,0.28)]'
-                        : 'bg-[#14171F] border border-[#262B38] text-[#E5E7EB] hover:border-[#F5B900]/45 hover:text-white'
+                        : 'bg-[#14171F] border border-[#262B38] text-white hover:border-[#F5B900]/45'
                     }`}
                   >
                     <CategoryGlyph
@@ -1479,12 +1670,14 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                     combo.description,
                     combo.items,
                   );
+                  const titleParts = splitComboTitleHighlight(combo.name);
+                  const promoBadge = comboPromoBadges[combo.id];
 
                   return (
                     <article
                       key={combo.id}
                       data-testid={`menu-combo-card-${combo.id}`}
-                      className="group bg-[#14171F] border border-[#242936] hover:border-[#F5B900]/50 rounded-2xl p-3 sm:p-4 transition-colors duration-150 shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
+                      className="group bg-[#14171F] border border-[#282D3A] hover:border-[#F5B900]/55 rounded-2xl p-2.5 sm:p-3.5 transition-colors duration-150 shadow-[0_8px_24px_rgba(0,0,0,0.28)]"
                     >
                       <div className="flex items-stretch gap-3 sm:gap-4">
                         <button
@@ -1493,8 +1686,9 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                             openItemInspector({ kind: 'combo', combo })
                           }
                           aria-label={`Ver detalhes de ${combo.name}`}
-                          className="w-[120px] h-[96px] sm:w-[164px] sm:h-[120px] rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0A0C10] border border-[#262C3A] flex flex-col items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B900]/40 transition-colors"
+                          className="relative w-[44%] sm:w-[45%] min-h-[142px] sm:min-h-[168px] rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0A0C10] border border-[#262C3A] flex flex-col items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B900]/40 transition-colors"
                         >
+                          {promoBadge && <ComboPromoBadgePill badge={promoBadge} />}
                           {hasUsableImage(combo.imageUrl) ? (
                             <img
                               src={combo.imageUrl}
@@ -1508,17 +1702,17 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                             <>
                               <CategoryGlyph
                                 category="combo"
-                                className="w-6 h-6 text-[#F5B900]"
+                                className="w-7 h-7 text-[#F5B900]"
                               />
-                              <span className="text-[10px] font-medium text-[#9CA3AF] mt-1">
+                              <span className="text-[11px] font-medium text-[#9CA3AF] mt-1">
                                 Combo
                               </span>
                             </>
                           )}
                         </button>
 
-                        <div className="flex-1 min-w-0 flex flex-col justify-between gap-2">
-                          <div className="space-y-1 min-w-0">
+                        <div className="flex-1 min-w-0 flex flex-col justify-between gap-2 py-0.5">
+                          <div className="space-y-1.5 min-w-0">
                             <button
                               type="button"
                               onClick={() =>
@@ -1526,25 +1720,31 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                               }
                               className="text-left w-full cursor-pointer"
                             >
-                              <h3 className="font-display text-[15px] sm:text-lg font-extrabold text-white group-hover:text-[#F5B900] transition-colors leading-snug">
-                                {combo.name}
+                              <h3 className="font-display text-base sm:text-xl font-extrabold text-white group-hover:text-[#FFC928] transition-colors leading-tight tracking-tight">
+                                <span>{titleParts.prefix}</span>
+                                {titleParts.highlightNumber && (
+                                  <span className="text-[#F5B900]">
+                                    {titleParts.highlightNumber}
+                                  </span>
+                                )}
+                                {titleParts.suffix && <span>{titleParts.suffix}</span>}
                               </h3>
                             </button>
 
                             {combo.description && (
-                              <p className="text-xs text-[#A0A8B8] leading-relaxed line-clamp-2">
+                              <p className="text-xs sm:text-[13px] text-[#D1D5DB] leading-snug line-clamp-2">
                                 {combo.description}
                               </p>
                             )}
                             {showComposition && itemsSummary && (
-                              <p className="text-xs text-[#D1D5DB] line-clamp-2">
+                              <p className="text-xs text-[#9CA3AF] line-clamp-2">
                                 Inclui: {itemsSummary}
                               </p>
                             )}
                           </div>
 
                           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                            <span className="text-lg sm:text-xl font-extrabold text-[#F5B900] font-mono tabular-nums">
+                            <span className="text-lg sm:text-2xl font-extrabold text-[#F5B900] font-mono tabular-nums whitespace-nowrap">
                               {formatCurrencyBRL(combo.salePrice)}
                             </span>
 
@@ -1554,7 +1754,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                                 onClick={() =>
                                   updateItemQuantity('combo', combo.id, 1)
                                 }
-                                className="min-h-[40px] px-3.5 sm:px-4 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+                                className="min-h-[38px] sm:min-h-[40px] px-3 sm:px-4 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap shadow-[0_4px_12px_rgba(245,185,0,0.22)]"
                               >
                                 <ShoppingCart className="w-3.5 h-3.5" aria-hidden="true" />
                                 <span>Adicionar</span>
@@ -1596,7 +1796,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
             </section>
           )}
 
-          {/* Dynamic Category Product Sections (Drinks Horizontal Grid + Sandwiches/Food Cards) */}
+          {/* Dynamic Category Product Sections (Bebidas Geladas + Lanches/Other Cards) */}
           {groupedProductSections.map((group) => (
             <section
               key={group.category}
@@ -1613,7 +1813,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                     id={`public-cat-${group.category}`}
                     className="font-display text-base sm:text-lg font-extrabold text-white truncate"
                   >
-                    {group.category}
+                    {formatCategorySectionTitle(group.category)}
                   </h2>
                 </div>
 
@@ -1647,10 +1847,10 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                     return (
                       <article
                         key={product.id}
-                        className={`group bg-[#14171F] border border-[#242936] hover:border-[#F5B900]/50 rounded-2xl p-2.5 flex flex-col justify-between gap-2 transition-colors duration-150 ${
+                        className={`group bg-[#14171F] border border-[#282D3A] hover:border-[#F5B900]/55 rounded-2xl p-2.5 flex flex-col justify-between gap-1.5 transition-colors duration-150 ${
                           categoryFilter === group.category
                             ? 'w-full'
-                            : 'w-[134px] sm:w-auto shrink-0'
+                            : 'w-[110px] sm:w-auto shrink-0'
                         }`}
                       >
                         <button
@@ -1659,7 +1859,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                             openItemInspector({ kind: 'product', product })
                           }
                           aria-label={`Ver detalhes de ${product.name}`}
-                          className="w-full h-24 rounded-xl overflow-hidden bg-[#0D1017] border border-[#222734] flex items-center justify-center cursor-pointer group-hover:border-[#F5B900]/40 transition-colors"
+                          className="w-full h-20 sm:h-24 rounded-xl overflow-hidden bg-[#0D1017]/70 flex items-center justify-center cursor-pointer transition-colors"
                         >
                           {hasUsableImage(product.imageUrl) ? (
                             <img
@@ -1685,13 +1885,13 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                           }
                           className="text-center w-full cursor-pointer px-0.5"
                         >
-                          <h3 className="text-xs font-bold text-white group-hover:text-[#F5B900] transition-colors leading-snug line-clamp-2 min-h-[2rem]">
+                          <h3 className="text-[11px] sm:text-xs font-bold text-white group-hover:text-[#F5B900] transition-colors leading-tight line-clamp-2 min-h-[2rem] flex items-center justify-center">
                             {product.name}
                           </h3>
                         </button>
 
-                        <div className="flex items-center justify-between gap-1.5 pt-1">
-                          <span className="text-sm font-extrabold text-[#F5B900] font-mono tabular-nums">
+                        <div className="flex items-center justify-between gap-1 pt-0.5">
+                          <span className="text-[13px] sm:text-sm font-extrabold text-[#F5B900] font-mono tabular-nums whitespace-nowrap">
                             {formatCurrencyBRL(product.unitPrice)}
                           </span>
 
@@ -1702,23 +1902,23 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                                 updateItemQuantity('product', product.id, 1)
                               }
                               aria-label={`Adicionar ${product.name}`}
-                              className="w-9 h-9 rounded-full bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] flex items-center justify-center cursor-pointer transition-colors shrink-0 shadow-[0_4px_12px_rgba(245,185,0,0.25)]"
+                              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] flex items-center justify-center cursor-pointer transition-colors shrink-0 shadow-[0_4px_12px_rgba(245,185,0,0.28)]"
                             >
-                              <Plus className="w-4 h-4 stroke-[2.6]" />
+                              <Plus className="w-4 h-4 stroke-[2.7]" />
                             </button>
                           ) : (
-                            <div className="inline-flex items-center gap-1 bg-[#0A0C10] border border-[#F5B900]/60 rounded-full p-0.5 shrink-0">
+                            <div className="inline-flex items-center gap-0.5 bg-[#0A0C10] border border-[#F5B900]/60 rounded-full p-0.5 shrink-0">
                               <button
                                 type="button"
                                 onClick={() =>
                                   updateItemQuantity('product', product.id, -1)
                                 }
                                 aria-label={`Diminuir ${product.name}`}
-                                className="w-7 h-7 rounded-full bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-white cursor-pointer transition-colors"
+                                className="w-6 h-6 rounded-full bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-white cursor-pointer transition-colors"
                               >
                                 <Minus className="w-3 h-3" />
                               </button>
-                              <span className="w-4 text-center text-xs font-mono font-bold tabular-nums text-[#F5B900]">
+                              <span className="w-4 text-center text-[11px] font-mono font-bold tabular-nums text-[#F5B900]">
                                 {qty}
                               </span>
                               <button
@@ -1727,7 +1927,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                                   updateItemQuantity('product', product.id, 1)
                                 }
                                 aria-label={`Aumentar ${product.name}`}
-                                className="w-7 h-7 rounded-full bg-[#F5B900] hover:bg-[#FFC928] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
+                                className="w-6 h-6 rounded-full bg-[#F5B900] hover:bg-[#FFC928] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
                               >
                                 <Plus className="w-3 h-3" />
                               </button>
@@ -1749,35 +1949,35 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                     return (
                       <article
                         key={product.id}
-                        className="group bg-[#14171F] border border-[#242936] hover:border-[#F5B900]/50 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-3 transition-colors duration-150"
+                        className="group bg-[#14171F] border border-[#282D3A] hover:border-[#F5B900]/55 rounded-2xl p-2.5 sm:p-3 flex items-stretch gap-3 transition-colors duration-150 shadow-[0_6px_20px_rgba(0,0,0,0.22)]"
                       >
-                        <div className="flex items-start gap-3">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openItemInspector({ kind: 'product', product })
-                            }
-                            aria-label={`Ver detalhes de ${product.name}`}
-                            className="w-20 h-20 sm:w-22 sm:h-22 rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0A0C10] border border-[#262C3A] flex items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B900]/40 transition-colors"
-                          >
-                            {hasUsableImage(product.imageUrl) ? (
-                              <img
-                                src={product.imageUrl}
-                                alt={product.name}
-                                loading="lazy"
-                                referrerPolicy="no-referrer"
-                                onError={() => markImageBroken(product.imageUrl)}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                              />
-                            ) : (
-                              <CategoryGlyph
-                                category={product.category}
-                                className="w-6 h-6 text-[#F5B900]"
-                              />
-                            )}
-                          </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openItemInspector({ kind: 'product', product })
+                          }
+                          aria-label={`Ver detalhes de ${product.name}`}
+                          className="w-28 h-24 sm:w-32 sm:h-28 rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0A0C10] border border-[#262C3A] flex items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B900]/40 transition-colors"
+                        >
+                          {hasUsableImage(product.imageUrl) ? (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              onError={() => markImageBroken(product.imageUrl)}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                          ) : (
+                            <CategoryGlyph
+                              category={product.category}
+                              className="w-6 h-6 text-[#F5B900]"
+                            />
+                          )}
+                        </button>
 
-                          <div className="min-w-0 space-y-1 flex-1">
+                        <div className="min-w-0 flex-1 flex flex-col justify-between gap-2 py-0.5">
+                          <div className="space-y-1 min-w-0">
                             <p className="text-[11px] font-medium text-[#9CA3AF]">
                               {product.category}
                             </p>
@@ -1788,7 +1988,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                               }
                               className="text-left w-full cursor-pointer"
                             >
-                              <h3 className="font-display text-sm sm:text-[15px] font-bold text-white group-hover:text-[#F5B900] transition-colors leading-snug">
+                              <h3 className="font-display text-sm sm:text-[15px] font-extrabold text-white group-hover:text-[#F5B900] transition-colors leading-snug line-clamp-2">
                                 {product.name}
                               </h3>
                             </button>
@@ -1798,51 +1998,51 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
                               </p>
                             )}
                           </div>
-                        </div>
 
-                        <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-[#242936]/80">
-                          <span className="text-base sm:text-lg font-extrabold text-[#F5B900] font-mono tabular-nums">
-                            {formatCurrencyBRL(product.unitPrice)}
-                          </span>
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <span className="text-base sm:text-lg font-extrabold text-[#F5B900] font-mono tabular-nums whitespace-nowrap">
+                              {formatCurrencyBRL(product.unitPrice)}
+                            </span>
 
-                          {qty === 0 ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateItemQuantity('product', product.id, 1)
-                              }
-                              className="min-h-[40px] px-3.5 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Adicionar</span>
-                            </button>
-                          ) : (
-                            <div className="inline-flex items-center gap-1.5 bg-[#0A0C10] border border-[#F5B900]/60 rounded-xl p-1">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateItemQuantity('product', product.id, -1)
-                                }
-                                aria-label={`Diminuir ${product.name}`}
-                                className="w-8 h-8 rounded-lg bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-white cursor-pointer transition-colors"
-                              >
-                                <Minus className="w-3.5 h-3.5" />
-                              </button>
-                              <span className="w-5 text-center text-xs font-mono font-bold tabular-nums text-[#F5B900]">
-                                {qty}
-                              </span>
+                            {qty === 0 ? (
                               <button
                                 type="button"
                                 onClick={() =>
                                   updateItemQuantity('product', product.id, 1)
                                 }
-                                aria-label={`Aumentar ${product.name}`}
-                                className="w-8 h-8 rounded-lg bg-[#F5B900] hover:bg-[#FFC928] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
+                                className="min-h-[36px] px-3 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shadow-[0_4px_12px_rgba(245,185,0,0.2)]"
                               >
-                                <Plus className="w-3.5 h-3.5" />
+                                <ShoppingCart className="w-3.5 h-3.5" aria-hidden="true" />
+                                <span>Adicionar</span>
                               </button>
-                            </div>
-                          )}
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5 bg-[#0A0C10] border border-[#F5B900]/60 rounded-xl p-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateItemQuantity('product', product.id, -1)
+                                  }
+                                  aria-label={`Diminuir ${product.name}`}
+                                  className="w-7 h-7 rounded-lg bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-white cursor-pointer transition-colors"
+                                >
+                                  <Minus className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="w-5 text-center text-xs font-mono font-bold tabular-nums text-[#F5B900]">
+                                  {qty}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateItemQuantity('product', product.id, 1)
+                                  }
+                                  aria-label={`Aumentar ${product.name}`}
+                                  className="w-7 h-7 rounded-lg bg-[#F5B900] hover:bg-[#FFC928] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </article>
                     );
@@ -2165,8 +2365,8 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
 
       {/* Fixed Bottom Cart Bar ("Meu Pedido") */}
       {!mobileCartOpen && !inspectItem && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] bg-[#0A0C10]/95 backdrop-blur-md border-t border-[#242936]">
-          <div className="max-w-lg mx-auto rounded-2xl bg-[#14171F] border border-[#F5B900]/45 px-3.5 py-2 flex items-center justify-between gap-3 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] bg-[#0A0C10]/95 backdrop-blur-md">
+          <div className="max-w-lg mx-auto rounded-2xl bg-[#101319] border border-[#F5B900]/75 px-3.5 py-2 flex items-center justify-between gap-3 shadow-[0_8px_28px_rgba(0,0,0,0.55)]">
             <div className="flex items-center gap-3 min-w-0">
               <ShoppingCart className="w-5 h-5 text-[#F5B900] shrink-0" aria-hidden="true" />
               <div className="min-w-0">
@@ -2184,7 +2384,7 @@ export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicM
             <button
               type="button"
               onClick={() => setMobileCartOpen(true)}
-              className="min-h-[42px] px-4 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs sm:text-sm font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              className="min-h-[42px] px-5 rounded-full bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs sm:text-sm font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap shadow-[0_4px_14px_rgba(245,185,0,0.28)]"
             >
               <span>Ver Carrinho</span>
               <ChevronRight className="w-4 h-4" aria-hidden="true" />

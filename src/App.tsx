@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BellRing, X } from 'lucide-react';
-import { registerOrderPushSubscription, setOrderPushSubscriptionEnabled } from './services/orderPushNotifications';
+import {
+  inspectOrderPushDiagnostics,
+  handlePushSubscriptionRotated,
+  registerOrderPushSubscription,
+  removeRegisteredPushDevice,
+  sendBackendOrderPushTest,
+  setOrderPushSubscriptionEnabled,
+  syncExistingOrderPushSubscription,
+  type OrderPushDiagnosticsSnapshot,
+} from './services/orderPushNotifications';
 import {
   addCombo,
   addExpense,
@@ -73,6 +82,8 @@ import {
   vibrateMobileDevice,
 } from './utils/orderNotifications';
 import {
+  filterUnalertedOrderIds,
+  markOrdersSoundAlerted,
   playNewOrderAlertChime,
   unlockAlertAudio,
 } from './utils/soundAlert';
@@ -194,6 +205,10 @@ export default function App() {
   const [user, setUser] = useState<AuthSessionUser | null>(null);
   const [tenants, setTenants] = useState<TenantContext[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
+  const activeTenant = useMemo<TenantContext | null>(
+    () => selectAuthorizedTenant(tenants, selectedTenantId),
+    [tenants, selectedTenantId],
+  );
   const [legacyWorkspace, setLegacyWorkspace] = useState<WorkspaceAccess | undefined>(
     undefined,
   );
@@ -247,10 +262,14 @@ export default function App() {
     useState<BrowserNotificationPermissionState>(() =>
       getBrowserNotificationPermission(),
     );
+  const [pushDiagnostics, setPushDiagnostics] =
+    useState<OrderPushDiagnosticsSnapshot | null>(null);
+  const [pushDiagnosticsLoading, setPushDiagnosticsLoading] = useState(false);
   const [liveOrderBanner, setLiveOrderBanner] = useState<
     OnlineOrderRecord[] | null
   >(null);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const swPushedOrderIdsRef = useRef<Set<string>>(new Set());
   const ordersInitializedRef = useRef(false);
   const [ordersSyncTick, setOrdersSyncTick] = useState(0);
   const prevSyncedTenantRef = useRef<string | null>(null);
@@ -293,6 +312,26 @@ export default function App() {
     });
   }
 
+  const refreshPushDiagnostics = useCallback(
+    async (tenantIdOverride?: string, userIdOverride?: string) => {
+      const targetTenantId = tenantIdOverride ?? activeTenant?.tenantId;
+      const targetUserId = userIdOverride ?? user?.uid;
+      if (!targetTenantId || !targetUserId) return;
+      setPushDiagnosticsLoading(true);
+      try {
+        const snapshot = await inspectOrderPushDiagnostics({
+          tenantId: targetTenantId,
+          userId: targetUserId,
+        });
+        setPushDiagnostics(snapshot);
+        setNotificationPermission(snapshot.permission);
+      } finally {
+        setPushDiagnosticsLoading(false);
+      }
+    },
+    [activeTenant?.tenantId, user?.uid],
+  );
+
   async function handleEnableMobileNotifications() {
     if (soundEnabled) void unlockAlertAudio();
     const permission = await requestMobileOrderNotificationsPermission();
@@ -309,9 +348,10 @@ export default function App() {
         await registerOrderPushSubscription({ tenantId, userId: user.uid });
       } catch (error) {
         showToast(
-          error instanceof Error ? error.message : 'Não foi possível cadastrar este celular para notificações.',
+          error instanceof Error ? error.message : 'Não foi possível cadastrar este dispositivo para notificações.',
           'err',
         );
+        void refreshPushDiagnostics(tenantId, user.uid);
         return;
       }
 
@@ -324,22 +364,24 @@ export default function App() {
       if (soundEnabled) void playNewOrderAlertChime();
       vibrateMobileDevice();
       await sendMobileSystemNotification({
-        title: `Notificações ativadas — ${digitalMenuSettings.storeName || settings.establishmentName || 'MGW GESTÃO'}`,
-        body: 'Este celular foi cadastrado para receber novos pedidos mesmo com o MGW Gestão fechado.',
+        title: `🔔 Notificações ativadas — ${digitalMenuSettings.storeName || settings.establishmentName || 'MGW GESTÃO'}`,
+        body: 'Este dispositivo foi inscrito para receber novos pedidos mesmo com o MGW Gestão em segundo plano.',
         tag: 'mgw-notifications-enabled',
         orderId: null,
       });
-      showToast('Este celular está cadastrado para receber novos pedidos!');
+      void refreshPushDiagnostics(tenantId, user.uid);
+      showToast('Dispositivo inscrito para receber notificações de novos pedidos!');
       return;
     }
 
+    void refreshPushDiagnostics();
     if (permission === 'denied') {
-      showToast('Permissão bloqueada no navegador. Libere as notificações nas configurações do site.', 'err');
+      showToast('Permissão bloqueada no navegador. Libere as notificações no cadeado ao lado do endereço.', 'err');
       return;
     }
 
     if (permission === 'unsupported') {
-      showToast('Este navegador não suporta Web Push. No iPhone, instale o MGW Gestão na Tela de Início.', 'err');
+      showToast('Este navegador não suporta Web Push. No iPhone, adicione o MGW Gestão à Tela de Início.', 'err');
     }
   }
 
@@ -374,7 +416,8 @@ export default function App() {
     } catch {
       // Ignora erro de storage
     }
-    showToast(next ? 'Notificações Push reativadas.' : 'Notificações Push pausadas.');
+    void refreshPushDiagnostics(activeTenant.tenantId, user.uid);
+    showToast(next ? 'Notificações Push reativadas.' : 'Notificações Push pausadas neste dispositivo.');
   }
 
   async function handleTestOrderAlert() {
@@ -387,23 +430,54 @@ export default function App() {
     const currentPermission = getBrowserNotificationPermission();
     setNotificationPermission(currentPermission);
 
-    if (currentPermission === 'granted') {
-      const sent = await sendMobileSystemNotification({
-        title: `Teste de alerta de pedido — ${digitalMenuSettings.storeName || settings.establishmentName || 'MGW GESTÃO'}`,
-        body: 'Se você viu esta notificação, os alertas em tempo real no dispositivo estão funcionando.',
-        tag: 'mgw-test-order',
-        orderId: null,
-      });
-      if (sent) {
-        showToast('Alerta de teste enviado para o dispositivo!');
+    if (currentPermission === 'granted' && user && activeTenant) {
+      try {
+        const result = await sendBackendOrderPushTest({
+          tenantId: activeTenant.tenantId,
+          userId: user.uid,
+        });
+        void refreshPushDiagnostics(activeTenant.tenantId, user.uid);
+        if (result.ok) {
+          showToast(result.message);
+          return;
+        }
+        showToast(result.message, 'err');
+        return;
+      } catch (error) {
+        const msg =
+          error instanceof Error
+            ? error.message
+            : 'Falha ao enviar teste Web Push pelo servidor.';
+        showToast(msg, 'err');
+        void refreshPushDiagnostics(activeTenant.tenantId, user.uid);
         return;
       }
     }
 
     showToast(
-      'Alerta sonoro testado! Ative as notificações do navegador para receber no celular.',
+      currentPermission === 'denied'
+        ? 'Som testado, mas as notificações estão bloqueadas no navegador.'
+        : 'Som testado! Clique em "Ativar notificações" para testar o alerta Push no dispositivo.',
       currentPermission === 'denied' ? 'err' : 'ok',
     );
+  }
+
+  async function handleRemovePushDevice(subscriptionId: string) {
+    if (!user || !activeTenant) return;
+    try {
+      await removeRegisteredPushDevice({
+        tenantId: activeTenant.tenantId,
+        userId: user.uid,
+        subscriptionId,
+      });
+      await refreshPushDiagnostics(activeTenant.tenantId, user.uid);
+      showToast('Dispositivo removido da lista de alertas.');
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : 'Não foi possível remover o dispositivo.',
+        'err',
+      );
+    }
   }
 
   const isShellRoute = isAuthShellRoute(publicRoute);
@@ -416,6 +490,9 @@ export default function App() {
     const onFocusOrVisibility = () => {
       if (document.visibilityState === 'visible') {
         syncPermission();
+        if (route === 'orders') {
+          void refreshPushDiagnostics();
+        }
       }
     };
     window.addEventListener('focus', syncPermission);
@@ -424,10 +501,38 @@ export default function App() {
     let cleanupSwListener: (() => void) | undefined;
     if ('serviceWorker' in navigator) {
       const onSwMessage = (event: MessageEvent) => {
-        const data = event.data as { type?: string } | undefined;
+        const data = event.data as
+          | {
+              type?: string;
+              orderId?: string | null;
+              tenantId?: string | null;
+              oldEndpoint?: string | null;
+            }
+          | undefined;
         if (data?.type === 'MGW_OPEN_ORDERS') {
+          if (
+            data.tenantId &&
+            tenants.some((t) => t.tenantId === data.tenantId) &&
+            data.tenantId !== selectedTenantId
+          ) {
+            setSelectedTenantId(data.tenantId);
+          }
           setRoute('orders');
           setLiveOrderBanner(null);
+          setOrdersSyncTick((n) => n + 1);
+        } else if (data?.type === 'MGW_NEW_ORDER_PUSH') {
+          if (data.orderId) {
+            swPushedOrderIdsRef.current.add(data.orderId);
+          }
+          setOrdersSyncTick((n) => n + 1);
+        } else if (data?.type === 'MGW_PUSH_SUBSCRIPTION_CHANGED') {
+          if (user && activeTenant) {
+            void handlePushSubscriptionRotated({
+              tenantId: activeTenant.tenantId,
+              userId: user.uid,
+              oldEndpoint: data.oldEndpoint,
+            }).then(() => refreshPushDiagnostics(activeTenant.tenantId, user.uid));
+          }
         }
       };
       navigator.serviceWorker.addEventListener('message', onSwMessage);
@@ -440,7 +545,7 @@ export default function App() {
       document.removeEventListener('visibilitychange', onFocusOrVisibility);
       cleanupSwListener?.();
     };
-  }, [isShellRoute]);
+  }, [isShellRoute, route, tenants, selectedTenantId, user, activeTenant, refreshPushDiagnostics]);
 
   useEffect(() => {
     if (!soundEnabled || !isShellRoute) return;
@@ -487,11 +592,6 @@ export default function App() {
     });
     return unsub;
   }, [isShellRoute]);
-
-  const activeTenant = useMemo<TenantContext | null>(
-    () => selectAuthorizedTenant(tenants, selectedTenantId),
-    [tenants, selectedTenantId],
-  );
 
   const dataContext = useMemo<DataExecutionContext | null>(() => {
     if (!isShellRoute) return null;
@@ -635,7 +735,50 @@ export default function App() {
     }
   }, [publicRoute.kind, dataContext, unviewedOrdersCount]);
 
-  // Alerta imediato (notificacao mobile, vibracao, banner e som) na chegada de novos pedidos
+  // Sincronizacao silenciosa de assinatura Web Push ja autorizada (sem pedir permissao)
+  useEffect(() => {
+    if (!dataContext) {
+      setPushDiagnostics(null);
+      return;
+    }
+    let cancelled = false;
+    let localPaused = false;
+    try {
+      localPaused = window.localStorage.getItem(PUSH_PREF_KEY) === '0';
+    } catch {
+      localPaused = false;
+    }
+
+    void (async () => {
+      if (getBrowserNotificationPermission() === 'granted') {
+        const synced = await syncExistingOrderPushSubscription({
+          tenantId: dataContext.tenant.tenantId,
+          userId: dataContext.user.uid,
+          localPausedPreference: localPaused,
+        });
+        if (!cancelled && synced.synced) {
+          setPushEnabled(synced.enabled);
+          try {
+            window.localStorage.setItem(PUSH_PREF_KEY, synced.enabled ? '1' : '0');
+          } catch {
+            // Ignora erro de storage
+          }
+        }
+      }
+      if (!cancelled) {
+        await refreshPushDiagnostics(
+          dataContext.tenant.tenantId,
+          dataContext.user.uid,
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dataContext, refreshPushDiagnostics]);
+
+  // Alerta imediato (notificacao mobile, vibracao, banner e som unico por pedido) na chegada de novos pedidos
   useEffect(() => {
     if (!dataContext) return;
     if (!ordersInitializedRef.current) {
@@ -654,14 +797,23 @@ export default function App() {
     if (newlyArrived.length > 0) {
       setLiveOrderBanner(newlyArrived);
       vibrateMobileDevice();
-      if (soundEnabled) {
+
+      const unalertedSoundIds = filterUnalertedOrderIds(
+        newlyArrived.map((o) => o.id),
+      );
+      if (soundEnabled && unalertedSoundIds.length > 0) {
+        markOrdersSoundAlerted(unalertedSoundIds);
         void playNewOrderAlertChime();
       }
+
       const perm = getBrowserNotificationPermission();
       setNotificationPermission(perm);
-      if (pushEnabled && perm === 'granted') {
+      const pendingLocalNotify = newlyArrived.filter(
+        (o) => !swPushedOrderIdsRef.current.has(o.id),
+      );
+      if (pushEnabled && perm === 'granted' && pendingLocalNotify.length > 0) {
         const payload = buildNewOrderNotificationContent(
-          newlyArrived,
+          pendingLocalNotify,
           digitalMenuSettings.storeName || settings.establishmentName,
         );
         if (payload) {
@@ -678,17 +830,6 @@ export default function App() {
     digitalMenuSettings.storeName,
     settings.establishmentName,
   ]);
-
-  // Reforco sonoro sutil enquanto houver pedido aguardando visualizacao
-  useEffect(() => {
-    if (!dataContext || !soundEnabled || unviewedOrdersCount === 0) {
-      return;
-    }
-    const timer = window.setInterval(() => {
-      void playNewOrderAlertChime();
-    }, 15000);
-    return () => window.clearInterval(timer);
-  }, [dataContext, soundEnabled, unviewedOrdersCount]);
 
   function handleSelectTenant(nextTenantId: string) {
     if (!tenants.some((t) => t.tenantId === nextTenantId)) return;
@@ -919,8 +1060,11 @@ export default function App() {
   const callbackPending =
     typeof window !== 'undefined' &&
     hasAuthCallbackParams(window.location.search, window.location.hash);
+  const viewOrdersRequested =
+    typeof window !== 'undefined' &&
+    resolveInitialRouteFromSearch(window.location.search) === 'orders';
 
-  if (publicRoute.kind === 'landing' && !demoActive && !callbackPending) {
+  if (publicRoute.kind === 'landing' && !demoActive && !callbackPending && !viewOrdersRequested) {
     if (!authReady) {
       return <LandingPageView onNavigate={navigatePublicPath} />;
     }
@@ -1245,9 +1389,13 @@ export default function App() {
               soundEnabled={soundEnabled}
               pushEnabled={pushEnabled}
               notificationPermission={notificationPermission}
+              pushDiagnostics={pushDiagnostics}
+              pushDiagnosticsLoading={pushDiagnosticsLoading}
               isLoading={dataLoading}
               errorMessage={dataError}
               onRefreshOrders={handleRefreshOrders}
+              onRefreshPushDiagnostics={() => void refreshPushDiagnostics()}
+              onRemovePushDevice={(id) => void handleRemovePushDevice(id)}
               onOpenNewOrder={
                 canCreateSales
                   ? () => {
