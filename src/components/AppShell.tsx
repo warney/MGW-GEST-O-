@@ -5,6 +5,7 @@ import {
   Building2,
   ChevronDown,
   ClipboardList,
+  Globe,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -56,6 +57,7 @@ interface AppShellProps {
   canViewReports: boolean;
   canAccessSettingsRoute: boolean;
   canWriteSettings: boolean;
+  canWriteCatalog: boolean;
   unviewedOrdersCount: number;
   activeTenant: TenantContext;
   tenants: TenantContext[];
@@ -126,6 +128,7 @@ export function AppShell({
   canViewReports,
   canAccessSettingsRoute,
   canWriteSettings,
+  canWriteCatalog,
   unviewedOrdersCount,
   activeTenant,
   tenants,
@@ -255,16 +258,29 @@ export function AppShell({
         icon: Users,
       });
     }
-    if (canAccessSettingsRoute) {
+    if (canWriteCatalog) {
       items.push({
         id: 'products',
         route: 'settings',
         settingsTab: 'catalog',
         section: 'catalog_settings',
-        label: 'Produtos',
+        label: 'Produtos e Combos',
         mobileLabel: 'Produtos',
         icon: Package,
       });
+    }
+    if (canWriteSettings) {
+      items.push({
+        id: 'digital_menu',
+        route: 'settings',
+        settingsTab: 'digital_menu',
+        section: 'catalog_settings',
+        label: 'Cardápio Digital',
+        mobileLabel: 'Cardápio',
+        icon: Globe,
+      });
+    }
+    if (canAccessSettingsRoute) {
       items.push({
         id: 'settings',
         route: 'settings',
@@ -285,6 +301,7 @@ export function AppShell({
     canViewReports,
     canAccessSettingsRoute,
     canWriteSettings,
+    canWriteCatalog,
   ]);
 
   const mainSectionItems = useMemo(
@@ -307,6 +324,7 @@ export function AppShell({
         .filter(
           (item) =>
             item.id !== 'products' &&
+            item.id !== 'digital_menu' &&
             item.id !== 'delivery' &&
             item.id !== 'delivery_customers',
         )
