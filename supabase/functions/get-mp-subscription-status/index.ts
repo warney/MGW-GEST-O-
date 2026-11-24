@@ -53,6 +53,23 @@ Deno.serve(async (req: Request) => {
         const environment = subscription.mp_environment || "production";
         const token = (Deno.env.get(environment === "test" ? "MP_ACCESS_TOKEN_TEST" : "MP_ACCESS_TOKEN") || "").trim();
         if (token) {
+          const { data: stalePix } = await admin.from("platform_payments")
+            .select("id,mp_payment_id").eq("tenant_id", tenantId).eq("payment_method", "pix").eq("status", "pending").limit(20);
+          for (const oldPayment of stalePix || []) {
+            const cancelResponse = await fetch("https://api.mercadopago.com/v1/payments/" + encodeURIComponent(oldPayment.mp_payment_id), {
+              method: "PUT",
+              headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json", ...(environment === "test" ? { "X-scope": "stage" } : {}) },
+              body: JSON.stringify({ status: "cancelled" })
+            });
+            const cancelled = await cancelResponse.json().catch(() => ({}));
+            if (cancelResponse.ok && String(cancelled.id || "") === oldPayment.mp_payment_id && ["cancelled", "canceled"].includes(String(cancelled.status || "").toLowerCase())) {
+              await admin.from("platform_payments").update({
+                status: "cancelled", failure_reason: "Cobrança Pix pendente cancelada após pagamento aprovado.", updated_at: new Date().toISOString()
+              }).eq("id", oldPayment.id).eq("status", "pending");
+            } else {
+              console.error("[get-mp-subscription-status] Não foi possível cancelar Pix pendente antigo:", oldPayment.mp_payment_id, cancelResponse.status);
+            }
+          }
           const url = "https://api.mercadopago.com/preapproval/" + encodeURIComponent(subscription.mp_preapproval_id);
           const providerResponse = await fetch(url, { headers: { "Authorization": "Bearer " + token, ...(environment === "test" ? { "X-scope": "stage" } : {}) } });
           const provider = await providerResponse.json().catch(() => ({}));
