@@ -910,6 +910,18 @@ export default function App() {
     await updateAccountPassword(password);
   }
 
+  async function handleSubscribePix(tenantId: string) {
+    if (!activeTenant || activeTenant.tenantId !== tenantId || activeTenant.role !== 'owner') {
+      throw new Error('Somente o proprietário do estabelecimento pode contratar.');
+    }
+    const { data, error } = await getSupabaseClient().functions.invoke('create-mp-pix-payment', { body: { tenantId } });
+    if (error) throw new Error(data?.error || 'Não foi possível gerar a cobrança Pix.');
+    if (typeof data?.qrCode !== 'string' || typeof data?.qrCodeBase64 !== 'string' || typeof data?.paymentId !== 'string') {
+      throw new Error(data?.error || 'O Mercado Pago não retornou os dados do Pix.');
+    }
+    return data as { paymentId: string; amountCents: number; qrCode: string; qrCodeBase64: string; ticketUrl: string; expiresAt: string | null };
+  }
+
   async function handleSubscribe(tenantId: string) {
     if (!activeTenant || activeTenant.tenantId !== tenantId || activeTenant.role !== 'owner') {
       throw new Error('Somente o proprietário do estabelecimento pode contratar.');
@@ -1273,6 +1285,7 @@ export default function App() {
         onSelectTenant={handleSelectTenant}
         onLogout={handleLogout}
         onSubscribe={handleSubscribe}
+        onSubscribePix={handleSubscribePix}
       />
     );
   }
