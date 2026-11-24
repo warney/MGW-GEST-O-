@@ -6,6 +6,8 @@ import { StoreOnboardingScreen } from '../components/StoreOnboardingScreen';
 
 const noopComplete = async () => {};
 const noopLogout = async () => {};
+const noopSubscribe = async () => {};
+const noopSubscribePix = async () => ({ paymentId: 'test-payment', amountCents: 4990, qrCode: 'test-pix-code', qrCodeBase64: 'dGVzdA==', ticketUrl: '', expiresAt: null });
 
 test('StoreOnboardingScreen renders MGW Gestão split welcome layout, orientation steps, and real form fields', () => {
   const html = renderToStaticMarkup(
@@ -14,6 +16,9 @@ test('StoreOnboardingScreen renders MGW Gestão split welcome layout, orientatio
       initialStoreName: 'Lanchonete Central',
       onComplete: noopComplete,
       onLogout: noopLogout,
+      onSubscribe: noopSubscribe,
+      onSubscribePix: noopSubscribePix,
+      tenantId: 'test-tenant',
     }),
   );
 
