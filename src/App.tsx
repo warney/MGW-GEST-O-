@@ -1165,7 +1165,11 @@ export default function App() {
 
   if (publicRoute.kind === 'landing' && !demoActive && !callbackPending && !viewOrdersRequested) {
     if (!authReady) {
-      return <LandingPageView onNavigate={navigatePublicPath} />;
+      return (
+        <div className="min-h-screen bg-[#F5F6FA] text-[#778094] flex items-center justify-center text-sm">
+          Carregando MGW GESTÃO...
+        </div>
+      );
     }
     if (passwordRecovery) {
       return (
