@@ -90,6 +90,17 @@ Deno.serve(async (req: Request) => {
       return json({ error: "A conta fundadora é isenta de cobrança." }, 409);
     }
 
+    const { data: plan, error: planError } = await admin
+      .from("plans")
+      .select("code,amount_cents,currency,billing_interval,active")
+      .eq("code", "mgw_mensal_49")
+      .eq("active", true)
+      .maybeSingle();
+    if (planError || !plan || plan.amount_cents !== 4990 || plan.currency !== "BRL" || plan.billing_interval !== "monthly") {
+      console.error("[create-mp-subscription] Plano comercial ausente ou inválido.");
+      return json({ error: "Plano mensal do MGW não está configurado corretamente." }, 503);
+    }
+
     const { data: subscription, error: subscriptionError } = await admin
       .from("subscriptions")
       .select("id,status,trial_ends_at,mp_preapproval_id,mp_init_point,plan_amount_cents,currency,updated_at,mp_environment")
@@ -109,10 +120,6 @@ Deno.serve(async (req: Request) => {
     if (subscription.status === "authorized" || subscription.status === "exempt") {
       return json({ error: "Este estabelecimento já possui uma assinatura ativa." }, 409);
     }
-    if (subscription.plan_amount_cents !== 4990 || subscription.currency !== "BRL") {
-      return json({ error: "Configuração do plano MGW inválida." }, 409);
-    }
-
     const externalReference = tenantId;
     const mpResponse = await fetch("https://api.mercadopago.com/preapproval", {
       method: "POST",
@@ -155,6 +162,9 @@ Deno.serve(async (req: Request) => {
     const { error: updateError } = await admin
       .from("subscriptions")
       .update({
+        plan_code: plan.code,
+        plan_amount_cents: plan.amount_cents,
+        currency: plan.currency,
         mp_preapproval_id: mpData.id,
         mp_payer_email: user.email,
         mp_init_point: checkoutUrl,
