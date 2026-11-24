@@ -14,7 +14,7 @@ Deno.serve(async (req: Request) => {
   if (environment !== "production" && environment !== "test") return json({ error: "Ambiente do Mercado Pago não configurado." }, 503);
   const accessToken = (Deno.env.get(environment === "production" ? "MP_ACCESS_TOKEN" : "MP_ACCESS_TOKEN_TEST") || "").trim();
   if (!supabaseUrl || !serviceRoleKey || !accessToken) return json({ error: "Integração de pagamentos não configurada." }, 503);
-  const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+  const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (!jwt) return json({ error: "Sessão não encontrada. Entre novamente." }, 401);
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   try {
