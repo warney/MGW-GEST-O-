@@ -47,18 +47,12 @@ export function FinanceView({ refreshTrigger }: FinanceViewProps) {
         </p>
       </div>
 
-      <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-4 text-xs text-amber-800 flex items-start gap-2.5">
-        <Info className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-amber-800">
-            Integração automática com Mercado Pago pendente de ativação
-          </p>
-          <p className="text-amber-800/85 mt-0.5">
-            Os cálculos de MRR e ARR refletem as assinaturas ativas reais na tabela{' '}
-            <code className="font-mono">subscriptions</code>. O processamento automático de faturas e
-            webhooks financeiros será populado quando o módulo Mercado Pago for habilitado.
-          </p>
-        </div>
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600 flex items-start gap-2.5">
+        <Info className="h-4 w-4 text-slate-500 shrink-0 mt-0.5" />
+        <p>
+          Os indicadores são atualizados a partir das assinaturas e dos pagamentos confirmados pelo Mercado Pago.
+          Os valores permanecerão zerados enquanto não houver cobranças aprovadas registradas.
+        </p>
       </div>
 
       {error && (
