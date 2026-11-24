@@ -25,7 +25,7 @@ test('resolveShellPageTitle and resolveActiveShellNavId differentiate Produtos a
   assert.equal(resolveShellPageTitle('dashboard', 'shop'), 'Dashboard');
   assert.equal(resolveShellPageTitle('orders', 'shop'), 'Pedidos');
   assert.equal(resolveShellPageTitle('delivery', 'shop'), 'MGW Delivery');
-  assert.equal(resolveShellPageTitle('settings', 'catalog'), 'Produtos');
+  assert.equal(resolveShellPageTitle('settings', 'catalog'), 'Produtos e Combos');
   assert.equal(resolveShellPageTitle('settings', 'shop'), 'Configurações');
   assert.equal(resolveShellPageTitle('settings', 'digital_menu'), 'Configurações');
 
