@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
     const resourceId = String(data.id || url.searchParams.get("data.id") || url.searchParams.get("id") || "");
     const eventType = String(body.type || url.searchParams.get("type") || body.topic || url.searchParams.get("topic") || "");
     const action = String(body.action || "");
-    if (!resourceId || !["subscription_preapproval", "subscription_authorized_payment"].includes(eventType)) {
+    if (!resourceId || !["subscription_preapproval", "subscription_authorized_payment", "payment"].includes(eventType)) {
       return json({ received: true, ignored: true });
     }
 
@@ -322,7 +322,7 @@ Deno.serve(async (req: Request) => {
     }
     const amount = Number(mp.auto_recurring?.transaction_amount);
     const currency = String(mp.auto_recurring?.currency_id || "");
-    if (Math.round(amount * 100) !== 4990 || currency !== "BRL") {
+    if (Math.round(amount * 100) !== current.plan_amount_cents || currency !== "BRL") {
       console.error("[mp-webhook] Valor/moeda divergente; assinatura não atualizada.");
       return json({ error: "Subscription amount mismatch" }, 409);
     }
@@ -331,7 +331,7 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: current, error: currentError } = await supabase
-      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_start,current_period_end,grace_until,last_event_at,mp_environment")
+      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,plan_amount_cents,current_period_start,current_period_end,grace_until,last_event_at,mp_environment")
       .eq("tenant_id", tenantId).maybeSingle();
     if (currentError || !current) return json({ error: "MGW subscription not found" }, 404);
     if (current.mp_environment !== mpEnvironment) {
