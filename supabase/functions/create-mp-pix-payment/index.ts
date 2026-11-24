@@ -36,6 +36,20 @@ Deno.serve(async (req: Request) => {
     const recoverable = ["expired", "cancelled", "paused", "past_due", "suspended", "pending", "trialing"];
     if (tenant.status === "suspended" && (tenant.billing_suspended !== true || !recoverable.includes(subscription.status) || !["none", "active_retention"].includes(subscription.retention_status || "none"))) return json({ error: "Estabelecimento suspenso administrativamente não pode ser reativado pelo checkout." }, 403);
     if (["authorized", "exempt"].includes(subscription.status)) return json({ error: "Este estabelecimento já possui assinatura ativa." }, 409);
+    const { data: pendingPayment } = await admin.from("platform_payments")
+      .select("mp_payment_id,amount_cents,currency,due_at")
+      .eq("tenant_id", tenantId).eq("payment_method", "pix").eq("status", "pending")
+      .gt("due_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (pendingPayment?.mp_payment_id && pendingPayment.amount_cents === plan.amount_cents && pendingPayment.currency === plan.currency) {
+      const pendingResponse = await fetch("https://api.mercadopago.com/v1/payments/" + encodeURIComponent(pendingPayment.mp_payment_id), {
+        headers: { "Authorization": "Bearer " + accessToken, ...(environment === "test" ? { "X-scope": "stage" } : {}) }
+      });
+      const pending = await pendingResponse.json().catch(() => ({}));
+      const pendingTx = pending.point_of_interaction?.transaction_data || {};
+      if (pendingResponse.ok && String(pending.external_reference || "") === tenantId && pending.status === "pending" && pendingTx.qr_code && pendingTx.qr_code_base64) {
+        return json({ paymentId: String(pending.id), amountCents: plan.amount_cents, currency: plan.currency, qrCode: pendingTx.qr_code, qrCodeBase64: pendingTx.qr_code_base64, ticketUrl: pendingTx.ticket_url || "", expiresAt: pending.date_of_expiration || pendingPayment.due_at, environment, reused: true });
+      }
+    }
     const idempotencyKey = crypto.randomUUID();
     const mpResponse = await fetch("https://api.mercadopago.com/v1/payments", {
       method: "POST",
