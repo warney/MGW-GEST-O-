@@ -149,7 +149,9 @@ export type AppRoute =
   | 'sales'
   | 'expenses'
   | 'reports'
-  | 'settings';
+  | 'settings'
+  | 'catalog'
+  | 'digital_menu';
 
 export type SaleOrigin = 'manual' | 'online';
 

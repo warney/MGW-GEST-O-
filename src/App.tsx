@@ -6,6 +6,9 @@ import {
   ClipboardList,
   LayoutDashboard,
   LogOut,
+  Menu,
+  Globe,
+  Layers,
   Plus,
   Receipt,
   Settings,
@@ -144,6 +147,20 @@ const NAV_ITEMS: Array<{
   { id: 'settings', label: 'Configurações', mobileLabel: 'Ajustes', icon: Settings },
 ];
 
+const CATALOG_NAV_ITEM = {
+  id: 'catalog',
+  label: 'Produtos e Combos',
+  mobileLabel: 'Produtos',
+  icon: Layers,
+} as const;
+
+const DIGITAL_MENU_NAV_ITEM = {
+  id: 'digital_menu',
+  label: 'Cardápio Digital',
+  mobileLabel: 'Cardápio',
+  icon: Globe,
+} as const;
+
 export default function App() {
   const [publicRoute, setPublicRoute] = useState<PublicUrlRoute>(() =>
     resolveCurrentPublicRoute(),
@@ -222,6 +239,7 @@ export default function App() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<
     'shop' | 'catalog' | 'digital_menu'
   >('shop');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
@@ -1000,7 +1018,9 @@ export default function App() {
   const canViewReports = hasTenantPermission(activeTenant.role, 'reports:view');
   const canWriteSettings = hasTenantPermission(activeTenant.role, 'settings:write');
   const canWriteCatalog = hasTenantPermission(activeTenant.role, 'catalog:write');
-  const canAccessSettingsRoute = canWriteSettings || canWriteCatalog;
+  const canAccessSettingsRoute = canWriteSettings;
+  const canAccessCatalogRoute = canWriteCatalog;
+  const canAccessDigitalMenuRoute = canWriteSettings;
 
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if (item.id === 'dashboard') return canViewDashboard;
@@ -1012,13 +1032,32 @@ export default function App() {
     return false;
   });
 
-  const effectiveRoute: AppRoute = visibleNavItems.some((item) => item.id === route)
+  const visibleSidebarNavItems = [
+    ...visibleNavItems.filter((item) => item.id !== 'settings'),
+    ...(canAccessCatalogRoute ? [CATALOG_NAV_ITEM] : []),
+    ...(canAccessDigitalMenuRoute ? [DIGITAL_MENU_NAV_ITEM] : []),
+    ...visibleNavItems.filter((item) => item.id === 'settings'),
+  ];
+
+  const effectiveRoute: AppRoute = visibleSidebarNavItems.some((item) => item.id === route)
     ? route
     : visibleNavItems[0]?.id ?? 'dashboard';
   const currentNav =
-    visibleNavItems.find((item) => item.id === effectiveRoute) ??
+    visibleSidebarNavItems.find((item) => item.id === effectiveRoute) ??
     visibleNavItems[0] ??
     NAV_ITEMS[0];
+
+  function navigateAppRoute(nextRoute: AppRoute) {
+    setSettingsInitialTab(
+      nextRoute === 'catalog'
+        ? 'catalog'
+        : nextRoute === 'digital_menu'
+          ? 'digital_menu'
+          : 'shop',
+    );
+    setRoute(nextRoute);
+    setMobileMenuOpen(false);
+  }
   const hasMultipleTenants = tenants.length > 1;
   const mobileNavGridClass =
     (
@@ -1049,7 +1088,7 @@ export default function App() {
           aria-label="Navegação principal"
           className="flex-1 p-3 space-y-1 overflow-y-auto"
         >
-          {visibleNavItems.map((item) => {
+          {visibleSidebarNavItems.map((item) => {
             const Icon = item.icon;
             const active = effectiveRoute === item.id;
             const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
@@ -1057,12 +1096,7 @@ export default function App() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  if (item.id === 'settings') {
-                    setSettingsInitialTab(canWriteSettings ? 'shop' : 'catalog');
-                  }
-                  setRoute(item.id);
-                }}
+                onClick={() => navigateAppRoute(item.id)}
                 aria-current={active ? 'page' : undefined}
                 className={`w-full min-h-[44px] px-3.5 rounded-xl flex items-center justify-between gap-2 text-sm font-medium whitespace-nowrap cursor-pointer ${
                   active
@@ -1128,6 +1162,15 @@ export default function App() {
         {/* Top Bar (Desktop 64px / Mobile 52px) */}
         <header className="sticky top-0 z-30 h-[52px] lg:h-16 bg-white/95 backdrop-blur-md border-b border-[#E5E7EB] px-4 lg:px-8 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Abrir menu lateral"
+              aria-expanded={mobileMenuOpen}
+              className="lg:hidden w-9 h-9 rounded-lg border border-[#E5E7EB] text-[#6B7280] inline-flex items-center justify-center shrink-0"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             <span className="lg:hidden font-display font-bold text-sm text-[#F5B731] whitespace-nowrap shrink-0">
               MGW GESTÃO
             </span>
@@ -1183,6 +1226,47 @@ export default function App() {
             )}
           </div>
         </header>
+
+        {mobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-50">
+            <button
+              type="button"
+              aria-label="Fechar menu lateral"
+              onClick={() => setMobileMenuOpen(false)}
+              className="absolute inset-0 bg-black/40"
+            />
+            <aside className="absolute inset-y-0 left-0 w-[min(82vw,320px)] bg-white shadow-2xl flex flex-col">
+              <div className="h-16 px-4 flex items-center justify-between border-b border-[#E5E7EB]">
+                <span className="font-bold text-sm text-[#111827]">MGW GESTÃO</span>
+                <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Fechar menu" className="w-9 h-9 rounded-lg border border-[#E5E7EB] text-[#6B7280] inline-flex items-center justify-center">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <nav aria-label="Menu lateral" className="flex-1 overflow-y-auto p-3 space-y-1">
+                {visibleSidebarNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = effectiveRoute === item.id;
+                  const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigateAppRoute(item.id)}
+                      aria-current={active ? 'page' : undefined}
+                      className={`w-full min-h-[46px] px-3.5 rounded-xl flex items-center justify-between gap-2 text-sm font-medium text-left ${active ? 'bg-[#F5B731]/12 text-[#A87500]' : 'text-[#4B5563] hover:bg-[#F3F4F6]'}`}
+                    >
+                      <span className="inline-flex items-center gap-3">
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span>{item.label}</span>
+                      </span>
+                      {showOrdersBadge && <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#F5B731] text-[#0B0D11] text-[11px] font-bold flex items-center justify-center">{unviewedOrdersCount}</span>}
+                    </button>
+                  );
+                })}
+              </nav>
+            </aside>
+          </div>
+        )}
 
         {/* Real-time Sticky Order Alert Banner across all Admin Screens */}
         {canReadSales &&
@@ -1374,7 +1458,11 @@ export default function App() {
                 />
               )}
 
-              {effectiveRoute === 'settings' && canAccessSettingsRoute && (
+              {(
+                (effectiveRoute === 'settings' && canAccessSettingsRoute) ||
+                (effectiveRoute === 'catalog' && canAccessCatalogRoute) ||
+                (effectiveRoute === 'digital_menu' && canAccessDigitalMenuRoute)
+              ) && (
                 <SettingsView
                   workspaceId={dataContext?.tenant.tenantId || activeTenant.tenantId}
                   settings={settings}
@@ -1382,6 +1470,7 @@ export default function App() {
                   combos={combos}
                   digitalMenuSettings={digitalMenuSettings}
                   initialTab={settingsInitialTab}
+                  hideNavigationTabs
                   accountEmail={user.email}
                   canManageShopSettings={canWriteSettings}
                   canManageDigitalMenu={canWriteSettings}
@@ -1416,12 +1505,7 @@ export default function App() {
             <button
               key={item.id}
               type="button"
-              onClick={() => {
-                if (item.id === 'settings') {
-                  setSettingsInitialTab(canWriteSettings ? 'shop' : 'catalog');
-                }
-                setRoute(item.id);
-              }}
+              onClick={() => navigateAppRoute(item.id)}
               aria-current={active ? 'page' : undefined}
               className={`relative h-full min-h-[44px] flex flex-col items-center justify-center gap-1 cursor-pointer ${
                 active ? 'text-[#F5B731]' : 'text-[#9CA3AF]'
