@@ -171,6 +171,27 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Could not reconcile Pix payment" }, 500);
       }
       if (paymentStatus === "approved") {
+        // A paid Pix settles the current month. Cancel any other pending Pix
+        // charge for this tenant (especially stale amounts created before an
+        // Admin price change) so the payer is not reminded about a second amount.
+        const { data: otherPendingPix } = await supabase.from("platform_payments")
+          .select("id,mp_payment_id").eq("tenant_id", tenantId).eq("payment_method", "pix").eq("status", "pending")
+          .neq("mp_payment_id", resourceId).limit(20);
+        for (const oldPayment of otherPendingPix || []) {
+          const cancelResponse = await fetch("https://api.mercadopago.com/v1/payments/" + encodeURIComponent(oldPayment.mp_payment_id), {
+            method: "PUT",
+            headers: { "Authorization": "Bearer " + accessToken, "Content-Type": "application/json", ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}) },
+            body: JSON.stringify({ status: "cancelled" })
+          });
+          const cancelled = await cancelResponse.json().catch(() => ({}));
+          if (cancelResponse.ok && String(cancelled.id || "") === oldPayment.mp_payment_id && ["cancelled", "canceled"].includes(String(cancelled.status || "").toLowerCase())) {
+            await supabase.from("platform_payments").update({
+              status: "cancelled", failure_reason: "Cobrança Pix substituída por pagamento aprovado.", updated_at: now.toISOString()
+            }).eq("id", oldPayment.id).eq("status", "pending");
+          } else {
+            console.error("[mp-webhook] Não foi possível cancelar Pix pendente antigo:", oldPayment.mp_payment_id, cancelResponse.status);
+          }
+        }
         const paidAt = payment.date_approved ? new Date(payment.date_approved) : now;
         const currentEnd = subscription.current_period_end ? new Date(subscription.current_period_end) : null;
         const paidStart = currentEnd && currentEnd.getTime() > paidAt.getTime() ? currentEnd : paidAt;
