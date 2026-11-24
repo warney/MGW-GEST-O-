@@ -72,7 +72,7 @@ BEGIN
       IF p_unit NOT IN ('days', 'months', 'years') THEN
         RAISE EXCEPTION 'Unidade de prazo invalida.';
       END IF;
-      v_base := greatest(v_now, coalesce(v_sub.trial_ends_at, v_sub.current_period_end, v_now));
+      v_base := greatest(v_now, coalesce(v_sub.current_period_end, v_sub.trial_ends_at, v_now));
       v_end := v_base + CASE p_unit
         WHEN 'days' THEN make_interval(days => p_duration)
         WHEN 'months' THEN make_interval(months => p_duration)
@@ -90,8 +90,8 @@ BEGIN
     WHERE id = p_tenant_id;
 
     UPDATE public.subscriptions
-    SET status = 'trialing',
-        trial_ends_at = v_end,
+    SET status = CASE WHEN v_sub.status IN ('authorized','active') THEN v_sub.status ELSE 'trialing' END,
+        trial_ends_at = CASE WHEN v_sub.status IN ('authorized','active') THEN v_sub.trial_ends_at ELSE v_end END,
         current_period_start = coalesce(current_period_start, v_now),
         current_period_end = v_end,
         ended_at = NULL,
