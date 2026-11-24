@@ -8,7 +8,13 @@ import './design-system/app-shell.css';
 
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   try {
-    registerSW({ immediate: true });
+    registerSW({
+      immediate: true,
+      onNeedRefresh() {
+        // Mantém a versão atual ativa durante o uso; a atualização será aplicada
+        // quando o usuário recarregar ou reabrir o aplicativo.
+      },
+    });
   } catch {
     // Fallback silencioso se o navegador bloquear Service Worker
   }
