@@ -114,7 +114,7 @@ export function SubscriptionBlockedScreen({
   useEffect(() => {
     let active = true;
     void getSupabaseClient().from('plans').select('amount_cents').eq('code', 'mgw_mensal_49').eq('active', true).maybeSingle()
-      .then(({ data }) => { if (active && Number.isInteger(data?.amount_cents) && data.amount_cents > 0) setPlanAmountCents(data.amount_cents); });
+      .then(({ data }) => { if (active && data && Number.isInteger(data.amount_cents) && data.amount_cents > 0) setPlanAmountCents(data.amount_cents); });
     return () => { active = false; };
   }, []);
 
