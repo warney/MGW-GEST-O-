@@ -96,14 +96,26 @@ Deno.serve(async (req: Request) => {
     const testSignatureValid = testSecret
       ? await verifySignature(req, resourceId, testSecret)
       : false;
-    if (productionSignatureValid === testSignatureValid) {
+
+    // Pix payment notifications can be authenticated by a canonical provider lookup
+    // when Mercado Pago does not deliver a usable HMAC header. This fallback is
+    // limited to "payment" events: no subscription/preapproval mutation is allowed
+    // without a valid HMAC. The payment branch below still validates live_mode,
+    // payment ID, Pix method, tenant external_reference, amount and currency against
+    // Mercado Pago's API before writing anything.
+    let mpEnvironment: "production" | "test";
+    if (productionSignatureValid !== testSignatureValid) {
+      mpEnvironment = productionSignatureValid ? "production" : "test";
+      if (typeof body.live_mode !== "boolean" || body.live_mode !== (mpEnvironment === "production")) {
+        console.warn("[mp-webhook] live_mode incompatível com o segredo que validou a assinatura.");
+        return json({ error: "Webhook environment mismatch" }, 409);
+      }
+    } else if (eventType === "payment" && typeof body.live_mode === "boolean") {
+      mpEnvironment = body.live_mode ? "production" : "test";
+      console.warn("[mp-webhook] Evento Pix sem HMAC válido; exigindo validação canônica na API do Mercado Pago.");
+    } else {
       console.warn("[mp-webhook] Assinatura ausente, inválida ou ambígua; evento recusado.");
       return json({ error: "Invalid signature" }, 401);
-    }
-    const mpEnvironment = productionSignatureValid ? "production" : "test";
-    if (typeof body.live_mode !== "boolean" || body.live_mode !== (mpEnvironment === "production")) {
-      console.warn("[mp-webhook] live_mode incompatível com o segredo que validou a assinatura.");
-      return json({ error: "Webhook environment mismatch" }, 409);
     }
     const accessToken = mpEnvironment === "production" ? productionToken : testToken;
     if (!accessToken) {
@@ -117,6 +129,9 @@ Deno.serve(async (req: Request) => {
       });
       const payment = await paymentResponse.json().catch(() => ({}));
       if (!paymentResponse.ok || String(payment.id || "") !== resourceId) return json({ error: "Could not verify Pix payment" }, 502);
+      if (typeof payment.live_mode !== "boolean" || payment.live_mode !== (mpEnvironment === "production")) {
+        return json({ error: "Pix payment environment mismatch" }, 409);
+      }
       const tenantId = String(payment.external_reference || "");
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) return json({ error: "Invalid Pix external reference" }, 400);
       if (String(payment.payment_method_id || "") !== "pix") return json({ received: true, ignored: true });
