@@ -56,6 +56,10 @@ export function resolveShellPageTitle(
       return 'Dashboard';
     case 'orders':
       return 'Pedidos';
+    case 'delivery':
+      return 'MGW Delivery';
+    case 'delivery_customers':
+      return 'Clientes · MGW Delivery';
     case 'sales':
       return 'Vendas';
     case 'expenses':

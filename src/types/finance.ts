@@ -146,6 +146,8 @@ export type ReportPeriodPreset =
 export type AppRoute =
   | 'dashboard'
   | 'orders'
+  | 'delivery'
+  | 'delivery_customers'
   | 'sales'
   | 'expenses'
   | 'reports'
@@ -281,6 +283,7 @@ export interface OnlineOrderStatusEvent {
 export interface OnlineOrderRecord {
   id: string;
   tenantId: string;
+  customerId?: string | null;
   orderNumber: number;
   orderCode: string;
   tokenHash: string;
@@ -581,3 +584,87 @@ export interface AuthSessionUser {
   email: string;
   emailVerified: boolean;
 }
+
+// ==================== MGW DELIVERY — CLIENTES ====================
+
+export type DeliveryCustomerClassification =
+  | 'new'
+  | 'recurring'
+  | 'vip'
+  | 'inactive';
+
+export interface DeliveryCustomerClassificationConfig {
+  recurringMinOrders: number;
+  vipMinOrders: number;
+  vipMinSpent: number;
+  inactiveDays: number;
+}
+
+export interface DeliveryCustomerAddressRecord {
+  id: string;
+  tenantId: string;
+  customerId: string;
+  label: string;
+  cep: string;
+  street: string;
+  number: string;
+  neighborhood: string;
+  complement: string;
+  reference: string;
+  city: string;
+  state: string;
+  isPrimary: boolean;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface DeliveryCustomerAddressInput {
+  label?: string;
+  cep?: string;
+  street: string;
+  number?: string;
+  neighborhood?: string;
+  complement?: string;
+  reference?: string;
+  city?: string;
+  state?: string;
+  isPrimary?: boolean;
+}
+
+export interface DeliveryCustomerRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  phone: string;
+  normalizedPhone: string;
+  email: string;
+  cpf: string;
+  birthDate: string | null;
+  notes: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface DeliveryCustomerInput {
+  name: string;
+  phone: string;
+  email?: string;
+  cpf?: string;
+  birthDate?: string | null;
+  notes?: string;
+}
+
+export interface DeliveryCustomerWithMetrics {
+  customer: DeliveryCustomerRecord;
+  addresses: DeliveryCustomerAddressRecord[];
+  primaryAddress: DeliveryCustomerAddressRecord | null;
+  orders: OnlineOrderRecord[];
+  validOrdersCount: number;
+  cancelledOrdersCount: number;
+  totalSpent: number;
+  averageTicket: number;
+  firstOrderAtMs: number | null;
+  lastOrderAtMs: number | null;
+  classification: DeliveryCustomerClassification;
+}
+

@@ -3,6 +3,11 @@ import {
   type ComboProductItem,
   type ComboRecord,
   DEFAULT_SHOP_SETTINGS,
+  type DeliveryCustomerAddressInput,
+  type DeliveryCustomerAddressRecord,
+  type DeliveryCustomerClassificationConfig,
+  type DeliveryCustomerInput,
+  type DeliveryCustomerRecord,
   type DigitalMenuSettings,
   type DigitalMenuSettingsInput,
   EXPENSE_CATEGORIES,
@@ -37,6 +42,13 @@ import {
   type TenantContext,
   type TenantRole,
 } from '../types/finance';
+import {
+  DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
+  isValidCustomerPhone,
+  isValidOptionalCpf,
+  normalizeClassificationConfig,
+  normalizeCustomerPhone,
+} from '../utils/deliveryCustomers';
 import { calculateSaleTotal, roundCurrency } from '../utils/finance';
 import {
   formatOrderNumber,
@@ -204,6 +216,7 @@ export interface SupabaseOnlineOrderStatusHistoryRow {
 export interface SupabaseOnlineOrderRow {
   id: string;
   tenant_id: string;
+  customer_id?: string | null;
   order_number: number;
   order_code: string;
   tracking_token_hash: string;
@@ -230,6 +243,48 @@ export interface SupabaseOnlineOrderRow {
   sale_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SupabaseDeliveryCustomerRow {
+  id: string;
+  tenant_id: string;
+  name: string;
+  phone: string;
+  normalized_phone: string;
+  email: string;
+  cpf: string;
+  birth_date: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseDeliveryCustomerAddressRow {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  label: string;
+  cep: string;
+  street: string;
+  number: string;
+  neighborhood: string;
+  complement: string;
+  reference: string;
+  city: string;
+  state: string;
+  is_primary: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseDeliveryCustomerClassificationSettingsRow {
+  tenant_id: string;
+  recurring_min_orders: number;
+  vip_min_orders: number;
+  vip_min_spent: number | string;
+  inactive_days: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SupabaseExpenseRow {
@@ -1009,6 +1064,7 @@ export function mapOnlineOrderRow(
   return {
     id: row.id,
     tenantId: row.tenant_id,
+    customerId: row.customer_id ?? null,
     orderNumber,
     orderCode: String(row.order_code || formatOrderNumber(orderNumber)),
     tokenHash: String(row.tracking_token_hash || ''),
@@ -1170,4 +1226,167 @@ export function mapPublicOrderTrackingRpcResponse(
     statusHistory,
   };
 }
+
+// ==================== MGW DELIVERY — CLIENTES ====================
+
+export function mapDeliveryCustomerRow(
+  row: SupabaseDeliveryCustomerRow,
+): DeliveryCustomerRecord {
+  const phone = String(row.phone || '');
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    name: String(row.name || '').trim(),
+    phone,
+    normalizedPhone: String(row.normalized_phone || normalizeCustomerPhone(phone)),
+    email: String(row.email || ''),
+    cpf: String(row.cpf || ''),
+    birthDate: row.birth_date ? String(row.birth_date).slice(0, 10) : null,
+    notes: String(row.notes || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function buildDeliveryCustomerPayloadForSupabase(
+  input: DeliveryCustomerInput,
+): {
+  name: string;
+  phone: string;
+  normalized_phone: string;
+  email: string;
+  cpf: string;
+  birth_date: string | null;
+  notes: string;
+} {
+  const name = String(input.name || '').trim().slice(0, 120);
+  if (name.length < 2) {
+    throw new Error('Informe o nome completo do cliente (mínimo 2 caracteres).');
+  }
+
+  const rawPhone = String(input.phone || '').trim().slice(0, 32);
+  if (!isValidCustomerPhone(rawPhone)) {
+    throw new Error('Informe um telefone/WhatsApp válido com DDD.');
+  }
+  const normalizedPhone = normalizeCustomerPhone(rawPhone);
+
+  const email = String(input.email || '').trim().toLowerCase().slice(0, 160);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Informe um e-mail válido ou deixe o campo em branco.');
+  }
+
+  const cpfDigits = String(input.cpf || '').replace(/\D/g, '').slice(0, 14);
+  if (!isValidOptionalCpf(cpfDigits)) {
+    throw new Error('O CPF informado é inválido. Deixe em branco se não desejar informar.');
+  }
+
+  let birthDate: string | null = null;
+  const rawBirth = String(input.birthDate || '').trim();
+  if (rawBirth) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawBirth)) {
+      throw new Error('Data de nascimento inválida. Use AAAA-MM-DD.');
+    }
+    birthDate = rawBirth;
+  }
+
+  return {
+    name,
+    phone: rawPhone,
+    normalized_phone: normalizedPhone,
+    email,
+    cpf: cpfDigits,
+    birth_date: birthDate,
+    notes: String(input.notes || '').trim().slice(0, 1000),
+  };
+}
+
+export function mapDeliveryCustomerAddressRow(
+  row: SupabaseDeliveryCustomerAddressRow,
+): DeliveryCustomerAddressRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    customerId: row.customer_id,
+    label: String(row.label || ''),
+    cep: String(row.cep || ''),
+    street: String(row.street || ''),
+    number: String(row.number || ''),
+    neighborhood: String(row.neighborhood || ''),
+    complement: String(row.complement || ''),
+    reference: String(row.reference || ''),
+    city: String(row.city || ''),
+    state: String(row.state || ''),
+    isPrimary: Boolean(row.is_primary),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function buildDeliveryCustomerAddressPayloadForSupabase(
+  input: DeliveryCustomerAddressInput,
+): {
+  label: string;
+  cep: string;
+  street: string;
+  number: string;
+  neighborhood: string;
+  complement: string;
+  reference: string;
+  city: string;
+  state: string;
+  is_primary: boolean;
+} {
+  const street = String(input.street || '').trim().slice(0, 200);
+  if (street.length < 3) {
+    throw new Error('Informe a rua/logradouro do endereço.');
+  }
+  const cepDigits = String(input.cep || '').replace(/\D/g, '').slice(0, 8);
+  const formattedCep =
+    cepDigits.length === 8
+      ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}`
+      : cepDigits;
+
+  return {
+    label: String(input.label || '').trim().slice(0, 40),
+    cep: formattedCep,
+    street,
+    number: String(input.number || '').trim().slice(0, 30),
+    neighborhood: String(input.neighborhood || '').trim().slice(0, 100),
+    complement: String(input.complement || '').trim().slice(0, 120),
+    reference: String(input.reference || '').trim().slice(0, 160),
+    city: String(input.city || '').trim().slice(0, 100),
+    state: String(input.state || '').trim().toUpperCase().slice(0, 10),
+    is_primary: Boolean(input.isPrimary),
+  };
+}
+
+export function mapDeliveryCustomerClassificationSettingsRow(
+  row?: SupabaseDeliveryCustomerClassificationSettingsRow | null,
+): DeliveryCustomerClassificationConfig {
+  if (!row) return { ...DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG };
+  return normalizeClassificationConfig({
+    recurringMinOrders: Number(row.recurring_min_orders),
+    vipMinOrders: Number(row.vip_min_orders),
+    vipMinSpent: Number(row.vip_min_spent),
+    inactiveDays: Number(row.inactive_days),
+  });
+}
+
+export function buildDeliveryCustomerClassificationPayloadForSupabase(
+  config: DeliveryCustomerClassificationConfig,
+): {
+  recurring_min_orders: number;
+  vip_min_orders: number;
+  vip_min_spent: number;
+  inactive_days: number;
+} {
+  const clean = normalizeClassificationConfig(config);
+  return {
+    recurring_min_orders: clean.recurringMinOrders,
+    vip_min_orders: clean.vipMinOrders,
+    vip_min_spent: clean.vipMinSpent,
+    inactive_days: clean.inactiveDays,
+  };
+}
+
 

@@ -3,6 +3,11 @@ import type {
   ComboRecord,
   CreatePublicOrderPayload,
   CreatePublicOrderResponse,
+  DeliveryCustomerAddressInput,
+  DeliveryCustomerAddressRecord,
+  DeliveryCustomerClassificationConfig,
+  DeliveryCustomerInput,
+  DeliveryCustomerRecord,
   DigitalMenuSettings,
   DigitalMenuSettingsInput,
   ExpenseInput,
@@ -20,6 +25,13 @@ import type {
   SaleRecord,
   ShopSettings,
 } from '../types/finance';
+import {
+  DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
+  isValidCustomerPhone,
+  isValidOptionalCpf,
+  normalizeClassificationConfig,
+  normalizeCustomerPhone,
+} from '../utils/deliveryCustomers';
 import { calculateSaleTotal, getLocalTodayDate, roundCurrency } from '../utils/finance';
 import {
   buildSaleInputFromCompletedOrder,
@@ -47,6 +59,9 @@ interface DemoState {
   sales: SaleRecord[];
   expenses: ExpenseRecord[];
   orders: OnlineOrderRecord[];
+  customers: DeliveryCustomerRecord[];
+  customerAddresses: DeliveryCustomerAddressRecord[];
+  customerClassificationConfig: DeliveryCustomerClassificationConfig;
   nextOrderSeq: number;
   tokensByHash: Record<string, string>;
 }
@@ -254,6 +269,9 @@ function createInitialDemoState(): DemoState {
     sales,
     expenses,
     orders: [],
+    customers: [],
+    customerAddresses: [],
+    customerClassificationConfig: { ...DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG },
     nextOrderSeq: 1,
     tokensByHash: {},
   };
@@ -268,11 +286,20 @@ function readDemoState(): DemoState {
       window.localStorage.setItem(DEMO_STORE_KEY, JSON.stringify(init));
       return init;
     }
-    const parsed = JSON.parse(raw) as DemoState;
+    const parsed = JSON.parse(raw) as Partial<DemoState>;
+    const baseInit = createInitialDemoState();
     return {
+      ...baseInit,
       ...parsed,
+      customers: Array.isArray(parsed.customers) ? parsed.customers : [],
+      customerAddresses: Array.isArray(parsed.customerAddresses)
+        ? parsed.customerAddresses
+        : [],
+      customerClassificationConfig: normalizeClassificationConfig(
+        parsed.customerClassificationConfig,
+      ),
       digitalMenu: {
-        ...DEFAULT_DIGITAL_MENU_SETTINGS,
+        ...baseInit.digitalMenu,
         ...parsed.digitalMenu,
         pixKey: normalizePixKeyInput(parsed.digitalMenu?.pixKey || ''),
       },
@@ -307,6 +334,9 @@ export function subscribeDemoAdminState(
     onSales: (s: SaleRecord[]) => void;
     onExpenses: (e: ExpenseRecord[]) => void;
     onOrders: (o: OnlineOrderRecord[]) => void;
+    onDeliveryCustomers?: (c: DeliveryCustomerRecord[]) => void;
+    onDeliveryCustomerAddresses?: (a: DeliveryCustomerAddressRecord[]) => void;
+    onCustomerClassificationConfig?: (cfg: DeliveryCustomerClassificationConfig) => void;
     onReady: () => void;
   },
 ): () => void {
@@ -320,6 +350,9 @@ export function subscribeDemoAdminState(
     callbacks.onSales(st.sales);
     callbacks.onExpenses(st.expenses);
     callbacks.onOrders(st.orders);
+    callbacks.onDeliveryCustomers?.(st.customers);
+    callbacks.onDeliveryCustomerAddresses?.(st.customerAddresses);
+    callbacks.onCustomerClassificationConfig?.(st.customerClassificationConfig);
     callbacks.onReady();
   };
   listeners.add(emit);
@@ -565,9 +598,73 @@ export const demoMutations = {
       };
     });
 
+    const normPhone = normalizeCustomerPhone(payload.customerPhone);
+    const existingCustomer = st.customers.find((c) => c.normalizedPhone === normPhone);
+    const customerId = existingCustomer?.id ?? `demo_cust_${now}_${Math.random().toString(36).slice(2, 6)}`;
+    let nextCustomers = st.customers;
+    let nextAddresses = st.customerAddresses;
+
+    if (!existingCustomer && normPhone.length >= 8) {
+      nextCustomers = [
+        {
+          id: customerId,
+          tenantId: 'mgw_lanches',
+          name: payload.customerName.trim(),
+          phone: payload.customerPhone.trim(),
+          normalizedPhone: normPhone,
+          email: '',
+          cpf: '',
+          birthDate: null,
+          notes: '',
+          createdAtMs: now,
+          updatedAtMs: now,
+        },
+        ...st.customers,
+      ];
+    } else if (existingCustomer) {
+      nextCustomers = st.customers.map((c) =>
+        c.id === existingCustomer.id ? { ...c, updatedAtMs: now } : c,
+      );
+    }
+
+    if (
+      payload.fulfillmentType === 'delivery' &&
+      payload.deliveryAddress.trim().length >= 5 &&
+      normPhone.length >= 8
+    ) {
+      const custAddrs = nextAddresses.filter((a) => a.customerId === customerId);
+      const cleanAddr = payload.deliveryAddress.trim().slice(0, 200);
+      const alreadyExists = custAddrs.some(
+        (a) => a.street.trim().toLowerCase() === cleanAddr.toLowerCase(),
+      );
+      if (!alreadyExists) {
+        nextAddresses = [
+          ...nextAddresses,
+          {
+            id: `demo_addr_${now}_${Math.random().toString(36).slice(2, 6)}`,
+            tenantId: 'mgw_lanches',
+            customerId,
+            label: custAddrs.length === 0 ? 'Principal' : 'Entrega',
+            cep: '',
+            street: cleanAddr,
+            number: '',
+            neighborhood: '',
+            complement: '',
+            reference: payload.deliveryReference.trim().slice(0, 160),
+            city: '',
+            state: '',
+            isPrimary: custAddrs.length === 0,
+            createdAtMs: now,
+            updatedAtMs: now,
+          },
+        ];
+      }
+    }
+
     const newOrder: OnlineOrderRecord = {
       id: orderId,
       tenantId: 'mgw_lanches',
+      customerId: normPhone.length >= 8 ? customerId : null,
       orderNumber,
       orderCode,
       tokenHash,
@@ -612,6 +709,8 @@ export const demoMutations = {
     writeDemoState({
       ...st,
       orders: [newOrder, ...st.orders],
+      customers: nextCustomers,
+      customerAddresses: nextAddresses,
       nextOrderSeq: orderNumber + 1,
       tokensByHash: { ...st.tokensByHash, [tokenHash]: orderId },
     });
@@ -791,6 +890,200 @@ export const demoMutations = {
       ...st,
       orders: st.orders.map((o) => (o.id === orderId ? updatedOrder : o)),
       sales: nextSales,
+    });
+  },
+  createDeliveryCustomer(
+    input: DeliveryCustomerInput,
+    initialAddress?: DeliveryCustomerAddressInput | null,
+  ): string {
+    const st = readDemoState();
+    const name = input.name.trim();
+    if (name.length < 2) throw new Error('Informe o nome completo do cliente.');
+    if (!isValidCustomerPhone(input.phone)) {
+      throw new Error('Informe um telefone/WhatsApp válido com DDD.');
+    }
+    if (!isValidOptionalCpf(input.cpf)) {
+      throw new Error('O CPF informado é inválido.');
+    }
+    const normalizedPhone = normalizeCustomerPhone(input.phone);
+    if (st.customers.some((c) => c.normalizedPhone === normalizedPhone)) {
+      throw new Error('Já existe um cliente cadastrado com este telefone.');
+    }
+    const now = Date.now();
+    const id = `demo_cust_${now}`;
+    const nextCustomers: DeliveryCustomerRecord[] = [
+      {
+        id,
+        tenantId: 'mgw_lanches',
+        name,
+        phone: input.phone.trim(),
+        normalizedPhone,
+        email: (input.email || '').trim(),
+        cpf: (input.cpf || '').replace(/\D/g, ''),
+        birthDate: input.birthDate || null,
+        notes: (input.notes || '').trim(),
+        createdAtMs: now,
+        updatedAtMs: now,
+      },
+      ...st.customers,
+    ];
+    let nextAddresses = st.customerAddresses;
+    if (initialAddress && initialAddress.street.trim().length >= 3) {
+      nextAddresses = [
+        ...nextAddresses,
+        {
+          id: `demo_addr_${now}`,
+          tenantId: 'mgw_lanches',
+          customerId: id,
+          label: initialAddress.label?.trim() || 'Principal',
+          cep: initialAddress.cep?.trim() || '',
+          street: initialAddress.street.trim(),
+          number: initialAddress.number?.trim() || '',
+          neighborhood: initialAddress.neighborhood?.trim() || '',
+          complement: initialAddress.complement?.trim() || '',
+          reference: initialAddress.reference?.trim() || '',
+          city: initialAddress.city?.trim() || '',
+          state: initialAddress.state?.trim().toUpperCase() || '',
+          isPrimary: true,
+          createdAtMs: now,
+          updatedAtMs: now,
+        },
+      ];
+    }
+    writeDemoState({ ...st, customers: nextCustomers, customerAddresses: nextAddresses });
+    return id;
+  },
+  updateDeliveryCustomer(customerId: string, input: DeliveryCustomerInput) {
+    const st = readDemoState();
+    const name = input.name.trim();
+    if (name.length < 2) throw new Error('Informe o nome completo do cliente.');
+    if (!isValidCustomerPhone(input.phone)) {
+      throw new Error('Informe um telefone/WhatsApp válido com DDD.');
+    }
+    if (!isValidOptionalCpf(input.cpf)) {
+      throw new Error('O CPF informado é inválido.');
+    }
+    const normalizedPhone = normalizeCustomerPhone(input.phone);
+    if (
+      st.customers.some(
+        (c) => c.id !== customerId && c.normalizedPhone === normalizedPhone,
+      )
+    ) {
+      throw new Error('Já existe outro cliente cadastrado com este telefone.');
+    }
+    const now = Date.now();
+    writeDemoState({
+      ...st,
+      customers: st.customers.map((c) =>
+        c.id === customerId
+          ? {
+              ...c,
+              name,
+              phone: input.phone.trim(),
+              normalizedPhone,
+              email: (input.email || '').trim(),
+              cpf: (input.cpf || '').replace(/\D/g, ''),
+              birthDate: input.birthDate || null,
+              notes: (input.notes || '').trim(),
+              updatedAtMs: now,
+            }
+          : c,
+      ),
+    });
+  },
+  saveDeliveryCustomerAddress(
+    customerId: string,
+    input: DeliveryCustomerAddressInput,
+    addressId?: string,
+  ) {
+    const st = readDemoState();
+    const now = Date.now();
+    const street = input.street.trim();
+    if (street.length < 3) throw new Error('Informe a rua/logradouro do endereço.');
+    const existingForCustomer = st.customerAddresses.filter(
+      (a) => a.customerId === customerId,
+    );
+    const shouldBePrimary = Boolean(input.isPrimary) || existingForCustomer.length === 0;
+    let nextAddresses = st.customerAddresses.map((a) =>
+      shouldBePrimary && a.customerId === customerId && a.id !== addressId
+        ? { ...a, isPrimary: false }
+        : a,
+    );
+    if (addressId) {
+      nextAddresses = nextAddresses.map((a) =>
+        a.id === addressId
+          ? {
+              ...a,
+              label: input.label?.trim() || '',
+              cep: input.cep?.trim() || '',
+              street,
+              number: input.number?.trim() || '',
+              neighborhood: input.neighborhood?.trim() || '',
+              complement: input.complement?.trim() || '',
+              reference: input.reference?.trim() || '',
+              city: input.city?.trim() || '',
+              state: input.state?.trim().toUpperCase() || '',
+              isPrimary: shouldBePrimary ? true : a.isPrimary,
+              updatedAtMs: now,
+            }
+          : a,
+      );
+    } else {
+      nextAddresses = [
+        ...nextAddresses,
+        {
+          id: `demo_addr_${now}`,
+          tenantId: 'mgw_lanches',
+          customerId,
+          label: input.label?.trim() || '',
+          cep: input.cep?.trim() || '',
+          street,
+          number: input.number?.trim() || '',
+          neighborhood: input.neighborhood?.trim() || '',
+          complement: input.complement?.trim() || '',
+          reference: input.reference?.trim() || '',
+          city: input.city?.trim() || '',
+          state: input.state?.trim().toUpperCase() || '',
+          isPrimary: shouldBePrimary,
+          createdAtMs: now,
+          updatedAtMs: now,
+        },
+      ];
+    }
+    writeDemoState({ ...st, customerAddresses: nextAddresses });
+  },
+  deleteDeliveryCustomerAddress(customerId: string, addressId: string) {
+    const st = readDemoState();
+    const remaining = st.customerAddresses.filter((a) => a.id !== addressId);
+    const custLeft = remaining.filter((a) => a.customerId === customerId);
+    if (custLeft.length > 0 && !custLeft.some((a) => a.isPrimary)) {
+      const firstId = custLeft[0].id;
+      writeDemoState({
+        ...st,
+        customerAddresses: remaining.map((a) =>
+          a.id === firstId ? { ...a, isPrimary: true } : a,
+        ),
+      });
+      return;
+    }
+    writeDemoState({ ...st, customerAddresses: remaining });
+  },
+  setPrimaryDeliveryCustomerAddress(customerId: string, addressId: string) {
+    const st = readDemoState();
+    writeDemoState({
+      ...st,
+      customerAddresses: st.customerAddresses.map((a) =>
+        a.customerId === customerId
+          ? { ...a, isPrimary: a.id === addressId }
+          : a,
+      ),
+    });
+  },
+  saveCustomerClassificationConfig(config: DeliveryCustomerClassificationConfig) {
+    const st = readDemoState();
+    writeDemoState({
+      ...st,
+      customerClassificationConfig: normalizeClassificationConfig(config),
     });
   },
 };

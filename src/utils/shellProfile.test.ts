@@ -24,10 +24,12 @@ test('getUserInitials extracts up to two uppercase initials safely', () => {
 test('resolveShellPageTitle and resolveActiveShellNavId differentiate Produtos and Configurações', () => {
   assert.equal(resolveShellPageTitle('dashboard', 'shop'), 'Dashboard');
   assert.equal(resolveShellPageTitle('orders', 'shop'), 'Pedidos');
+  assert.equal(resolveShellPageTitle('delivery', 'shop'), 'MGW Delivery');
   assert.equal(resolveShellPageTitle('settings', 'catalog'), 'Produtos');
   assert.equal(resolveShellPageTitle('settings', 'shop'), 'Configurações');
   assert.equal(resolveShellPageTitle('settings', 'digital_menu'), 'Configurações');
 
+  assert.equal(resolveActiveShellNavId('delivery', 'shop'), 'delivery');
   assert.equal(resolveActiveShellNavId('settings', 'catalog'), 'products');
   assert.equal(resolveActiveShellNavId('settings', 'shop'), 'settings');
   assert.equal(resolveActiveShellNavId('dashboard', 'catalog'), 'dashboard');

@@ -6,6 +6,11 @@ import {
   type CreatePublicOrderPayload,
   type CreatePublicOrderResponse,
   DEFAULT_SHOP_SETTINGS,
+  type DeliveryCustomerAddressInput,
+  type DeliveryCustomerAddressRecord,
+  type DeliveryCustomerClassificationConfig,
+  type DeliveryCustomerInput,
+  type DeliveryCustomerRecord,
   type DigitalMenuSettings,
   type DigitalMenuSettingsInput,
   type ExpenseInput,
@@ -25,6 +30,10 @@ import {
   type TenantContext,
   type WorkspaceAccess,
 } from '../types/finance';
+import {
+  DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
+  hasNonEmptyAddressFields,
+} from '../utils/deliveryCustomers';
 import { roundCurrency } from '../utils/finance';
 import {
   DEFAULT_DIGITAL_MENU_SETTINGS,
@@ -36,6 +45,9 @@ import { getSupabaseClient } from '../lib/supabase';
 import { hasTenantPermission } from './rbacPolicy';
 import {
   buildComboPayloadForSupabase,
+  buildDeliveryCustomerAddressPayloadForSupabase,
+  buildDeliveryCustomerClassificationPayloadForSupabase,
+  buildDeliveryCustomerPayloadForSupabase,
   buildDigitalMenuSettingsPayloadForSupabase,
   buildExpensePayloadForSupabase,
   buildProductPayloadForSupabase,
@@ -43,6 +55,9 @@ import {
   buildSettingsPayloadForSupabase,
   buildTenantContextFromRows,
   mapComboRow,
+  mapDeliveryCustomerAddressRow,
+  mapDeliveryCustomerClassificationSettingsRow,
+  mapDeliveryCustomerRow,
   mapDigitalMenuSettingsRow,
   mapExpenseRow,
   mapOnlineOrderItemRow,
@@ -55,6 +70,9 @@ import {
   mapShopSettingsRow,
   mapSupabaseAuthErrorMessage,
   type SupabaseComboRow,
+  type SupabaseDeliveryCustomerAddressRow,
+  type SupabaseDeliveryCustomerClassificationSettingsRow,
+  type SupabaseDeliveryCustomerRow,
   type SupabaseDigitalMenuSettingsRow,
   type SupabaseExpenseRow,
   type SupabaseOnlineOrderItemRow,
@@ -82,6 +100,9 @@ export interface DataSubscriptionsCallbacks {
   onSales: (sales: SaleRecord[]) => void;
   onExpenses: (expenses: ExpenseRecord[]) => void;
   onOnlineOrders?: (orders: OnlineOrderRecord[]) => void;
+  onDeliveryCustomers?: (customers: DeliveryCustomerRecord[]) => void;
+  onDeliveryCustomerAddresses?: (addresses: DeliveryCustomerAddressRecord[]) => void;
+  onCustomerClassificationConfig?: (config: DeliveryCustomerClassificationConfig) => void;
   onReady: () => void;
   onError: (err: Error) => void;
 }
@@ -496,6 +517,9 @@ export function subscribeAllTenantData(
       onSales: callbacks.onSales,
       onExpenses: callbacks.onExpenses,
       onOrders: (o) => callbacks.onOnlineOrders?.(o),
+      onDeliveryCustomers: (c) => callbacks.onDeliveryCustomers?.(c),
+      onDeliveryCustomerAddresses: (a) => callbacks.onDeliveryCustomerAddresses?.(a),
+      onCustomerClassificationConfig: (cfg) => callbacks.onCustomerClassificationConfig?.(cfg),
       onReady: callbacks.onReady,
     });
   }
@@ -514,6 +538,8 @@ export function subscribeAllTenantData(
   const tenantId = ctx.tenant.tenantId;
   const canReadSales = hasTenantPermission(ctx.tenant.role, 'sales:read');
   const canReadExpenses = hasTenantPermission(ctx.tenant.role, 'expenses:read');
+  const canAccessDelivery =
+    hasTenantPermission(ctx.tenant.role, 'delivery:view') && canReadSales;
   let active = true;
 
   const fetchSettings = async () => {
@@ -728,6 +754,79 @@ export function subscribeAllTenantData(
     }
   };
 
+  const fetchDeliveryCustomersData = async () => {
+    if (
+      !callbacks.onDeliveryCustomers &&
+      !callbacks.onDeliveryCustomerAddresses &&
+      !callbacks.onCustomerClassificationConfig
+    ) {
+      return;
+    }
+    if (!canAccessDelivery) {
+      if (active) {
+        callbacks.onDeliveryCustomers?.([]);
+        callbacks.onDeliveryCustomerAddresses?.([]);
+        callbacks.onCustomerClassificationConfig?.({
+          ...DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
+        });
+      }
+      return;
+    }
+
+    const [customersRes, addressesRes, configRes] = await Promise.all([
+      supabase
+        .from('delivery_customers')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('name', { ascending: true }),
+      supabase
+        .from('delivery_customer_addresses')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('is_primary', { ascending: false })
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('delivery_customer_classification_settings')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .maybeSingle(),
+    ]);
+
+    if (customersRes.error) {
+      if (customersRes.error.message.toLowerCase().includes('does not exist')) {
+        if (active) {
+          callbacks.onDeliveryCustomers?.([]);
+          callbacks.onDeliveryCustomerAddresses?.([]);
+          callbacks.onCustomerClassificationConfig?.({
+            ...DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
+          });
+        }
+        return;
+      }
+      throw new Error(customersRes.error.message);
+    }
+
+    if (!active) return;
+
+    const mappedCustomers = (
+      (customersRes.data ?? []) as SupabaseDeliveryCustomerRow[]
+    ).map(mapDeliveryCustomerRow);
+    const mappedAddresses = addressesRes.error
+      ? []
+      : (
+          (addressesRes.data ?? []) as SupabaseDeliveryCustomerAddressRow[]
+        ).map(mapDeliveryCustomerAddressRow);
+    const mappedConfig = configRes.error
+      ? { ...DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG }
+      : mapDeliveryCustomerClassificationSettingsRow(
+          configRes.data as SupabaseDeliveryCustomerClassificationSettingsRow | null,
+        );
+
+    callbacks.onDeliveryCustomers?.(mappedCustomers);
+    callbacks.onDeliveryCustomerAddresses?.(mappedAddresses);
+    callbacks.onCustomerClassificationConfig?.(mappedConfig);
+  };
+
   const fetchAll = async () => {
     try {
       await Promise.all([
@@ -738,6 +837,7 @@ export function subscribeAllTenantData(
         fetchSales(),
         fetchExpenses(),
         fetchOnlineOrders(),
+        fetchDeliveryCustomersData(),
       ]);
       if (active) callbacks.onReady();
     } catch (err) {
@@ -788,7 +888,14 @@ export function subscribeAllTenantData(
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'online_orders', filter: `tenant_id=eq.${tenantId}` },
-        () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
+        () => {
+          void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error));
+          if (canAccessDelivery) {
+            void fetchDeliveryCustomersData().catch(
+              (e) => active && callbacks.onError(e as Error),
+            );
+          }
+        },
       )
       .on(
         'postgres_changes',
@@ -799,6 +906,30 @@ export function subscribeAllTenantData(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'online_order_status_history', filter: `tenant_id=eq.${tenantId}` },
         () => void fetchOnlineOrders().catch((e) => active && callbacks.onError(e as Error)),
+      );
+  }
+
+  if (canAccessDelivery) {
+    channel = channel
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'delivery_customers', filter: `tenant_id=eq.${tenantId}` },
+        () => void fetchDeliveryCustomersData().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'delivery_customer_addresses', filter: `tenant_id=eq.${tenantId}` },
+        () => void fetchDeliveryCustomersData().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_customer_classification_settings',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => void fetchDeliveryCustomersData().catch((e) => active && callbacks.onError(e as Error)),
       );
   }
 
@@ -1385,3 +1516,262 @@ export function subscribePublicOrderTracking(
     clearTimer: options?.clearTimer,
   });
 }
+
+// ==================== MGW DELIVERY — GESTÃO DE CLIENTES ====================
+
+function assertDeliveryCustomerPermission(ctx: DataExecutionContext): void {
+  if (
+    !hasTenantPermission(ctx.tenant.role, 'delivery:view') ||
+    !hasTenantPermission(ctx.tenant.role, 'sales:read')
+  ) {
+    throw new Error('Permissão insuficiente para gerenciar clientes do delivery.');
+  }
+}
+
+function mapDeliveryCustomerMutationError(message: string): Error {
+  const lower = message.toLowerCase();
+  if (
+    lower.includes('uniq_delivery_customers_tenant_phone') ||
+    lower.includes('duplicate key')
+  ) {
+    return new Error('Já existe um cliente cadastrado com este telefone neste estabelecimento.');
+  }
+  return new Error(message);
+}
+
+export async function createDeliveryCustomer(
+  ctx: DataExecutionContext,
+  input: DeliveryCustomerInput,
+  initialAddress?: DeliveryCustomerAddressInput | null,
+): Promise<string> {
+  assertDeliveryCustomerPermission(ctx);
+  if (isDemoSandboxActive()) {
+    return demoMutations.createDeliveryCustomer(input, initialAddress);
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDeliveryCustomerPayloadForSupabase(input);
+  const { data, error } = await supabase
+    .from('delivery_customers')
+    .insert({
+      tenant_id: ctx.tenant.tenantId,
+      ...payload,
+    })
+    .select('id')
+    .single();
+
+  if (error) throw mapDeliveryCustomerMutationError(error.message);
+  const customerId = String((data as { id: string }).id);
+
+  if (initialAddress && hasNonEmptyAddressFields(initialAddress)) {
+    const addrPayload = buildDeliveryCustomerAddressPayloadForSupabase({
+      ...initialAddress,
+      label: initialAddress.label || 'Principal',
+      isPrimary: true,
+    });
+    const { error: addrError } = await supabase
+      .from('delivery_customer_addresses')
+      .insert({
+        tenant_id: ctx.tenant.tenantId,
+        customer_id: customerId,
+        ...addrPayload,
+      });
+    if (addrError) {
+      notifyTenantRefresh(ctx.tenant.tenantId);
+      throw new Error(
+        `Cliente salvo, mas não foi possível registrar o endereço inicial: ${addrError.message}`,
+      );
+    }
+  }
+
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  return customerId;
+}
+
+export async function updateDeliveryCustomer(
+  ctx: DataExecutionContext,
+  customerId: string,
+  input: DeliveryCustomerInput,
+): Promise<void> {
+  assertDeliveryCustomerPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.updateDeliveryCustomer(customerId, input);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDeliveryCustomerPayloadForSupabase(input);
+  const { error } = await supabase
+    .from('delivery_customers')
+    .update(payload)
+    .eq('id', customerId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw mapDeliveryCustomerMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function saveDeliveryCustomerAddress(
+  ctx: DataExecutionContext,
+  customerId: string,
+  input: DeliveryCustomerAddressInput,
+  addressId?: string,
+  hasExistingAddresses = true,
+): Promise<void> {
+  assertDeliveryCustomerPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.saveDeliveryCustomerAddress(customerId, input, addressId);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const wantPrimary = Boolean(input.isPrimary) || (!addressId && !hasExistingAddresses);
+  const payload = buildDeliveryCustomerAddressPayloadForSupabase({
+    ...input,
+    isPrimary: addressId ? false : wantPrimary && !hasExistingAddresses,
+  });
+
+  if (addressId) {
+    const { error } = await supabase
+      .from('delivery_customer_addresses')
+      .update({
+        label: payload.label,
+        cep: payload.cep,
+        street: payload.street,
+        number: payload.number,
+        neighborhood: payload.neighborhood,
+        complement: payload.complement,
+        reference: payload.reference,
+        city: payload.city,
+        state: payload.state,
+      })
+      .eq('id', addressId)
+      .eq('customer_id', customerId)
+      .eq('tenant_id', ctx.tenant.tenantId);
+    if (error) throw new Error(error.message);
+
+    if (wantPrimary) {
+      const { error: rpcError } = await supabase.rpc(
+        'set_primary_delivery_customer_address',
+        {
+          p_tenant_id: ctx.tenant.tenantId,
+          p_customer_id: customerId,
+          p_address_id: addressId,
+        },
+      );
+      if (rpcError) throw new Error(rpcError.message);
+    }
+  } else {
+    const { data, error } = await supabase
+      .from('delivery_customer_addresses')
+      .insert({
+        tenant_id: ctx.tenant.tenantId,
+        customer_id: customerId,
+        ...payload,
+        is_primary: !hasExistingAddresses,
+      })
+      .select('id')
+      .single();
+    if (error) throw new Error(error.message);
+
+    if (wantPrimary && hasExistingAddresses && data) {
+      const newId = String((data as { id: string }).id);
+      const { error: rpcError } = await supabase.rpc(
+        'set_primary_delivery_customer_address',
+        {
+          p_tenant_id: ctx.tenant.tenantId,
+          p_customer_id: customerId,
+          p_address_id: newId,
+        },
+      );
+      if (rpcError) throw new Error(rpcError.message);
+    }
+  }
+
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function deleteDeliveryCustomerAddress(
+  ctx: DataExecutionContext,
+  customerId: string,
+  addressId: string,
+  remainingAddresses: DeliveryCustomerAddressRecord[] = [],
+): Promise<void> {
+  assertDeliveryCustomerPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.deleteDeliveryCustomerAddress(customerId, addressId);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('delivery_customer_addresses')
+    .delete()
+    .eq('id', addressId)
+    .eq('customer_id', customerId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw new Error(error.message);
+
+  const others = remainingAddresses.filter((a) => a.id !== addressId);
+  if (others.length > 0 && !others.some((a) => a.isPrimary)) {
+    const { error: rpcError } = await supabase.rpc(
+      'set_primary_delivery_customer_address',
+      {
+        p_tenant_id: ctx.tenant.tenantId,
+        p_customer_id: customerId,
+        p_address_id: others[0].id,
+      },
+    );
+    if (rpcError) throw new Error(rpcError.message);
+  }
+
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function setPrimaryDeliveryCustomerAddress(
+  ctx: DataExecutionContext,
+  customerId: string,
+  addressId: string,
+): Promise<void> {
+  assertDeliveryCustomerPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.setPrimaryDeliveryCustomerAddress(customerId, addressId);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('set_primary_delivery_customer_address', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_customer_id: customerId,
+    p_address_id: addressId,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function saveCustomerClassificationConfig(
+  ctx: DataExecutionContext,
+  config: DeliveryCustomerClassificationConfig,
+): Promise<void> {
+  assertDeliveryCustomerPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.saveCustomerClassificationConfig(config);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDeliveryCustomerClassificationPayloadForSupabase(config);
+  const { error } = await supabase
+    .from('delivery_customer_classification_settings')
+    .upsert(
+      {
+        tenant_id: ctx.tenant.tenantId,
+        ...payload,
+      },
+      { onConflict: 'tenant_id' },
+    );
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+

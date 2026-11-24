@@ -16,7 +16,9 @@ import {
   addProduct,
   addSale,
   completeTenantOnboarding,
+  createDeliveryCustomer,
   type DataExecutionContext,
+  deleteDeliveryCustomerAddress,
   deleteExpense,
   deleteSale,
   loginWithEmailPassword,
@@ -26,13 +28,17 @@ import {
   requestPasswordReset,
   updateAccountPassword,
   registerWithEmailPassword,
+  saveCustomerClassificationConfig,
+  saveDeliveryCustomerAddress,
   saveDigitalMenuSettings,
   saveSettings,
   seedDefaultCatalog,
+  setPrimaryDeliveryCustomerAddress,
   subscribeAllTenantData,
   subscribeAuthSession,
   transitionOnlineOrderStatus,
   updateCombo,
+  updateDeliveryCustomer,
   updateExpense,
   updateProduct,
   updateSale,
@@ -43,6 +49,11 @@ import {
   type AuthSessionUser,
   type ComboInput,
   type ComboRecord,
+  type DeliveryCustomerAddressInput,
+  type DeliveryCustomerAddressRecord,
+  type DeliveryCustomerClassificationConfig,
+  type DeliveryCustomerInput,
+  type DeliveryCustomerRecord,
   DEFAULT_SHOP_SETTINGS,
   type DigitalMenuSettings,
   type DigitalMenuSettingsInput,
@@ -58,6 +69,7 @@ import {
   type TenantContext,
   type WorkspaceAccess,
 } from './types/finance';
+import { DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG } from './utils/deliveryCustomers';
 import {
   formatCurrencyBRL,
   isLikelyDuplicateExpense,
@@ -88,6 +100,8 @@ import {
   unlockAlertAudio,
 } from './utils/soundAlert';
 import { DashboardView } from './components/DashboardView';
+import { DeliveryCustomersView } from './components/DeliveryCustomersView';
+import { DeliveryDashboardView } from './components/DeliveryDashboardView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { ExpensesView } from './components/ExpensesView';
 import { LoginScreen } from './components/LoginScreen';
@@ -230,6 +244,14 @@ export default function App() {
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [combos, setCombos] = useState<ComboRecord[]>([]);
   const [onlineOrders, setOnlineOrders] = useState<OnlineOrderRecord[]>([]);
+  const [deliveryCustomers, setDeliveryCustomers] = useState<DeliveryCustomerRecord[]>([]);
+  const [deliveryCustomerAddresses, setDeliveryCustomerAddresses] = useState<
+    DeliveryCustomerAddressRecord[]
+  >([]);
+  const [customerClassificationConfig, setCustomerClassificationConfig] =
+    useState<DeliveryCustomerClassificationConfig>(
+      DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
+    );
   const [settings, setSettings] = useState<ShopSettings>({
     ownerId: '',
     ...DEFAULT_SHOP_SETTINGS,
@@ -614,6 +636,9 @@ export default function App() {
       setProducts([]);
       setCombos([]);
       setOnlineOrders([]);
+      setDeliveryCustomers([]);
+      setDeliveryCustomerAddresses([]);
+      setCustomerClassificationConfig(DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG);
       setSettings({ ownerId: '', ...DEFAULT_SHOP_SETTINGS });
       setDigitalMenuSettings({
         tenantId: '',
@@ -637,6 +662,9 @@ export default function App() {
       setProducts([]);
       setCombos([]);
       setOnlineOrders([]);
+      setDeliveryCustomers([]);
+      setDeliveryCustomerAddresses([]);
+      setCustomerClassificationConfig(DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG);
       setSettings({
         ownerId: dataContext.user.uid,
         ...DEFAULT_SHOP_SETTINGS,
@@ -662,6 +690,9 @@ export default function App() {
       onSales: setSales,
       onExpenses: setExpenses,
       onOnlineOrders: setOnlineOrders,
+      onDeliveryCustomers: setDeliveryCustomers,
+      onDeliveryCustomerAddresses: setDeliveryCustomerAddresses,
+      onCustomerClassificationConfig: setCustomerClassificationConfig,
       onReady: () => {
         setDataLoading(false);
         const pending = ordersRefreshPromiseRef.current;
@@ -1024,6 +1055,74 @@ export default function App() {
     showToast('Produtos base e Combos 1 a 4 criados.');
   }
 
+  async function handleCreateDeliveryCustomer(
+    input: DeliveryCustomerInput,
+    initialAddress?: DeliveryCustomerAddressInput | null,
+  ): Promise<string> {
+    if (!dataContext) return '';
+    const id = await createDeliveryCustomer(dataContext, input, initialAddress);
+    showToast('Cliente cadastrado com sucesso.');
+    return id;
+  }
+
+  async function handleUpdateDeliveryCustomer(
+    customerId: string,
+    input: DeliveryCustomerInput,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await updateDeliveryCustomer(dataContext, customerId, input);
+    showToast('Dados do cliente atualizados.');
+  }
+
+  async function handleSaveDeliveryCustomerAddress(
+    customerId: string,
+    input: DeliveryCustomerAddressInput,
+    addressId?: string,
+    hasExistingAddresses?: boolean,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await saveDeliveryCustomerAddress(
+      dataContext,
+      customerId,
+      input,
+      addressId,
+      hasExistingAddresses,
+    );
+    showToast('Endereço salvo.');
+  }
+
+  async function handleDeleteDeliveryCustomerAddress(
+    customerId: string,
+    addressId: string,
+    remainingAddresses: DeliveryCustomerAddressRecord[],
+  ): Promise<void> {
+    if (!dataContext) return;
+    await deleteDeliveryCustomerAddress(
+      dataContext,
+      customerId,
+      addressId,
+      remainingAddresses,
+    );
+    showToast('Endereço removido.');
+  }
+
+  async function handleSetPrimaryDeliveryCustomerAddress(
+    customerId: string,
+    addressId: string,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await setPrimaryDeliveryCustomerAddress(dataContext, customerId, addressId);
+    showToast('Endereço principal atualizado.');
+  }
+
+  async function handleSaveCustomerClassificationConfig(
+    config: DeliveryCustomerClassificationConfig,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await saveCustomerClassificationConfig(dataContext, config);
+    showToast('Critérios de classificação atualizados.');
+  }
+
   if (publicRoute.kind === 'menu') {
     return (
       <PublicMenuView
@@ -1161,6 +1260,8 @@ export default function App() {
 
   const canViewDashboard = hasTenantPermission(activeTenant.role, 'dashboard:view');
   const canReadSales = hasTenantPermission(activeTenant.role, 'sales:read');
+  const canAccessDelivery =
+    hasTenantPermission(activeTenant.role, 'delivery:view') && canReadSales;
   const canCreateSales = hasTenantPermission(activeTenant.role, 'sales:create');
   const canEditSales = hasTenantPermission(activeTenant.role, 'sales:update');
   const canDeleteSales = hasTenantPermission(activeTenant.role, 'sales:delete');
@@ -1176,6 +1277,10 @@ export default function App() {
   const visibleRouteIds: AppRoute[] = [];
   if (canViewDashboard) visibleRouteIds.push('dashboard');
   if (canReadSales) visibleRouteIds.push('orders');
+  if (canAccessDelivery) {
+    visibleRouteIds.push('delivery');
+    visibleRouteIds.push('delivery_customers');
+  }
   if (canReadSales || canCreateSales) visibleRouteIds.push('sales');
   if (canReadExpenses) visibleRouteIds.push('expenses');
   if (canViewReports) visibleRouteIds.push('reports');
@@ -1315,6 +1420,7 @@ export default function App() {
         setRoute(nextRoute);
       }}
       canViewDashboard={canViewDashboard}
+      canAccessDelivery={canAccessDelivery}
       canReadSales={canReadSales}
       canCreateSales={canCreateSales}
       canReadExpenses={canReadExpenses}
@@ -1349,6 +1455,8 @@ export default function App() {
       {dataLoading &&
       effectiveRoute !== 'dashboard' &&
       effectiveRoute !== 'orders' &&
+      effectiveRoute !== 'delivery' &&
+      effectiveRoute !== 'delivery_customers' &&
       effectiveRoute !== 'sales' &&
       effectiveRoute !== 'expenses' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -1417,6 +1525,59 @@ export default function App() {
                 setSettingsInitialTab(canWriteSettings ? 'digital_menu' : 'catalog');
                 setRoute('settings');
               }}
+            />
+          )}
+
+          {effectiveRoute === 'delivery' && canAccessDelivery && (
+            <DeliveryDashboardView
+              establishmentName={
+                digitalMenuSettings.storeName ||
+                settings.establishmentName ||
+                activeTenant.name
+              }
+              orders={onlineOrders}
+              customers={deliveryCustomers}
+              digitalMenuSettings={digitalMenuSettings}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              canOpenOrders={canReadSales}
+              canManageDigitalMenu={canWriteSettings}
+              onRefreshOrders={handleRefreshOrders}
+              onOpenOrders={() => {
+                if (canReadSales) setRoute('orders');
+              }}
+              onOpenCustomers={() => setRoute('delivery_customers')}
+              onOpenDigitalMenuSettings={() => {
+                if (!canWriteSettings) return;
+                setSettingsInitialTab('digital_menu');
+                setRoute('settings');
+              }}
+            />
+          )}
+
+          {effectiveRoute === 'delivery_customers' && canAccessDelivery && (
+            <DeliveryCustomersView
+              establishmentName={
+                digitalMenuSettings.storeName ||
+                settings.establishmentName ||
+                activeTenant.name
+              }
+              customers={deliveryCustomers}
+              addresses={deliveryCustomerAddresses}
+              orders={onlineOrders}
+              classificationConfig={customerClassificationConfig}
+              digitalMenuSettings={digitalMenuSettings}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              onRefresh={handleRefreshOrders}
+              onCreateCustomer={handleCreateDeliveryCustomer}
+              onUpdateCustomer={handleUpdateDeliveryCustomer}
+              onSaveAddress={handleSaveDeliveryCustomerAddress}
+              onDeleteAddress={handleDeleteDeliveryCustomerAddress}
+              onSetPrimaryAddress={handleSetPrimaryDeliveryCustomerAddress}
+              onSaveClassificationConfig={handleSaveCustomerClassificationConfig}
+              onMarkOrderViewed={handleMarkOnlineOrderViewed}
+              onTransitionOrderStatus={handleTransitionOnlineOrderStatus}
             />
           )}
 

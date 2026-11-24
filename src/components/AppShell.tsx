@@ -8,12 +8,14 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Motorbike,
   Package,
   Plus,
   Receipt,
   Settings,
   ShoppingBag,
   Store,
+  Users,
   X,
 } from 'lucide-react';
 import { ROLE_LABELS_PT } from '../services/rbacPolicy';
@@ -35,7 +37,7 @@ export interface AppShellNavItem {
   id: ShellNavId;
   route: AppRoute;
   settingsTab?: SettingsTabKind;
-  section: 'main' | 'catalog_settings';
+  section: 'main' | 'delivery' | 'catalog_settings';
   label: string;
   mobileLabel: string;
   icon: typeof LayoutDashboard;
@@ -46,6 +48,7 @@ interface AppShellProps {
   activeSettingsTab: SettingsTabKind;
   onNavigate: (route: AppRoute, settingsTab?: SettingsTabKind) => void;
   canViewDashboard: boolean;
+  canAccessDelivery?: boolean;
   canReadSales: boolean;
   canCreateSales: boolean;
   canReadExpenses: boolean;
@@ -115,6 +118,7 @@ export function AppShell({
   activeSettingsTab,
   onNavigate,
   canViewDashboard,
+  canAccessDelivery = false,
   canReadSales,
   canCreateSales,
   canReadExpenses,
@@ -233,6 +237,24 @@ export function AppShell({
         icon: BarChart3,
       });
     }
+    if (canAccessDelivery) {
+      items.push({
+        id: 'delivery',
+        route: 'delivery',
+        section: 'delivery',
+        label: 'MGW Delivery',
+        mobileLabel: 'Delivery',
+        icon: Motorbike,
+      });
+      items.push({
+        id: 'delivery_customers',
+        route: 'delivery_customers',
+        section: 'delivery',
+        label: 'Clientes',
+        mobileLabel: 'Clientes',
+        icon: Users,
+      });
+    }
     if (canAccessSettingsRoute) {
       items.push({
         id: 'products',
@@ -256,6 +278,7 @@ export function AppShell({
     return items;
   }, [
     canViewDashboard,
+    canAccessDelivery,
     canReadSales,
     canCreateSales,
     canReadExpenses,
@@ -268,6 +291,10 @@ export function AppShell({
     () => sidebarItems.filter((item) => item.section === 'main'),
     [sidebarItems],
   );
+  const deliverySectionItems = useMemo(
+    () => sidebarItems.filter((item) => item.section === 'delivery'),
+    [sidebarItems],
+  );
   const secondarySectionItems = useMemo(
     () => sidebarItems.filter((item) => item.section === 'catalog_settings'),
     [sidebarItems],
@@ -275,7 +302,15 @@ export function AppShell({
 
   // Barra inferior mobile mantém até 6 destinos diretos sem apertar os botões
   const mobileBottomItems = useMemo(
-    () => sidebarItems.filter((item) => item.id !== 'products').slice(0, 6),
+    () =>
+      sidebarItems
+        .filter(
+          (item) =>
+            item.id !== 'products' &&
+            item.id !== 'delivery' &&
+            item.id !== 'delivery_customers',
+        )
+        .slice(0, 6),
     [sidebarItems],
   );
 
@@ -320,6 +355,7 @@ export function AppShell({
   function renderNavItem(item: AppShellNavItem, collapsed: boolean) {
     const Icon = item.icon;
     const active = activeNavId === item.id;
+    const isDeliveryModule = item.section === 'delivery';
     const showOrdersBadge = item.id === 'orders' && unviewedOrdersCount > 0;
     return (
       <button
@@ -333,7 +369,9 @@ export function AppShell({
         } rounded-xl flex items-center gap-2.5 text-[13.5px] whitespace-nowrap cursor-pointer transition-all duration-150 ${
           active
             ? 'mgw-nav-item-active text-[#172033]'
-            : 'text-[#778094] font-medium hover:text-[#172033] hover:bg-[#F5F6FA]'
+            : isDeliveryModule
+              ? 'text-[#172033] font-semibold bg-[#FFFBEB]/65 border border-[#FDE68A]/70 hover:bg-[#FFFBEB]'
+              : 'text-[#778094] font-medium hover:text-[#172033] hover:bg-[#F5F6FA]'
         }`}
       >
         <span className="inline-flex items-center gap-3 min-w-0">
@@ -341,7 +379,9 @@ export function AppShell({
             className={`w-[18px] h-[18px] shrink-0 transition-colors ${
               active
                 ? 'text-[#172033]'
-                : 'text-[#778094] group-hover:text-[#172033]'
+                : isDeliveryModule
+                  ? 'text-[#B38300] group-hover:text-[#8A6200]'
+                  : 'text-[#778094] group-hover:text-[#172033]'
             }`}
           />
           {!collapsed && <span className="truncate">{item.label}</span>}
@@ -372,9 +412,24 @@ export function AppShell({
           {mainSectionItems.map((item) => renderNavItem(item, collapsed))}
         </div>
 
-        {mainSectionItems.length > 0 && secondarySectionItems.length > 0 && (
-          <div className="my-3.5 border-t border-[#E8EAF0]" aria-hidden="true" />
+        {deliverySectionItems.length > 0 && (
+          <>
+            <div className="my-3.5 border-t border-[#E8EAF0]" aria-hidden="true" />
+            <div className="space-y-1.5">
+              {!collapsed && (
+                <p className="px-3.5 text-[10.5px] font-bold tracking-[0.06em] text-[#778094] uppercase">
+                  MGW DELIVERY
+                </p>
+              )}
+              {deliverySectionItems.map((item) => renderNavItem(item, collapsed))}
+            </div>
+          </>
         )}
+
+        {(mainSectionItems.length > 0 || deliverySectionItems.length > 0) &&
+          secondarySectionItems.length > 0 && (
+            <div className="my-3.5 border-t border-[#E8EAF0]" aria-hidden="true" />
+          )}
 
         {secondarySectionItems.length > 0 && (
           <div className="space-y-1">
