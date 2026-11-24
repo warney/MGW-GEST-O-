@@ -1295,8 +1295,11 @@ export default function App() {
       <StoreOnboardingScreen
         accountEmail={user.email}
         initialStoreName={activeTenant.name}
+        tenantId={activeTenant.tenantId}
         onComplete={handleCompleteOnboarding}
         onLogout={handleLogout}
+        onSubscribe={handleSubscribe}
+        onSubscribePix={handleSubscribePix}
       />
     );
   }
