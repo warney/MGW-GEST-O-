@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { CalendarPlus, CheckCircle2, Edit3, ShieldAlert, ShieldCheck, X } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Edit3, ShieldAlert, ShieldCheck, X } from 'lucide-react';
 import { ReasonConfirmModal } from '../components/ReasonConfirmModal';
 import { StatusIndicator } from '../components/StatusIndicator';
 import {
   fetchPlansAndSubscriptions,
   manageSubscription,
+  manageSubscriptionExpiry,
   updatePlan,
 } from '../services/adminApi';
 import {
@@ -45,6 +46,15 @@ export function PlansSubscriptionsView({
     reason: '',
   });
   const [savingPlan, setSavingPlan] = useState(false);
+  const [expiryEditor, setExpiryEditor] = useState<{
+    sub: AdminSubscriptionRecord;
+    mode: 'extend' | 'set' | 'expire';
+    duration: string;
+    unit: 'days' | 'months' | 'years';
+    expiresAt: string;
+    reason: string;
+  } | null>(null);
+  const [savingExpiry, setSavingExpiry] = useState(false);
 
   const [pendingSubAction, setPendingSubAction] = useState<{
     sub: AdminSubscriptionRecord;
@@ -208,6 +218,7 @@ export function PlansSubscriptionsView({
               <option value="past_due">Em atraso</option>
               <option value="suspended">Suspensos</option>
               <option value="cancelled">Cancelados</option>
+              <option value="expired">Expirados</option>
             </select>
 
             <form
@@ -290,20 +301,18 @@ export function PlansSubscriptionsView({
                         <div className="inline-flex items-center gap-1.5 justify-end">
                           <button
                             type="button"
-                            onClick={() =>
-                              setPendingSubAction({
-                                sub,
-                                action: 'extend_trial',
-                                days: 7,
-                                title: 'Estender trial (+7 dias)',
-                                description: `Conceder mais 7 dias de avaliação para "${sub.tenant_name}".`,
-                                tone: 'accent',
-                              })
-                            }
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
+                            onClick={() => setExpiryEditor({
+                              sub,
+                              mode: 'extend',
+                              duration: '1',
+                              unit: 'days',
+                              expiresAt: '',
+                              reason: '',
+                            })}
+                            className="inline-flex items-center gap-1 rounded-lg border border-amber-500/35 px-2 py-1 text-[11px] text-amber-700 hover:bg-amber-500/10 cursor-pointer whitespace-nowrap"
                           >
-                            <CalendarPlus className="h-3 w-3 text-[#F5B731]" />
-                            <span>+7d Trial</span>
+                            <CalendarClock className="h-3 w-3" />
+                            <span>Alterar validade</span>
                           </button>
 
                           {!sub.billing_exempt && canEditPlans && (
@@ -341,6 +350,24 @@ export function PlansSubscriptionsView({
                             >
                               <CheckCircle2 className="h-3 w-3" />
                               <span>Ativar 30d</span>
+                            </button>
+                          )}
+
+                          {!sub.is_founder_account && !['expired', 'suspended', 'exempt'].includes(sub.status) && (
+                            <button
+                              type="button"
+                              onClick={() => setExpiryEditor({
+                                sub,
+                                mode: 'expire',
+                                duration: '1',
+                                unit: 'days',
+                                expiresAt: '',
+                                reason: '',
+                              })}
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-500/35 px-2 py-1 text-[11px] text-rose-700 hover:bg-rose-500/10 cursor-pointer whitespace-nowrap"
+                            >
+                              <ShieldAlert className="h-3 w-3" />
+                              <span>Expirar</span>
                             </button>
                           )}
 
@@ -471,6 +498,41 @@ export function PlansSubscriptionsView({
               >
                 {savingPlan ? 'Salvando...' : 'Salvar plano'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expiryEditor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div><h2 className="text-sm font-bold text-slate-900">Alterar validade</h2><p className="mt-1 text-xs text-slate-500">{expiryEditor.sub.tenant_name}</p></div>
+              <button type="button" onClick={() => setExpiryEditor(null)} className="rounded p-1 text-slate-400 hover:text-slate-900" aria-label="Fechar"><X className="h-4 w-4" /></button>
+            </div>
+            {!mfaVerified && <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 flex items-center justify-between gap-2"><span>Esta alteração exige MFA AAL2.</span><button type="button" onClick={onRequestMfa} className="rounded-lg border border-amber-400/40 px-2 py-1 text-[11px] font-semibold cursor-pointer">Validar MFA</button></div>}
+            <div className="space-y-3 text-xs">
+              <div><label className="block text-slate-600 mb-1">Como definir o vencimento?</label>
+                <select value={expiryEditor.mode} onChange={(e) => setExpiryEditor((f) => f ? { ...f, mode: e.target.value as 'extend' | 'set' | 'expire' } : f)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900">
+                  <option value="extend">Somar prazo ao vencimento atual</option><option value="set">Definir uma data específica</option><option value="expire">Marcar como expirado agora</option>
+                </select>
+              </div>
+              {expiryEditor.mode === 'extend' ? <div><label className="block text-slate-600 mb-1">Prazo adicional</label><div className="grid grid-cols-2 gap-2">
+                <input type="number" min="1" max="3650" value={expiryEditor.duration} onChange={(e) => setExpiryEditor((f) => f ? { ...f, duration: e.target.value } : f)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900" />
+                <select value={expiryEditor.unit} onChange={(e) => setExpiryEditor((f) => f ? { ...f, unit: e.target.value as 'days' | 'months' | 'years' } : f)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900"><option value="days">Dias</option><option value="months">Meses</option><option value="years">Anos</option></select>
+              </div><p className="mt-1 text-[11px] text-slate-500">O prazo será somado ao vencimento atual; se já venceu, começa a contar de hoje.</p></div>
+              : expiryEditor.mode === 'set' ? <div><label className="block text-slate-600 mb-1">Nova data e horário de vencimento</label><input type="datetime-local" value={expiryEditor.expiresAt} onChange={(e) => setExpiryEditor((f) => f ? { ...f, expiresAt: e.target.value } : f)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900" /></div>
+              : <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700">O acesso será encerrado imediatamente. O status será marcado como expirado e a retenção de 6 meses será iniciada.</p>}
+              <div><label className="block text-slate-600 mb-1">Motivo administrativo (obrigatório)</label><textarea rows={2} value={expiryEditor.reason} onChange={(e) => setExpiryEditor((f) => f ? { ...f, reason: e.target.value } : f)} placeholder="Ex.: Cortesia concedida ao cliente..." className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900" /></div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setExpiryEditor(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600">Cancelar</button>
+              <button type="button" disabled={savingExpiry || !mfaVerified || expiryEditor.reason.trim().length < 3 || (expiryEditor.mode === 'extend' ? !(Number(expiryEditor.duration) > 0) : expiryEditor.mode === 'set' && !expiryEditor.expiresAt)}
+                onClick={async () => { if (!expiryEditor) return; setSavingExpiry(true); setError(null); try {
+                  await manageSubscriptionExpiry({ tenantId: expiryEditor.sub.tenant_id, mode: expiryEditor.mode, duration: expiryEditor.mode === 'extend' ? Number(expiryEditor.duration) : undefined, unit: expiryEditor.unit, expiresAt: expiryEditor.mode === 'set' ? new Date(expiryEditor.expiresAt).toISOString() : undefined, reason: expiryEditor.reason.trim() });
+                  setExpiryEditor(null); await loadData();
+                } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível alterar a validade.'); } finally { setSavingExpiry(false); } }}
+                className="rounded-lg bg-[#F5B731] px-4 py-2 text-xs font-semibold text-slate-900 disabled:opacity-50">{savingExpiry ? 'Salvando...' : expiryEditor.mode === 'expire' ? 'Marcar como expirado' : 'Salvar validade'}</button>
             </div>
           </div>
         </div>
