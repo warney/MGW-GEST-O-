@@ -344,6 +344,24 @@ export function PlansSubscriptionsView({
                             </button>
                           )}
 
+                          {!sub.is_founder_account && !['expired', 'suspended', 'exempt'].includes(sub.status) && (
+                            <button
+                              type="button"
+                              onClick={() => setExpiryEditor({
+                                sub,
+                                mode: 'expire',
+                                duration: '1',
+                                unit: 'days',
+                                expiresAt: '',
+                                reason: '',
+                              })}
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-500/35 px-2 py-1 text-[11px] text-rose-700 hover:bg-rose-500/10 cursor-pointer whitespace-nowrap"
+                            >
+                              <ShieldAlert className="h-3 w-3" />
+                              <span>Expirar</span>
+                            </button>
+                          )}
+
                           {!sub.is_founder_account && sub.status !== 'suspended' && (
                             <button
                               type="button"

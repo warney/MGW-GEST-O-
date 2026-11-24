@@ -313,6 +313,24 @@ export async function manageSubscription(params: {
   });
 }
 
+export async function manageSubscriptionExpiry(params: {
+  tenantId: string;
+  mode: 'extend' | 'set' | 'expire';
+  duration?: number;
+  unit?: 'days' | 'months' | 'years';
+  expiresAt?: string;
+  reason: string;
+}): Promise<{ tenantId: string; action: string; ok: boolean; expiresAt?: string }> {
+  return callRpc('admin_set_subscription_expiry', {
+    p_tenant_id: params.tenantId,
+    p_mode: params.mode,
+    p_duration: params.duration ?? null,
+    p_unit: params.unit ?? 'days',
+    p_expires_at: params.expiresAt ?? null,
+    p_reason: params.reason,
+  });
+}
+
 export async function fetchFinanceSummary(): Promise<FinanceSummary> {
   return callRpc('admin_get_finance_summary');
 }
