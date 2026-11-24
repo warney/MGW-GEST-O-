@@ -47,11 +47,11 @@ Deno.serve(async (req: Request) => {
     // authoritative; never trust browser state or webhook payload for activation.
     if (!["authorized", "exempt"].includes(subscription.status)) {
       const { data: pendingPayments } = await admin.from("platform_payments")
-        .select("id,mp_payment_id,amount_cents,currency,mp_environment")
+        .select("id,mp_payment_id,amount_cents,currency")
         .eq("tenant_id", tenantId).eq("payment_method", "pix").eq("status", "pending")
         .order("created_at", { ascending: false }).limit(5);
       for (const pending of pendingPayments || []) {
-        const environment = pending.mp_environment || subscription.mp_environment || "production";
+        const environment = subscription.mp_environment || "production";
         const token = (Deno.env.get(environment === "test" ? "MP_ACCESS_TOKEN_TEST" : "MP_ACCESS_TOKEN") || "").trim();
         if (!token || pending.amount_cents !== subscription.plan_amount_cents || pending.currency !== subscription.currency) continue;
         const response = await fetch("https://api.mercadopago.com/v1/payments/" + encodeURIComponent(pending.mp_payment_id), {
