@@ -59,14 +59,12 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const accessToken = (Deno.env.get("MP_ACCESS_TOKEN_TEST") || "").trim();
-  const webhookSecret = (Deno.env.get("MP_WEBHOOK_SECRET_TEST") || "").trim();
-  if (!supabaseUrl || !serviceRoleKey || !accessToken) {
-    console.error("[mp-webhook] Configuração obrigatória ausente.", {
-      supabaseUrl: Boolean(supabaseUrl),
-      serviceRoleKey: Boolean(serviceRoleKey),
-      accessTokenPresent: Boolean(accessToken),
-    });
+  const productionToken = (Deno.env.get("MP_ACCESS_TOKEN") || "").trim();
+  const testToken = (Deno.env.get("MP_ACCESS_TOKEN_TEST") || "").trim();
+  const productionSecret = (Deno.env.get("MP_WEBHOOK_SECRET") || "").trim();
+  const testSecret = (Deno.env.get("MP_WEBHOOK_SECRET_TEST") || "").trim();
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error("[mp-webhook] Configuração Supabase obrigatória ausente.");
     return json({ error: "Webhook not configured" }, 503);
   }
 
@@ -89,17 +87,34 @@ Deno.serve(async (req: Request) => {
       return json({ received: true, simulated: true, ignored: true });
     }
 
-    if (eventType === "subscription_authorized_payment") {
-      if (!webhookSecret) {
-        console.error("[mp-webhook] MP_WEBHOOK_SECRET_TEST ausente; evento recusado.");
-        return json({ error: "Webhook secret not configured" }, 503);
-      }
-      const signatureValid = await verifySignature(req, resourceId, webhookSecret);
-      if (!signatureValid) return json({ error: "Invalid signature" }, 401);
+    // Identify the environment by validating the HMAC against each configured secret.
+    // MP_ENVIRONMENT controls new checkout creation only; it must not disable callbacks
+    // for subscriptions created earlier in the other environment.
+    const productionSignatureValid = productionSecret
+      ? await verifySignature(req, resourceId, productionSecret)
+      : false;
+    const testSignatureValid = testSecret
+      ? await verifySignature(req, resourceId, testSecret)
+      : false;
+    if (productionSignatureValid === testSignatureValid) {
+      console.warn("[mp-webhook] Assinatura ausente, inválida ou ambígua; evento recusado.");
+      return json({ error: "Invalid signature" }, 401);
+    }
+    const mpEnvironment = productionSignatureValid ? "production" : "test";
+    if (typeof body.live_mode !== "boolean" || body.live_mode !== (mpEnvironment === "production")) {
+      console.warn("[mp-webhook] live_mode incompatível com o segredo que validou a assinatura.");
+      return json({ error: "Webhook environment mismatch" }, 409);
+    }
+    const accessToken = mpEnvironment === "production" ? productionToken : testToken;
+    if (!accessToken) {
+      console.error("[mp-webhook] Access Token ausente para o ambiente validado.");
+      return json({ error: "Webhook access token not configured" }, 503);
+    }
 
+    if (eventType === "subscription_authorized_payment") {
       const paymentResponse = await fetch(
         `https://api.mercadopago.com/authorized_payments/${encodeURIComponent(resourceId)}`,
-        { headers: { "Authorization": `Bearer ${accessToken}`, "X-scope": "stage" } },
+        { headers: { "Authorization": `Bearer ${accessToken}`, ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}) } },
       );
       const authorized = await paymentResponse.json().catch(() => ({}));
       if (!paymentResponse.ok || String(authorized.id || "") !== resourceId) {
@@ -119,19 +134,43 @@ Deno.serve(async (req: Request) => {
       });
       const { data: subscription, error: subscriptionError } = await supabase
         .from("subscriptions")
-        .select("id,tenant_id,status,plan_amount_cents,currency,mp_preapproval_id,mp_payer_email")
+        .select("id,tenant_id,status,plan_amount_cents,currency,mp_preapproval_id,mp_payer_email,current_period_start,current_period_end,grace_until,last_event_at,mp_environment")
         .eq("mp_preapproval_id", preapprovalId)
         .maybeSingle();
       if (subscriptionError || !subscription) {
         console.error("[mp-webhook] Assinatura não localizada para a fatura.");
         return json({ error: "Subscription not found for invoice" }, 404);
       }
+      if (subscription.mp_environment !== mpEnvironment) {
+        console.warn("[mp-webhook] Evento de ambiente diferente da assinatura recusado.");
+        return json({ error: "Subscription environment mismatch" }, 409);
+      }
       if (Math.round(amount * 100) !== subscription.plan_amount_cents || currency !== subscription.currency) {
         console.error("[mp-webhook] Valor/moeda da fatura diverge do plano contratado.");
         return json({ error: "Invoice amount mismatch" }, 409);
       }
 
-      const rawStatus = String(authorized.status || "").toLowerCase();
+      const preapprovalResponse = await fetch(
+        `https://api.mercadopago.com/preapproval/${encodeURIComponent(preapprovalId)}`,
+        { headers: { "Authorization": `Bearer ${accessToken}` } },
+      );
+      const preapproval = await preapprovalResponse.json().catch(() => ({}));
+      if (
+        !preapprovalResponse.ok ||
+        String(preapproval.id || "") !== preapprovalId ||
+        String(preapproval.external_reference || "") !== subscription.tenant_id
+      ) {
+        console.error("[mp-webhook] Não foi possível validar o vínculo da assinatura na API do Mercado Pago.");
+        return json({ error: "Could not verify subscription ownership" }, 502);
+      }
+
+      const paymentObject = authorized.payment && typeof authorized.payment === "object"
+        ? authorized.payment as Record<string, unknown>
+        : {};
+      const payerObject = paymentObject.payer && typeof paymentObject.payer === "object"
+        ? paymentObject.payer as Record<string, unknown>
+        : {};
+      const rawStatus = String(paymentObject.status || "").toLowerCase() || "pending";
       const paymentStatus: Record<string, string> = {
         approved: "approved",
         pending: "pending",
@@ -143,20 +182,29 @@ Deno.serve(async (req: Request) => {
       };
       const normalizedStatus = paymentStatus[rawStatus] || "pending";
       const now = new Date();
-      const paymentObject = authorized.payment && typeof authorized.payment === "object"
-        ? authorized.payment as Record<string, unknown>
-        : {};
-      const payerObject = paymentObject.payer && typeof paymentObject.payer === "object"
-        ? paymentObject.payer as Record<string, unknown>
-        : {};
       const mpPaymentId = String(paymentObject.id || authorized.id);
-      const paidAtValue = authorized.date_approved || authorized.date_last_updated || null;
+      const paidAtValue = authorized.date_approved || paymentObject.date_approved || authorized.date_last_updated || null;
       const paidAt = normalizedStatus === "approved" && paidAtValue
         ? new Date(String(paidAtValue))
         : null;
-      const dueAtValue = authorized.debit_date || authorized.date_of_expiration || null;
+      const dueAtValue = authorized.debit_date || paymentObject.date_of_expiration || authorized.date_of_expiration || null;
       const dueAt = dueAtValue ? new Date(String(dueAtValue)) : null;
       const eventId = `authorized_payment:${resourceId}:${rawStatus}:${String(authorized.last_modified || authorized.date_created || "")}`;
+      const paymentEventAt = authorized.last_modified ? new Date(String(authorized.last_modified)) : now;
+      const previousPaymentEventAt = subscription.last_event_at ? new Date(subscription.last_event_at) : null;
+      if (
+        previousPaymentEventAt && !Number.isNaN(previousPaymentEventAt.getTime()) &&
+        !Number.isNaN(paymentEventAt.getTime()) &&
+        paymentEventAt.getTime() < previousPaymentEventAt.getTime()
+      ) {
+        await supabase.from("mp_webhook_events").upsert({
+          id: eventId, event_type: eventType, action: action || null, resource_id: resourceId,
+          tenant_id: subscription.tenant_id, signature_verified: true, processing_status: "processed",
+          processed_at: now.toISOString(),
+          payload: { id: resourceId, status: normalizedStatus, preapproval_id: preapprovalId, stale: true },
+        }, { onConflict: "id" });
+        return json({ received: true, processed: true, stale: true });
+      }
 
       const { error: eventError } = await supabase.from("mp_webhook_events").upsert({
         id: eventId,
@@ -199,6 +247,38 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Could not reconcile payment" }, 500);
       }
 
+      if (normalizedStatus === "approved") {
+        const paidStart = paidAt && !Number.isNaN(paidAt.getTime())
+          ? paidAt
+          : (subscription.current_period_start ? new Date(subscription.current_period_start) : now);
+        const providerNextPayment = preapproval.next_payment_date ? new Date(preapproval.next_payment_date) : null;
+        const fallbackPaidEnd = new Date(paidStart);
+        fallbackPaidEnd.setMonth(fallbackPaidEnd.getMonth() + 1);
+        const paidEnd = providerNextPayment && !Number.isNaN(providerNextPayment.getTime())
+          ? providerNextPayment
+          : (subscription.current_period_end && Date.parse(subscription.current_period_end) > now.getTime()
+            ? new Date(subscription.current_period_end)
+            : fallbackPaidEnd);
+        const { error: lifecycleError } = await supabase.from("subscriptions").update({
+          status: "authorized",
+          current_period_start: paidStart.toISOString(),
+          current_period_end: paidEnd.toISOString(),
+          grace_until: null,
+          last_event_at: paymentEventAt.toISOString(),
+          updated_at: now.toISOString(),
+        }).eq("id", subscription.id);
+        if (lifecycleError) {
+          await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: lifecycleError.message, processed_at: now.toISOString() }).eq("id", eventId);
+          return json({ error: "Could not activate paid subscription" }, 500);
+        }
+      } else if (normalizedStatus === "rejected" || normalizedStatus === "cancelled" || normalizedStatus === "refunded") {
+        const graceUntil = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString();
+        const { error: lifecycleError } = await supabase.from("subscriptions").update({ status: "paused", grace_until: graceUntil, last_event_at: now.toISOString(), updated_at: now.toISOString() }).eq("id", subscription.id);
+        if (lifecycleError) {
+          await supabase.from("mp_webhook_events").update({ processing_status: "failed", error_message: lifecycleError.message, processed_at: now.toISOString() }).eq("id", eventId);
+          return json({ error: "Could not update subscription after payment failure" }, 500);
+        }
+      }
       await supabase.from("mp_webhook_events").update({
         processing_status: "processed",
         processed_at: now.toISOString(),
@@ -210,17 +290,10 @@ Deno.serve(async (req: Request) => {
     // The dashboard-level Webhooks configuration is not the supported setup path for Subscriptions.
     // Prefer HMAC when available; for test mode also require a canonical resource lookup before
     // any database mutation, so simulator payloads cannot activate a tenant.
-    if (!webhookSecret) {
-      console.error("[mp-webhook] MP_WEBHOOK_SECRET_TEST ausente; notificação recusada.");
-      return json({ error: "Webhook secret not configured" }, 503);
-    }
-    const signatureValid = await verifySignature(req, resourceId, webhookSecret);
-    if (!signatureValid) return json({ error: "Invalid signature" }, 401);
-
     const mpResponse = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(resourceId)}`, {
       headers: {
         "Authorization": `Bearer ${accessToken}`,
-        "X-scope": "stage",
+        ...(mpEnvironment === "test" ? { "X-scope": "stage" } : {}),
       },
     });
     const mp = await mpResponse.json().catch(() => ({}));
@@ -241,7 +314,7 @@ Deno.serve(async (req: Request) => {
     }
     const amount = Number(mp.auto_recurring?.transaction_amount);
     const currency = String(mp.auto_recurring?.currency_id || "");
-    if (amount !== 49.9 || currency !== "BRL") {
+    if (Math.round(amount * 100) !== 4990 || currency !== "BRL") {
       console.error("[mp-webhook] Valor/moeda divergente; assinatura não atualizada.");
       return json({ error: "Subscription amount mismatch" }, 409);
     }
@@ -250,15 +323,37 @@ Deno.serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: current, error: currentError } = await supabase
-      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id")
+      .from("subscriptions").select("id,tenant_id,status,trial_ends_at,mp_preapproval_id,current_period_start,current_period_end,grace_until,last_event_at,mp_environment")
       .eq("tenant_id", tenantId).maybeSingle();
     if (currentError || !current) return json({ error: "MGW subscription not found" }, 404);
+    if (current.mp_environment !== mpEnvironment) {
+      console.warn("[mp-webhook] Evento de ambiente diferente da assinatura recusado.");
+      return json({ error: "Subscription environment mismatch" }, 409);
+    }
     if (current.mp_preapproval_id && current.mp_preapproval_id !== resourceId) {
       return json({ error: "Subscription ID mismatch" }, 409);
     }
 
     const eventId = `preapproval:${resourceId}:${String(mp.status || "unknown")}:${String(mp.last_modified || mp.date_created || "")}`;
-    const { error: eventError } = await supabase.from("mp_webhook_events").insert({
+    const providerEventAtValue = mp.last_modified || mp.date_created || "";
+    const providerEventAt = providerEventAtValue ? new Date(String(providerEventAtValue)) : null;
+    const previousPreapprovalEventAt = current.last_event_at ? new Date(current.last_event_at) : null;
+    if (
+      providerEventAt && !Number.isNaN(providerEventAt.getTime()) &&
+      previousPreapprovalEventAt && !Number.isNaN(previousPreapprovalEventAt.getTime()) &&
+      providerEventAt.getTime() < previousPreapprovalEventAt.getTime()
+    ) {
+      await supabase.from("mp_webhook_events").upsert({
+        id: eventId, event_type: eventType, action: action || null, resource_id: resourceId,
+        tenant_id: tenantId, signature_verified: true, processing_status: "processed",
+        processed_at: new Date().toISOString(),
+        payload: { id: resourceId, status: mp.status, external_reference: tenantId, stale: true },
+      }, { onConflict: "id" });
+      return json({ received: true, processed: true, stale: true });
+    }
+    // Upsert allows retries to recover events previously marked failed/received.
+    // Reapplying a verified provider snapshot is idempotent for this subscription row.
+    const { error: eventError } = await supabase.from("mp_webhook_events").upsert({
       id: eventId,
       event_type: eventType,
       action: action || null,
@@ -266,41 +361,53 @@ Deno.serve(async (req: Request) => {
       tenant_id: tenantId,
       signature_verified: true,
       processing_status: "received",
+      error_message: null,
+      processed_at: null,
       payload: { id: resourceId, status: mp.status, external_reference: tenantId },
-    });
-    if (eventError && !String(eventError.code || "").includes("23505")) {
+    }, { onConflict: "id" });
+    if (eventError) {
       console.error("[mp-webhook] Falha ao registrar evento:", eventError.message);
       return json({ error: "Could not record webhook event" }, 500);
     }
-    if (eventError?.code === "23505") return json({ received: true, duplicate: true });
 
     const now = new Date();
+    const graceStillActive = ["paused", "past_due"].includes(current.status)
+      && current.grace_until && Date.parse(current.grace_until) > now.getTime();
+    const trialStillActive = current.status === "trialing"
+      && current.trial_ends_at && Date.parse(current.trial_ends_at) > now.getTime();
+    const terminalStatus = ["cancelled", "expired", "suspended"].includes(current.status);
     const statusMap: Record<string, string> = {
-      authorized: "authorized",
-      pending: "pending",
+      authorized: terminalStatus ? current.status : (current.status === "authorized" ? "authorized" : (graceStillActive ? current.status : (trialStillActive ? "trialing" : "pending"))),
+      pending: terminalStatus ? current.status : (current.status === "authorized" ? "authorized" : (graceStillActive ? current.status : (trialStillActive ? "trialing" : "pending"))),
       paused: "paused",
       cancelled: "cancelled",
       canceled: "cancelled",
     };
-    const nextStatus = statusMap[String(mp.status)] || "pending";
+    const providerStatus = String(mp.status || "").toLowerCase();
+    const nextStatus = statusMap[providerStatus];
+    if (!nextStatus) {
+      await supabase.from("mp_webhook_events").update({
+        processing_status: "failed",
+        error_message: `Status de assinatura não reconhecido: ${providerStatus || "vazio"}`,
+        processed_at: new Date().toISOString(),
+      }).eq("id", eventId);
+      return json({ error: "Unsupported subscription status" }, 422);
+    }
     const startDate = mp.date_created ? new Date(mp.date_created) : now;
-    const endDate = mp.next_payment_date ? new Date(mp.next_payment_date) : null;
+    const endDate = mp.next_payment_date ? new Date(mp.next_payment_date) : (current.current_period_end ? new Date(current.current_period_end) : null);
     const graceUntil = nextStatus === "paused"
-      ? new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString()
+      ? (graceStillActive ? current.grace_until : new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString())
       : null;
 
     const { error: updateError } = await supabase.from("subscriptions").update({
       status: nextStatus,
       mp_preapproval_id: resourceId,
-      current_period_start: nextStatus === "authorized" ? startDate.toISOString() : null,
-      current_period_end: endDate && !Number.isNaN(endDate.getTime()) ? endDate.toISOString() : null,
+      current_period_start: nextStatus === "authorized" ? (current.current_period_start || startDate.toISOString()) : undefined,
+      current_period_end: endDate && !Number.isNaN(endDate.getTime()) ? endDate.toISOString() : undefined,
       grace_until: graceUntil,
-      ended_at: nextStatus === "cancelled" ? now.toISOString() : null,
-      cancelled_at: nextStatus === "cancelled" ? now.toISOString() : null,
-      retention_until: nextStatus === "cancelled"
-        ? new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString()
-        : null,
-      last_event_at: now.toISOString(),
+      ended_at: nextStatus === "cancelled" && (!endDate || endDate.getTime() <= now.getTime()) ? now.toISOString() : undefined,
+      cancelled_at: nextStatus === "cancelled" ? now.toISOString() : undefined,
+      last_event_at: providerEventAt?.toISOString() || now.toISOString(),
       updated_at: now.toISOString(),
     }).eq("tenant_id", tenantId);
     if (updateError) {
