@@ -27,6 +27,7 @@ interface SettingsViewProps {
   onSeedCatalog: () => Promise<void>;
   onPreviewPublicMenu?: (slug: string) => void;
   initialTab?: 'shop' | 'catalog' | 'digital_menu';
+  hideNavigationTabs?: boolean;
   onTabChange?: (tab: 'shop' | 'catalog' | 'digital_menu') => void;
   accountEmail: string;
   onLogout: () => Promise<void>;
@@ -59,6 +60,7 @@ export function SettingsView({
   onSeedCatalog,
   onPreviewPublicMenu,
   initialTab = 'shop',
+  hideNavigationTabs = false,
   onTabChange,
   accountEmail,
   onLogout,
@@ -175,6 +177,8 @@ export function SettingsView({
 
   return (
     <div className={activeTab === 'catalog' ? 'space-y-5' : 'max-w-4xl space-y-5'}>
+      {!hideNavigationTabs && (
+      <>
       {/* Settings Navigation Tabs */}
       <div
         role="tablist"
@@ -230,6 +234,8 @@ export function SettingsView({
           </button>
         )}
       </div>
+      </>
+      )}
 
       {activeTab === 'digital_menu' && canManageDigitalMenu ? (
         <DigitalMenuSettingsPanel

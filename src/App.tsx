@@ -1432,6 +1432,7 @@ export default function App() {
       canViewReports={canViewReports}
       canAccessSettingsRoute={canAccessSettingsRoute}
       canWriteSettings={canWriteSettings}
+      canWriteCatalog={canWriteCatalog}
       unviewedOrdersCount={unviewedOrdersCount}
       activeTenant={activeTenant}
       tenants={tenants}
@@ -1647,6 +1648,7 @@ export default function App() {
               combos={combos}
               digitalMenuSettings={digitalMenuSettings}
               initialTab={settingsInitialTab}
+              hideNavigationTabs
               onTabChange={setSettingsInitialTab}
               accountEmail={user.email}
               canManageShopSettings={canWriteSettings}

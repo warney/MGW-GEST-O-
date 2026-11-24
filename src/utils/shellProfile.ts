@@ -1,7 +1,7 @@
 import type { AppRoute } from '../types/finance';
 
 export type SettingsTabKind = 'shop' | 'catalog' | 'digital_menu';
-export type ShellNavId = AppRoute | 'products';
+export type ShellNavId = AppRoute | 'products' | 'digital_menu';
 
 /**
  * Gera um nome de exibição legível a partir do e-mail autenticado quando
@@ -67,7 +67,11 @@ export function resolveShellPageTitle(
     case 'reports':
       return 'Relatórios';
     case 'settings':
-      return settingsTab === 'catalog' ? 'Produtos' : 'Configurações';
+      return settingsTab === 'catalog'
+        ? 'Produtos e Combos'
+        : settingsTab === 'digital_menu'
+          ? 'Cardápio Digital'
+          : 'Configurações';
     default:
       return 'Dashboard';
   }
@@ -77,8 +81,7 @@ export function resolveActiveShellNavId(
   effectiveRoute: AppRoute,
   settingsTab: SettingsTabKind,
 ): ShellNavId {
-  if (effectiveRoute === 'settings' && settingsTab === 'catalog') {
-    return 'products';
-  }
+  if (effectiveRoute === 'settings' && settingsTab === 'catalog') return 'products';
+  if (effectiveRoute === 'settings' && settingsTab === 'digital_menu') return 'digital_menu';
   return effectiveRoute;
 }
