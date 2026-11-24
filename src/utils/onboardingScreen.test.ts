@@ -45,6 +45,9 @@ test('StoreOnboardingScreen leaves placeholder store name empty when tenant uses
       initialStoreName: 'Meu Estabelecimento',
       onComplete: noopComplete,
       onLogout: noopLogout,
+      onSubscribe: noopSubscribe,
+      onSubscribePix: noopSubscribePix,
+      tenantId: 'test-tenant',
     }),
   );
 
