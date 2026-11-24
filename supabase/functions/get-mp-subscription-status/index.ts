@@ -38,9 +38,80 @@ Deno.serve(async (req: Request) => {
     if (memberError || !member || member.role !== "owner") return json({ error: "Apenas o proprietário pode consultar a cobrança." }, 403);
 
     const { data: subscription, error } = await admin.from("subscriptions")
-      .select("status,trial_ends_at,current_period_end,grace_until,cancelled_at,mp_preapproval_id")
+      .select("id,status,trial_ends_at,current_period_end,grace_until,cancelled_at,mp_preapproval_id,plan_amount_cents,currency,mp_environment")
       .eq("tenant_id", tenantId).maybeSingle();
     if (error || !subscription) return json({ error: "Assinatura não encontrada." }, 404);
+
+    // Reconcile pending Pix payments on status checks as a recovery path if the
+    // provider webhook was delayed or previously rejected. The provider API is
+    // authoritative; never trust browser state or webhook payload for activation.
+    if (!["authorized", "exempt"].includes(subscription.status)) {
+      const { data: pendingPayments } = await admin.from("platform_payments")
+        .select("id,mp_payment_id,amount_cents,currency")
+        .eq("tenant_id", tenantId).eq("payment_method", "pix").eq("status", "pending")
+        .order("created_at", { ascending: false }).limit(5);
+      for (const pending of pendingPayments || []) {
+        const environment = subscription.mp_environment || "production";
+        const token = (Deno.env.get(environment === "test" ? "MP_ACCESS_TOKEN_TEST" : "MP_ACCESS_TOKEN") || "").trim();
+        if (!token || pending.amount_cents !== subscription.plan_amount_cents || pending.currency !== subscription.currency) continue;
+        const response = await fetch("https://api.mercadopago.com/v1/payments/" + encodeURIComponent(pending.mp_payment_id), {
+          headers: { "Authorization": "Bearer " + token, ...(environment === "test" ? { "X-scope": "stage" } : {}) },
+        });
+        if (!response.ok) continue;
+        const payment = await response.json().catch(() => ({}));
+        if (
+          String(payment.id || "") !== pending.mp_payment_id ||
+          payment.status !== "approved" ||
+          payment.payment_method_id !== "pix" ||
+          payment.currency_id !== pending.currency ||
+          Math.round(Number(payment.transaction_amount) * 100) !== pending.amount_cents ||
+          String(payment.external_reference || "") !== tenantId ||
+          typeof payment.live_mode !== "boolean" ||
+          payment.live_mode !== (environment === "production")
+        ) continue;
+
+        const now = new Date();
+        const paidAt = payment.date_approved ? new Date(payment.date_approved) : now;
+        const currentEnd = subscription.current_period_end ? new Date(subscription.current_period_end) : null;
+        const periodStart = currentEnd && currentEnd.getTime() > paidAt.getTime() ? currentEnd : paidAt;
+        const periodEnd = new Date(periodStart);
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+        const { error: paymentUpdateError } = await admin.from("platform_payments").update({
+          status: "approved",
+          paid_at: paidAt.toISOString(),
+          failure_reason: "",
+          updated_at: now.toISOString(),
+        }).eq("id", pending.id).eq("status", "pending");
+        if (paymentUpdateError) {
+          console.error("[get-mp-subscription-status] Falha ao atualizar pagamento Pix reconciliado:", paymentUpdateError.message);
+          break;
+        }
+        const { error: subscriptionUpdateError } = await admin.from("subscriptions").update({
+          status: "authorized",
+          current_period_start: periodStart.toISOString(),
+          current_period_end: periodEnd.toISOString(),
+          grace_until: null,
+          last_event_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        }).eq("id", subscription.id).neq("status", "authorized");
+        if (subscriptionUpdateError) {
+          console.error("[get-mp-subscription-status] Falha ao ativar assinatura após reconciliação Pix:", subscriptionUpdateError.message);
+          break;
+        }
+        const { error: tenantUpdateError } = await admin.from("tenants").update({
+          status: "active", billing_suspended: false, updated_at: now.toISOString(),
+        }).eq("id", tenantId).eq("billing_suspended", true);
+        if (tenantUpdateError) {
+          console.error("[get-mp-subscription-status] Falha ao restaurar estabelecimento após Pix:", tenantUpdateError.message);
+          break;
+        }
+        subscription.status = "authorized";
+        subscription.current_period_end = periodEnd.toISOString();
+        subscription.current_period_start = periodStart.toISOString();
+        subscription.grace_until = null;
+        break;
+      }
+    }
 
     return json({
       status: subscription.status,
