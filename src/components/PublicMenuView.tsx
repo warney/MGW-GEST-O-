@@ -5,8 +5,10 @@ import {
   Banknote,
   Check,
   CheckCircle2,
+  ChevronRight,
   Clock,
   CreditCard,
+  Crown,
   CupSoda,
   Layers,
   MapPin,
@@ -24,6 +26,7 @@ import {
   ShoppingCart,
   Store,
   Trash2,
+  Truck,
   UtensilsCrossed,
   X,
 } from 'lucide-react';
@@ -54,6 +57,8 @@ import {
   CUSTOMER_PROFILE_STORAGE_KEY,
   formatComboComposition,
   getStoreMonogram,
+  groupProductsByCategory,
+  isBeverageCategory,
   parseStoredCart,
   parseStoredCustomerProfile,
   serializeStoredCart,
@@ -64,6 +69,7 @@ import {
 interface PublicMenuViewProps {
   slug?: string;
   onOrderCreated: (trackingToken: string) => void;
+  initialPayload?: PublicDigitalMenuPayload | null;
 }
 
 type MenuCategoryFilter = 'all' | 'combos' | string;
@@ -77,19 +83,25 @@ type InspectItemState =
 
 function CategoryGlyph({
   category,
-  className = 'w-6 h-6 text-[#F5B731]',
+  className = 'w-5 h-5 text-[#F5B900]',
 }: {
-  category: ProductCategory | 'combo';
+  category: ProductCategory | 'combo' | 'all';
   className?: string;
 }) {
-  if (category === 'combo') return <Layers className={className} />;
-  if (category === 'Bebida') return <CupSoda className={className} />;
-  if (category === 'Adicional') return <PlusCircle className={className} />;
-  if (category === 'Outro') return <Package className={className} />;
+  if (category === 'combo') return <Crown className={className} />;
+  if (category === 'all') return <UtensilsCrossed className={className} />;
+  if (isBeverageCategory(category)) return <CupSoda className={className} />;
+  const normalized = category.trim().toLowerCase();
+  if (normalized === 'adicional' || normalized.includes('adicional')) {
+    return <PlusCircle className={className} />;
+  }
+  if (normalized === 'outro' || normalized === 'outros') {
+    return <Package className={className} />;
+  }
   return <UtensilsCrossed className={className} />;
 }
 
-export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
+export function PublicMenuView({ slug, onOrderCreated, initialPayload }: PublicMenuViewProps) {
   const initialStoredProfile = useMemo(() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -101,8 +113,8 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     }
   }, []);
 
-  const [payload, setPayload] = useState<PublicDigitalMenuPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [payload, setPayload] = useState<PublicDigitalMenuPayload | null>(initialPayload ?? null);
+  const [loading, setLoading] = useState(initialPayload === undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -213,8 +225,9 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
   }
 
   useEffect(() => {
+    if (initialPayload !== undefined) return;
     void loadMenu();
-  }, [slug]);
+  }, [slug, initialPayload]);
 
   const store = payload?.store ?? null;
   const products = payload?.products ?? [];
@@ -228,6 +241,18 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
       document.title = prevTitle;
     };
   }, [store]);
+
+  useEffect(() => {
+    if (!inspectItem && !mobileCartOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (inspectItem) setInspectItem(null);
+        else if (mobileCartOpen) setMobileCartOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [inspectItem, mobileCartOpen]);
 
   useEffect(() => {
     if (!store || restoredCartSlugRef.current !== store.slug) return;
@@ -340,6 +365,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
     if (!item) return;
     const id = item.kind === 'combo' ? item.combo.id : item.product.id;
     const existing = cart.find((c) => c.kind === item.kind && c.id === id);
+    setCheckoutError(null);
     setModalQty(1);
     setModalNote(existing?.note ?? '');
     setModalAddonSelections(Object.fromEntries((existing?.selectedAddons || []).map((s) => [s.groupId, s.optionIds])));
@@ -519,22 +545,22 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] p-4 sm:p-6">
+      <div className="min-h-screen bg-[#0A0C10] text-[#F3F4F6] p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
-          <div className="h-44 rounded-2xl bg-[#12151C] border border-[#232834] animate-pulse" />
+          <div className="h-52 rounded-2xl bg-[#14171F] border border-[#242936] animate-pulse" />
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div className="lg:col-span-7 space-y-4">
-              <div className="h-24 rounded-2xl bg-[#12151C] border border-[#232834] animate-pulse" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {[1, 2, 3, 4].map((i) => (
+              <div className="h-24 rounded-2xl bg-[#14171F] border border-[#242936] animate-pulse" />
+              <div className="grid grid-cols-1 gap-3.5">
+                {[1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="h-32 rounded-2xl bg-[#12151C] border border-[#232834] animate-pulse"
+                    className="h-32 rounded-2xl bg-[#14171F] border border-[#242936] animate-pulse"
                   />
                 ))}
               </div>
             </div>
-            <div className="hidden lg:block lg:col-span-5 h-72 rounded-2xl bg-[#12151C] border border-[#232834] animate-pulse" />
+            <div className="hidden lg:block lg:col-span-5 h-72 rounded-2xl bg-[#14171F] border border-[#242936] animate-pulse" />
           </div>
         </div>
       </div>
@@ -543,19 +569,19 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-[#12151C] border border-[#232834] rounded-2xl p-6 text-center space-y-4">
+      <div className="min-h-screen bg-[#0A0C10] text-[#F3F4F6] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-[#14171F] border border-[#242936] rounded-2xl p-6 text-center space-y-4">
           <AlertCircle className="w-8 h-8 text-[#EF4444] mx-auto" />
           <div className="space-y-1">
             <h1 className="text-base font-bold text-[#F3F4F6]">
               Não foi possível abrir o cardápio
             </h1>
-            <p className="text-xs text-[#9CA3AF]">{loadError}</p>
+            <p className="text-xs text-[#A0A8B8]">{loadError}</p>
           </div>
           <button
             type="button"
             onClick={() => void loadMenu()}
-            className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 cursor-pointer transition-colors"
+            className="min-h-[44px] px-5 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-sm font-bold inline-flex items-center gap-2 cursor-pointer transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
             Tentar novamente
@@ -567,13 +593,13 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
 
   if (!payload?.found || !store || !store.isActive) {
     return (
-      <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-[#12151C] border border-[#232834] rounded-2xl p-6 text-center space-y-3">
-          <Store className="w-8 h-8 text-[#F5B731] mx-auto" />
+      <div className="min-h-screen bg-[#0A0C10] text-[#F3F4F6] flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-[#14171F] border border-[#242936] rounded-2xl p-6 text-center space-y-3">
+          <Store className="w-8 h-8 text-[#F5B900] mx-auto" />
           <h1 className="text-lg font-bold text-[#F3F4F6]">
             Cardápio indisponível no momento
           </h1>
-          <p className="text-xs text-[#9CA3AF]">
+          <p className="text-xs text-[#A0A8B8]">
             {store && !store.isActive
               ? `${store.storeName} ainda não ativou os pedidos online ou pausou o cardápio digital temporariamente.`
               : 'Nenhum cardápio digital foi encontrado neste endereço.'}
@@ -604,25 +630,35 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
         )
       : 100;
 
-  const categoryTabs: Array<{ id: MenuCategoryFilter; label: string; count: number }> = [
-    { id: 'all', label: 'Todos', count: categoryCounts.all },
-    { id: 'combos', label: 'Combos', count: categoryCounts.combos },
-    ...Array.from(new Set(products.map((p) => p.category))).sort((a, b) => a.localeCompare(b, 'pt-BR')).map((category) => ({
-      id: category,
-      label: category,
-      count: products.filter((p) => p.category === category).length,
-    })),
+  const categoryTabs: Array<{
+    id: MenuCategoryFilter;
+    label: string;
+    count: number;
+    glyph: ProductCategory | 'combo' | 'all';
+  }> = [
+    { id: 'all', label: 'Todos', count: categoryCounts.all, glyph: 'all' },
+    { id: 'combos', label: 'Combos', count: categoryCounts.combos, glyph: 'combo' },
+    ...Array.from(new Set(products.map((p) => p.category)))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      .map((category) => ({
+        id: category,
+        label: category,
+        count: products.filter((p) => p.category === category).length,
+        glyph: category,
+      })),
   ];
+
+  const groupedProductSections = groupProductsByCategory(filteredProducts);
 
   const cartPanelContent = (
     <div className="space-y-4">
-      <div className="flex items-center justify-between border-b border-[#232834] pb-3">
+      <div className="flex items-center justify-between border-b border-[#242936] pb-3">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
-            <ShoppingCart className="w-4 h-4 text-[#F5B731]" />
+            <ShoppingCart className="w-4 h-4 text-[#F5B900]" />
             <h2 className="text-sm font-bold text-[#F3F4F6]">
               {checkoutStep === 'cart'
-                ? 'Sua Sacola'
+                ? 'Meu Pedido'
                 : checkoutStep === 'details'
                   ? 'Entrega e Pagamento'
                   : 'Revisar e Confirmar Pedido'}
@@ -1139,9 +1175,9 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
   );
 
   return (
-    <div className="min-h-screen bg-[#0B0D11] text-[#F3F4F6] pb-24 lg:pb-14">
-      {/* Editorial Dark & Gold Storefront Hero */}
-      <header className="relative overflow-hidden bg-gradient-to-b from-[#171B24] via-[#12151C] to-[#0B0D11] border-b border-[#232834]">
+    <div className="min-h-screen w-full overflow-x-clip bg-[#0A0C10] text-[#F3F4F6] pb-28 lg:pb-14">
+      {/* Dark Premium Multi-Tenant Storefront Header */}
+      <header className="relative overflow-hidden bg-[#0E1117] border-b border-[#242936]">
         {hasUsableImage(store.bannerUrl) ? (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0">
             <img
@@ -1149,20 +1185,22 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               alt=""
               referrerPolicy="no-referrer"
               onError={() => markImageBroken(store.bannerUrl)}
-              className="w-full h-full object-cover opacity-45"
+              className="w-full h-full object-cover object-center opacity-50"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0B0D11]/70 via-[#0B0D11]/85 to-[#0B0D11]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0A0C10]/55 via-[#0A0C10]/82 to-[#0A0C10]" />
           </div>
         ) : (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(ellipse_at_top_right,rgba(245,183,49,0.14),transparent_65%)]"
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(245,185,0,0.14),transparent_60%),linear-gradient(180deg,rgba(20,23,31,0.92)_0%,rgba(10,12,16,1)_100%)]"
           />
         )}
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-4 sm:pt-7 sm:pb-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-gradient-to-br from-[#F5B731]/25 via-[#181C24] to-[#0B0D11] border border-[#F5B731]/35 flex items-center justify-center text-[#F5B731] font-display font-extrabold text-xl sm:text-2xl shadow-sm shrink-0">
+
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-4 sm:pt-7 sm:pb-5 space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            {/* Store Logo + Name + Open Status + Custom Tagline */}
+            <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+              <div className="w-16 h-16 sm:w-[74px] sm:h-[74px] rounded-full overflow-hidden bg-gradient-to-br from-[#F5B900]/25 via-[#181C24] to-[#0A0C10] border-2 border-[#F5B900]/75 flex items-center justify-center text-[#F5B900] font-display font-extrabold text-2xl shadow-[0_8px_24px_rgba(0,0,0,0.5)] shrink-0">
                 {hasUsableImage(store.logoUrl) ? (
                   <img
                     src={store.logoUrl}
@@ -1176,9 +1214,9 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 )}
               </div>
 
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-[#F3F4F6] truncate">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <h1 className="font-display text-xl sm:text-2xl lg:text-[28px] font-extrabold tracking-tight text-white truncate">
                     {store.storeName}
                   </h1>
                   <span
@@ -1187,9 +1225,9 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                     }`}
                   >
                     {isClosed ? (
-                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <Clock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                     ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                     )}
                     <span>
                       {isClosed ? 'Fechado no momento' : 'Aberto para pedidos'}
@@ -1198,34 +1236,29 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 </div>
 
                 {store.description && (
-                  <p className="text-xs sm:text-sm text-[#9CA3AF] line-clamp-2 max-w-2xl leading-relaxed">
+                  <p className="text-xs sm:text-sm text-[#D1D5DB] line-clamp-2 max-w-2xl leading-relaxed">
                     {store.description}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-center">
-              <PWAInstallButton
-                appName="MGW Cardápio Digital"
-                installLabel="Instalar cardápio"
-                tone="dark"
-                showManualFallback
-              />
+            {/* Header Actions: Share + WhatsApp + PWA Install */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => void handleShareStore()}
                 aria-label="Compartilhar link do cardápio"
-                className="min-h-[40px] px-3 rounded-xl border border-[#232834] hover:border-[#374151] bg-[#12151C]/90 text-xs font-semibold text-[#D1D5DB] hover:text-[#F3F4F6] inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                className="min-h-[40px] px-4 rounded-full border border-[#2C3344] hover:border-[#F5B900]/60 bg-[#161922]/95 text-xs font-semibold text-[#F3F4F6] inline-flex items-center gap-2 cursor-pointer transition-colors whitespace-nowrap shrink-0"
               >
                 {shareCopied ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#22C55E]" />
+                    <Check className="w-3.5 h-3.5 text-[#22C55E]" aria-hidden="true" />
                     <span className="text-[#22C55E]">Link copiado</span>
                   </>
                 ) : (
                   <>
-                    <Share2 className="w-3.5 h-3.5 text-[#F5B731]" />
+                    <Share2 className="w-3.5 h-3.5 text-[#F5B900]" aria-hidden="true" />
                     <span>Compartilhar</span>
                   </>
                 )}
@@ -1237,72 +1270,103 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Falar no WhatsApp da loja"
-                  className="min-h-[40px] px-3.5 rounded-xl border border-[#22C55E]/35 hover:border-[#22C55E] bg-[#22C55E]/10 hover:bg-[#22C55E]/15 text-xs font-semibold text-[#F3F4F6] inline-flex items-center gap-1.5 shrink-0 transition-colors whitespace-nowrap"
+                  className="min-h-[40px] px-4 rounded-full border border-[#22C55E]/60 hover:border-[#22C55E] bg-[#0E2417]/95 hover:bg-[#13311F] text-xs font-semibold text-white inline-flex items-center gap-2 shrink-0 transition-colors whitespace-nowrap"
                 >
-                  <MessageCircle className="w-3.5 h-3.5 text-[#22C55E]" />
+                  <MessageCircle className="w-4 h-4 text-[#22C55E]" aria-hidden="true" />
                   <span>Falar no WhatsApp</span>
                 </a>
               )}
+
+              <PWAInstallButton
+                appName="MGW Cardápio Digital"
+                installLabel="Instalar cardápio"
+                tone="dark"
+                showManualFallback
+              />
             </div>
           </div>
 
-          {/* Unboxed Hairline Store Info Strip */}
-          <div className="pt-3 border-t border-[#232834]/90 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#9CA3AF]">
-            {store.openingHours && (
-              <span className="inline-flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#F5B731] shrink-0" />
-                <span>{store.openingHours}</span>
-              </span>
-            )}
-            {store.address && (
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-[#F5B731] shrink-0" />
-                <span>{store.address}</span>
-              </span>
-            )}
-            {store.phoneWhatsapp && (
-              <span className="inline-flex items-center gap-1.5 font-mono tabular-nums">
-                <Phone className="w-3.5 h-3.5 text-[#F5B731] shrink-0" />
-                <span>{store.phoneWhatsapp}</span>
-              </span>
-            )}
-            <span className="font-mono tabular-nums text-[#D1D5DB]">
+          {/* Commercial Details Strip: Hours | Address | Phone */}
+          {(store.openingHours || store.address || store.phoneWhatsapp) && (
+            <div className="pt-3 border-t border-[#242936]/90 grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 text-xs text-[#D1D5DB]">
+              {store.openingHours && (
+                <div className="flex items-start gap-2 min-w-0 sm:pr-3 sm:border-r sm:border-[#242936]/90">
+                  <Clock className="w-4 h-4 text-[#F5B900] shrink-0 mt-0.5" aria-hidden="true" />
+                  <span className="leading-snug">{store.openingHours}</span>
+                </div>
+              )}
+              {store.address && (
+                <div className="flex items-start gap-2 min-w-0 sm:pr-3 sm:border-r sm:border-[#242936]/90">
+                  <MapPin className="w-4 h-4 text-[#F5B900] shrink-0 mt-0.5" aria-hidden="true" />
+                  <span className="leading-snug">{store.address}</span>
+                </div>
+              )}
+              {store.phoneWhatsapp && (
+                <div className="flex items-center gap-2 min-w-0 font-mono tabular-nums">
+                  <Phone className="w-4 h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
+                  <span className="truncate">{store.phoneWhatsapp}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Delivery Fee & Pickup Availability Bar */}
+          <div className="pt-2.5 border-t border-[#242936]/80 flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1 text-xs font-semibold text-white">
+            <Truck className="w-4 h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
+            <span className="font-mono tabular-nums">
               {store.acceptsDelivery
                 ? store.deliveryFee <= 0
                   ? 'Entrega grátis'
                   : `Entrega ${formatCurrencyBRL(store.deliveryFee)}`
                 : 'Somente retirada'}
-              {store.acceptsDelivery && store.acceptsPickup ? ' · Retirada disponível' : ''}
-              {store.minimumOrderAmount > 0
-                ? ` · Pedido mín. ${formatCurrencyBRL(store.minimumOrderAmount)}`
-                : ''}
             </span>
+            {store.acceptsDelivery && store.acceptsPickup && (
+              <>
+                <span aria-hidden="true" className="text-[#6B7280]">
+                  •
+                </span>
+                <span>Retirada disponível</span>
+              </>
+            )}
+            {store.minimumOrderAmount > 0 && (
+              <>
+                <span aria-hidden="true" className="text-[#6B7280]">
+                  •
+                </span>
+                <span className="text-[#D1D5DB] font-mono tabular-nums">
+                  Pedido mín. {formatCurrencyBRL(store.minimumOrderAmount)}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Content Grid */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-5 sm:py-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Catalog Column */}
-        <div className="lg:col-span-7 space-y-6 min-w-0">
-          {/* Search & Single-Line Category Filter Bar */}
-          <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-3 sm:p-4 space-y-3">
+        <div className="lg:col-span-7 space-y-5 min-w-0">
+          {/* Search Bar & Dynamic Category Filters */}
+          <div className="space-y-3">
             <div className="relative">
-              <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search
+                className="w-4 h-4 text-[#9CA3AF] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+                aria-hidden="true"
+              />
               <input
                 type="search"
                 aria-label="Buscar no cardápio"
                 placeholder="Buscar combos, lanches ou bebidas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full min-h-[44px] pl-10 pr-9 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6] placeholder:text-[#6B7280]"
+                className="w-full min-h-[46px] pl-11 pr-10 rounded-2xl bg-[#14171F] border border-[#262B38] focus:border-[#F5B900] focus:outline-none text-sm text-white placeholder:text-[#7B8396] transition-colors"
               />
               {searchTerm.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
                   aria-label="Limpar busca"
-                  className="w-8 h-8 rounded-lg text-[#9CA3AF] hover:text-[#F3F4F6] flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer"
+                  className="w-8 h-8 rounded-lg text-[#9CA3AF] hover:text-white flex items-center justify-center absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1313,7 +1377,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               role="tablist"
               aria-label="Filtrar categoria do cardápio"
               data-testid="menu-category-tabs"
-              className="flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+              className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
             >
               {categoryTabs.map((tab) => {
                 const isSelected = categoryFilter === tab.id;
@@ -1325,20 +1389,26 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                     aria-label={tab.label}
                     aria-selected={isSelected}
                     onClick={() => setCategoryFilter(tab.id)}
-                    className={`min-h-[38px] px-3 sm:px-3.5 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer inline-flex items-center gap-1.5 ${
+                    className={`min-h-[38px] px-3.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer inline-flex items-center gap-1.5 ${
                       isSelected
-                        ? 'bg-[#F5B731] text-[#0B0D11]'
-                        : 'bg-[#0B0D11] border border-[#232834] text-[#D1D5DB] hover:border-[#374151] hover:text-[#F3F4F6]'
+                        ? 'bg-[#F5B900] text-[#0B0D11] border border-[#F5B900] shadow-[0_4px_14px_rgba(245,185,0,0.28)]'
+                        : 'bg-[#14171F] border border-[#262B38] text-[#E5E7EB] hover:border-[#F5B900]/45 hover:text-white'
                     }`}
                   >
+                    <CategoryGlyph
+                      category={tab.glyph}
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        isSelected ? 'text-[#0B0D11]' : 'text-[#F5B900]'
+                      }`}
+                    />
                     <span>{tab.label}</span>
                     <span
                       aria-hidden="true"
                       className={`text-[11px] font-mono tabular-nums ${
-                        isSelected ? 'text-[#0B0D11]/75' : 'text-[#6B7280]'
+                        isSelected ? 'text-[#0B0D11]/80' : 'text-[#9CA3AF]'
                       }`}
                     >
-                      {tab.count}
+                      ({tab.count})
                     </span>
                   </button>
                 );
@@ -1347,9 +1417,9 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
           </div>
 
           {filteredCombos.length === 0 && filteredProducts.length === 0 && (
-            <div className="bg-[#12151C] border border-[#232834] rounded-2xl p-8 text-center space-y-2.5">
-              <Search className="w-6 h-6 text-[#6B7280] mx-auto" />
-              <p className="text-sm font-semibold text-[#F3F4F6]">
+            <div className="bg-[#14171F] border border-[#242936] rounded-2xl p-8 text-center space-y-2.5">
+              <Search className="w-6 h-6 text-[#7B8396] mx-auto" />
+              <p className="text-sm font-semibold text-white">
                 Nenhum item encontrado neste filtro
               </p>
               <p className="text-xs text-[#9CA3AF]">
@@ -1362,7 +1432,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                     setSearchTerm('');
                     setCategoryFilter('all');
                   }}
-                  className="min-h-[40px] px-4 rounded-xl border border-[#232834] hover:border-[#F5B731]/60 text-xs font-semibold text-[#F5B731] cursor-pointer transition-colors"
+                  className="min-h-[40px] px-4 rounded-xl border border-[#262B38] hover:border-[#F5B900]/60 text-xs font-semibold text-[#F5B900] cursor-pointer transition-colors"
                 >
                   Mostrar todo o cardápio
                 </button>
@@ -1370,23 +1440,35 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
             </div>
           )}
 
-          {/* Featured Combos */}
+          {/* Combos Especiais */}
           {filteredCombos.length > 0 && (
-            <section aria-labelledby="public-combos-heading" className="space-y-3.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-[#F5B731]" />
+            <section aria-labelledby="public-combos-heading" className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Crown className="w-5 h-5 text-[#F5B900] shrink-0" aria-hidden="true" />
                   <h2
                     id="public-combos-heading"
-                    className="font-display text-base sm:text-lg font-bold text-[#F3F4F6]"
+                    className="font-display text-base sm:text-lg font-extrabold text-white truncate"
                   >
                     Combos Especiais
                   </h2>
                 </div>
-                <span className="text-xs font-mono tabular-nums text-[#9CA3AF]">
-                  {filteredCombos.length}{' '}
-                  {filteredCombos.length === 1 ? 'opção' : 'opções'}
-                </span>
+
+                {categoryFilter !== 'combos' ? (
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter('combos')}
+                    className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#F5B900] hover:text-[#FFC928] cursor-pointer shrink-0 whitespace-nowrap"
+                  >
+                    <span>Ver todos</span>
+                    <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <span className="text-xs font-mono tabular-nums text-[#9CA3AF] shrink-0">
+                    {filteredCombos.length}{' '}
+                    {filteredCombos.length === 1 ? 'opção' : 'opções'}
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-3.5">
@@ -1402,16 +1484,16 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                     <article
                       key={combo.id}
                       data-testid={`menu-combo-card-${combo.id}`}
-                      className="group bg-[#12151C] border border-[#232834] hover:border-[#F5B731]/40 rounded-2xl p-3.5 sm:p-4 transition-colors duration-150"
+                      className="group bg-[#14171F] border border-[#242936] hover:border-[#F5B900]/50 rounded-2xl p-3 sm:p-4 transition-colors duration-150 shadow-[0_8px_24px_rgba(0,0,0,0.22)]"
                     >
-                      <div className="flex items-start gap-3.5">
+                      <div className="flex items-stretch gap-3 sm:gap-4">
                         <button
                           type="button"
                           onClick={() =>
                             openItemInspector({ kind: 'combo', combo })
                           }
                           aria-label={`Ver detalhes de ${combo.name}`}
-                          className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0B0D11] border border-[#262C3A] flex flex-col items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B731]/35 transition-colors"
+                          className="w-[120px] h-[96px] sm:w-[164px] sm:h-[120px] rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0A0C10] border border-[#262C3A] flex flex-col items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B900]/40 transition-colors"
                         >
                           {hasUsableImage(combo.imageUrl) ? (
                             <img
@@ -1426,7 +1508,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                             <>
                               <CategoryGlyph
                                 category="combo"
-                                className="w-6 h-6 text-[#F5B731]"
+                                className="w-6 h-6 text-[#F5B900]"
                               />
                               <span className="text-[10px] font-medium text-[#9CA3AF] mt-1">
                                 Combo
@@ -1435,7 +1517,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                           )}
                         </button>
 
-                        <div className="flex-1 min-w-0 flex flex-col justify-between gap-2.5">
+                        <div className="flex-1 min-w-0 flex flex-col justify-between gap-2">
                           <div className="space-y-1 min-w-0">
                             <button
                               type="button"
@@ -1444,13 +1526,13 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                               }
                               className="text-left w-full cursor-pointer"
                             >
-                              <h3 className="text-sm sm:text-base font-bold text-[#F3F4F6] group-hover:text-[#F5B731] transition-colors leading-snug">
+                              <h3 className="font-display text-[15px] sm:text-lg font-extrabold text-white group-hover:text-[#F5B900] transition-colors leading-snug">
                                 {combo.name}
                               </h3>
                             </button>
 
                             {combo.description && (
-                              <p className="text-xs text-[#9CA3AF] leading-relaxed line-clamp-2">
+                              <p className="text-xs text-[#A0A8B8] leading-relaxed line-clamp-2">
                                 {combo.description}
                               </p>
                             )}
@@ -1461,8 +1543,8 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                             )}
                           </div>
 
-                          <div className="flex items-center justify-between gap-3 pt-1">
-                            <span className="text-base sm:text-lg font-bold text-[#F5B731] font-mono tabular-nums">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                            <span className="text-lg sm:text-xl font-extrabold text-[#F5B900] font-mono tabular-nums">
                               {formatCurrencyBRL(combo.salePrice)}
                             </span>
 
@@ -1472,24 +1554,24 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                                 onClick={() =>
                                   updateItemQuantity('combo', combo.id, 1)
                                 }
-                                className="min-h-[40px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+                                className="min-h-[40px] px-3.5 sm:px-4 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
                               >
-                                <Plus className="w-4 h-4" />
-                                Adicionar
+                                <ShoppingCart className="w-3.5 h-3.5" aria-hidden="true" />
+                                <span>Adicionar</span>
                               </button>
                             ) : (
-                              <div className="inline-flex items-center gap-2 bg-[#0B0D11] border border-[#F5B731]/55 rounded-xl p-1 shrink-0">
+                              <div className="inline-flex items-center gap-1.5 bg-[#0A0C10] border border-[#F5B900]/60 rounded-xl p-1 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() =>
                                     updateItemQuantity('combo', combo.id, -1)
                                   }
                                   aria-label={`Diminuir ${combo.name}`}
-                                  className="w-8 h-8 rounded-lg bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-[#F3F4F6] cursor-pointer transition-colors"
+                                  className="w-8 h-8 rounded-lg bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-white cursor-pointer transition-colors"
                                 >
                                   <Minus className="w-4 h-4" />
                                 </button>
-                                <span className="w-6 text-center text-sm font-mono font-bold tabular-nums text-[#F5B731]">
+                                <span className="w-6 text-center text-sm font-mono font-bold tabular-nums text-[#F5B900]">
                                   {qty}
                                 </span>
                                 <button
@@ -1498,7 +1580,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                                     updateItemQuantity('combo', combo.id, 1)
                                   }
                                   aria-label={`Aumentar ${combo.name}`}
-                                  className="w-8 h-8 rounded-lg bg-[#F5B731] hover:bg-[#FCD34D] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
+                                  className="w-8 h-8 rounded-lg bg-[#F5B900] hover:bg-[#FFC928] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
                                 >
                                   <Plus className="w-4 h-4" />
                                 </button>
@@ -1514,41 +1596,70 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
             </section>
           )}
 
-          {/* Individual Products */}
-          {filteredProducts.length > 0 && (
-            <section aria-labelledby="public-products-heading" className="space-y-3.5">
-              <div className="flex items-baseline justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-4 h-4 text-[#F5B731]" />
+          {/* Dynamic Category Product Sections (Drinks Horizontal Grid + Sandwiches/Food Cards) */}
+          {groupedProductSections.map((group) => (
+            <section
+              key={group.category}
+              aria-labelledby={`public-cat-${group.category}`}
+              className="space-y-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CategoryGlyph
+                    category={group.category}
+                    className="w-5 h-5 text-[#F5B900] shrink-0"
+                  />
                   <h2
-                    id="public-products-heading"
-                    className="font-display text-base sm:text-lg font-bold text-[#F3F4F6]"
+                    id={`public-cat-${group.category}`}
+                    className="font-display text-base sm:text-lg font-extrabold text-white truncate"
                   >
-                    Produtos Individuais
+                    {group.category}
                   </h2>
                 </div>
-                <span className="text-xs font-mono tabular-nums text-[#9CA3AF]">
-                  {filteredProducts.length}{' '}
-                  {filteredProducts.length === 1 ? 'item' : 'itens'}
-                </span>
+
+                {categoryFilter !== group.category ? (
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter(group.category)}
+                    className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#F5B900] hover:text-[#FFC928] cursor-pointer shrink-0 whitespace-nowrap"
+                  >
+                    <span>Ver todos</span>
+                    <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <span className="text-xs font-mono tabular-nums text-[#9CA3AF] shrink-0">
+                    {group.items.length}{' '}
+                    {group.items.length === 1 ? 'item' : 'itens'}
+                  </span>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {filteredProducts.map((product) => {
-                  const qty = getItemQuantity('product', product.id);
-                  return (
-                    <article
-                      key={product.id}
-                      className="group bg-[#12151C] border border-[#232834] hover:border-[#F5B731]/40 rounded-2xl p-4 flex flex-col justify-between gap-3.5 transition-colors duration-150"
-                    >
-                      <div className="flex items-start gap-3">
+              {group.isBeverage ? (
+                <div
+                  className={
+                    categoryFilter === group.category
+                      ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3'
+                      : 'flex flex-nowrap overflow-x-auto gap-2.5 pb-1 sm:grid sm:grid-cols-3 md:grid-cols-4 sm:gap-3 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]'
+                  }
+                >
+                  {group.items.map((product) => {
+                    const qty = getItemQuantity('product', product.id);
+                    return (
+                      <article
+                        key={product.id}
+                        className={`group bg-[#14171F] border border-[#242936] hover:border-[#F5B900]/50 rounded-2xl p-2.5 flex flex-col justify-between gap-2 transition-colors duration-150 ${
+                          categoryFilter === group.category
+                            ? 'w-full'
+                            : 'w-[134px] sm:w-auto shrink-0'
+                        }`}
+                      >
                         <button
                           type="button"
                           onClick={() =>
                             openItemInspector({ kind: 'product', product })
                           }
                           aria-label={`Ver detalhes de ${product.name}`}
-                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0B0D11] border border-[#262C3A] flex items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B731]/35 transition-colors"
+                          className="w-full h-24 rounded-xl overflow-hidden bg-[#0D1017] border border-[#222734] flex items-center justify-center cursor-pointer group-hover:border-[#F5B900]/40 transition-colors"
                         >
                           {hasUsableImage(product.imageUrl) ? (
                             <img
@@ -1557,84 +1668,189 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                               loading="lazy"
                               referrerPolicy="no-referrer"
                               onError={() => markImageBroken(product.imageUrl)}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              className="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-200"
                             />
                           ) : (
                             <CategoryGlyph
                               category={product.category}
-                              className="w-5 h-5 text-[#F5B731]"
+                              className="w-7 h-7 text-[#F5B900]"
                             />
                           )}
                         </button>
 
-                        <div className="min-w-0 space-y-1 flex-1">
-                          <p className="text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">
-                            {product.category}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openItemInspector({ kind: 'product', product })
-                            }
-                            className="text-left w-full cursor-pointer"
-                          >
-                            <h3 className="text-sm sm:text-[15px] font-bold text-[#F3F4F6] group-hover:text-[#F5B731] transition-colors leading-snug">
-                              {product.name}
-                            </h3>
-                          </button>
-                        </div>
-                      </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openItemInspector({ kind: 'product', product })
+                          }
+                          className="text-center w-full cursor-pointer px-0.5"
+                        >
+                          <h3 className="text-xs font-bold text-white group-hover:text-[#F5B900] transition-colors leading-snug line-clamp-2 min-h-[2rem]">
+                            {product.name}
+                          </h3>
+                        </button>
 
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#232834]/70">
-                        <span className="text-base font-bold text-[#F5B731] font-mono tabular-nums">
-                          {formatCurrencyBRL(product.unitPrice)}
-                        </span>
+                        <div className="flex items-center justify-between gap-1.5 pt-1">
+                          <span className="text-sm font-extrabold text-[#F5B900] font-mono tabular-nums">
+                            {formatCurrencyBRL(product.unitPrice)}
+                          </span>
 
-                        {qty === 0 ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateItemQuantity('product', product.id, 1)
-                            }
-                            className="min-h-[40px] px-3.5 rounded-xl bg-[#181C24] border border-[#232834] hover:border-[#F5B731] text-xs font-bold text-[#F3F4F6] inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
-                          >
-                            <Plus className="w-3.5 h-3.5 text-[#F5B731]" />
-                            Adicionar
-                          </button>
-                        ) : (
-                          <div className="inline-flex items-center gap-1.5 bg-[#0B0D11] border border-[#F5B731]/55 rounded-xl p-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateItemQuantity('product', product.id, -1)
-                              }
-                              aria-label={`Diminuir ${product.name}`}
-                              className="w-8 h-8 rounded-lg bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-[#F3F4F6] cursor-pointer transition-colors"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="w-5 text-center text-xs font-mono font-bold tabular-nums text-[#F5B731]">
-                              {qty}
-                            </span>
+                          {qty === 0 ? (
                             <button
                               type="button"
                               onClick={() =>
                                 updateItemQuantity('product', product.id, 1)
                               }
-                              aria-label={`Aumentar ${product.name}`}
-                              className="w-8 h-8 rounded-lg bg-[#F5B731] hover:bg-[#FCD34D] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
+                              aria-label={`Adicionar ${product.name}`}
+                              className="w-9 h-9 rounded-full bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] flex items-center justify-center cursor-pointer transition-colors shrink-0 shadow-[0_4px_12px_rgba(245,185,0,0.25)]"
+                            >
+                              <Plus className="w-4 h-4 stroke-[2.6]" />
+                            </button>
+                          ) : (
+                            <div className="inline-flex items-center gap-1 bg-[#0A0C10] border border-[#F5B900]/60 rounded-full p-0.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateItemQuantity('product', product.id, -1)
+                                }
+                                aria-label={`Diminuir ${product.name}`}
+                                className="w-7 h-7 rounded-full bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-white cursor-pointer transition-colors"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="w-4 text-center text-xs font-mono font-bold tabular-nums text-[#F5B900]">
+                                {qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateItemQuantity('product', product.id, 1)
+                                }
+                                aria-label={`Aumentar ${product.name}`}
+                                className="w-7 h-7 rounded-full bg-[#F5B900] hover:bg-[#FFC928] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {group.items.map((product) => {
+                    const qty = getItemQuantity('product', product.id);
+                    const hasAddons = Boolean(
+                      product.addonGroups?.some((g) => g.active && g.options.some((o) => o.active)),
+                    );
+
+                    return (
+                      <article
+                        key={product.id}
+                        className="group bg-[#14171F] border border-[#242936] hover:border-[#F5B900]/50 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-3 transition-colors duration-150"
+                      >
+                        <div className="flex items-start gap-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openItemInspector({ kind: 'product', product })
+                            }
+                            aria-label={`Ver detalhes de ${product.name}`}
+                            className="w-20 h-20 sm:w-22 sm:h-22 rounded-xl overflow-hidden bg-gradient-to-br from-[#1C212E] via-[#141821] to-[#0A0C10] border border-[#262C3A] flex items-center justify-center shrink-0 cursor-pointer group-hover:border-[#F5B900]/40 transition-colors"
+                          >
+                            {hasUsableImage(product.imageUrl) ? (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                                onError={() => markImageBroken(product.imageUrl)}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                            ) : (
+                              <CategoryGlyph
+                                category={product.category}
+                                className="w-6 h-6 text-[#F5B900]"
+                              />
+                            )}
+                          </button>
+
+                          <div className="min-w-0 space-y-1 flex-1">
+                            <p className="text-[11px] font-medium text-[#9CA3AF]">
+                              {product.category}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openItemInspector({ kind: 'product', product })
+                              }
+                              className="text-left w-full cursor-pointer"
+                            >
+                              <h3 className="font-display text-sm sm:text-[15px] font-bold text-white group-hover:text-[#F5B900] transition-colors leading-snug">
+                                {product.name}
+                              </h3>
+                            </button>
+                            {hasAddons && (
+                              <p className="text-[11px] text-[#A0A8B8]">
+                                Toque para escolher adicionais
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-[#242936]/80">
+                          <span className="text-base sm:text-lg font-extrabold text-[#F5B900] font-mono tabular-nums">
+                            {formatCurrencyBRL(product.unitPrice)}
+                          </span>
+
+                          {qty === 0 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateItemQuantity('product', product.id, 1)
+                              }
+                              className="min-h-[40px] px-3.5 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
                             >
                               <Plus className="w-3.5 h-3.5" />
+                              <span>Adicionar</span>
                             </button>
-                          </div>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 bg-[#0A0C10] border border-[#F5B900]/60 rounded-xl p-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateItemQuantity('product', product.id, -1)
+                                }
+                                aria-label={`Diminuir ${product.name}`}
+                                className="w-8 h-8 rounded-lg bg-[#181C24] hover:bg-[#232834] flex items-center justify-center text-white cursor-pointer transition-colors"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="w-5 text-center text-xs font-mono font-bold tabular-nums text-[#F5B900]">
+                                {qty}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateItemQuantity('product', product.id, 1)
+                                }
+                                aria-label={`Aumentar ${product.name}`}
+                                className="w-8 h-8 rounded-lg bg-[#F5B900] hover:bg-[#FFC928] flex items-center justify-center text-[#0B0D11] cursor-pointer transition-colors"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
             </section>
-          )}
+          ))}
         </div>
 
         {/* Unified Responsive Cart & Checkout (Desktop Sticky Sidebar + Mobile Drawer Sheet) */}
@@ -1649,20 +1865,20 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
           <div
             className={
               mobileCartOpen
-                ? 'w-full max-w-lg max-h-[92vh] overflow-y-auto bg-[#12151C] border-t sm:border border-[#232834] rounded-t-2xl sm:rounded-2xl p-5 space-y-4 lg:max-w-none lg:max-h-none lg:overflow-visible lg:border lg:rounded-2xl'
-                : 'bg-[#12151C] border border-[#232834] rounded-2xl p-5'
+                ? 'w-full max-w-lg max-h-[92vh] overflow-y-auto bg-[#14171F] border-t sm:border border-[#242936] rounded-t-2xl sm:rounded-2xl p-5 space-y-4 lg:max-w-none lg:max-h-none lg:overflow-visible lg:border lg:rounded-2xl'
+                : 'bg-[#14171F] border border-[#242936] rounded-2xl p-5'
             }
           >
             {mobileCartOpen && (
               <div className="flex items-center justify-between lg:hidden">
-                <span className="text-xs font-semibold text-[#9CA3AF]">
+                <span className="text-xs font-semibold text-[#A0A8B8]">
                   {store.storeName}
                 </span>
                 <button
                   type="button"
                   onClick={() => setMobileCartOpen(false)}
                   aria-label="Fechar sacola"
-                  className="w-9 h-9 rounded-lg border border-[#232834] flex items-center justify-center text-[#9CA3AF] hover:text-[#F3F4F6] cursor-pointer"
+                  className="w-9 h-9 rounded-lg border border-[#242936] flex items-center justify-center text-[#9CA3AF] hover:text-white cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1674,7 +1890,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
       </main>
 
       {/* Storefront Footer */}
-      <footer className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-6 border-t border-[#232834]/70 text-xs text-[#6B7280] flex flex-wrap items-center justify-between gap-2">
+      <footer className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-6 border-t border-[#242936]/80 text-xs text-[#7B8396] flex flex-wrap items-center justify-between gap-2">
         <span>{store.storeName} · Pedido online direto com a loja</span>
         {store.address && <span>{store.address}</span>}
       </footer>
@@ -1685,28 +1901,31 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
           role="dialog"
           aria-modal="true"
           aria-label="Detalhes do item"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setInspectItem(null);
+          }}
           className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
         >
-          <div className="w-full max-w-md bg-[#12151C] border-t sm:border border-[#232834] rounded-t-2xl sm:rounded-2xl p-5 space-y-4">
+          <div className="w-full max-w-md max-h-[92vh] overflow-y-auto bg-[#14171F] border-t sm:border border-[#242936] rounded-t-2xl sm:rounded-2xl p-5 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1C212E] to-[#0B0D11] border border-[#262C3A] flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1C212E] to-[#0A0C10] border border-[#262C3A] flex items-center justify-center shrink-0">
                   <CategoryGlyph
                     category={
                       inspectItem.kind === 'combo'
                         ? 'combo'
                         : inspectItem.product.category
                     }
-                    className="w-5 h-5 text-[#F5B731]"
+                    className="w-5 h-5 text-[#F5B900]"
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">
+                  <p className="text-[11px] font-medium text-[#A0A8B8]">
                     {inspectItem.kind === 'combo'
                       ? 'Combo especial'
                       : inspectItem.product.category}
                   </p>
-                  <h3 className="font-display text-base font-bold text-[#F3F4F6] leading-snug">
+                  <h3 className="font-display text-base font-bold text-white leading-snug">
                     {inspectItem.kind === 'combo'
                       ? inspectItem.combo.name
                       : inspectItem.product.name}
@@ -1718,7 +1937,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 type="button"
                 onClick={() => setInspectItem(null)}
                 aria-label="Fechar detalhes do item"
-                className="w-9 h-9 rounded-lg border border-[#232834] flex items-center justify-center text-[#9CA3AF] hover:text-[#F3F4F6] cursor-pointer shrink-0"
+                className="w-9 h-9 rounded-lg border border-[#242936] flex items-center justify-center text-[#9CA3AF] hover:text-white cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1729,7 +1948,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 ? inspectItem.combo.imageUrl
                 : inspectItem.product.imageUrl,
             ) && (
-              <div className="w-full h-44 sm:h-52 rounded-xl overflow-hidden border border-[#232834] bg-[#0B0D11]">
+              <div className="w-full h-44 sm:h-52 rounded-xl overflow-hidden border border-[#242936] bg-[#0A0C10]">
                 <img
                   src={
                     inspectItem.kind === 'combo'
@@ -1755,7 +1974,7 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
             )}
 
             {inspectItem.kind === 'combo' && (
-              <div className="p-3.5 rounded-xl bg-[#0B0D11] border border-[#232834] space-y-1.5 text-xs">
+              <div className="p-3.5 rounded-xl bg-[#0A0C10] border border-[#242936] space-y-1.5 text-xs">
                 {inspectItem.combo.description && (
                   <p className="text-[#D1D5DB] leading-relaxed">
                     {inspectItem.combo.description}
@@ -1769,32 +1988,68 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
               </div>
             )}
 
-            {inspectItem.kind === 'product' && (inspectItem.product.addonGroups || []).filter((g) => g.active).map((group) => {
-              const selectedIds = modalAddonSelections[group.id] || [];
-              const toggleOption = (optionId: string) => {
-                setModalAddonSelections((prev) => {
-                  const current = prev[group.id] || [];
-                  const exists = current.includes(optionId);
-                  const next = exists ? current.filter((id) => id !== optionId) : group.maxSelect === 1 ? [optionId] : current.length < group.maxSelect ? [...current, optionId] : current;
-                  return { ...prev, [group.id]: next };
-                });
-              };
-              return (
-                <section key={group.id} className="rounded-xl border border-[#343B49] bg-[#0B0D11] p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <strong className="text-xs text-[#F3F4F6]">{group.name}</strong>
-                    <span className="text-[10px] text-[#9CA3AF]">{group.isRequired ? 'Obrigatório' : 'Opcional'} · escolha {group.minSelect} a {group.maxSelect}</span>
-                  </div>
-                  {group.options.filter((o) => o.active).map((option) => {
-                    const checked = selectedIds.includes(option.id);
-                    return <label key={option.id} className="flex items-center justify-between gap-3 py-1 text-xs text-[#D1D5DB] cursor-pointer">
-                      <span className="flex items-center gap-2"><input type={group.maxSelect === 1 ? 'radio' : 'checkbox'} name={`addon-${group.id}`} checked={checked} onChange={() => toggleOption(option.id)} className="accent-[#F5B731]"/>{option.name}</span>
-                      <span className="font-mono">{option.price > 0 ? `+${formatCurrencyBRL(option.price)}` : 'Grátis'}</span>
-                    </label>;
-                  })}
-                </section>
-              );
-            })}
+            {inspectItem.kind === 'product' &&
+              (inspectItem.product.addonGroups || [])
+                .filter((g) => g.active)
+                .map((group) => {
+                  const selectedIds = modalAddonSelections[group.id] || [];
+                  const toggleOption = (optionId: string) => {
+                    setModalAddonSelections((prev) => {
+                      const current = prev[group.id] || [];
+                      const exists = current.includes(optionId);
+                      const next = exists
+                        ? current.filter((id) => id !== optionId)
+                        : group.maxSelect === 1
+                          ? [optionId]
+                          : current.length < group.maxSelect
+                            ? [...current, optionId]
+                            : current;
+                      return { ...prev, [group.id]: next };
+                    });
+                  };
+                  return (
+                    <section
+                      key={group.id}
+                      className="rounded-xl border border-[#2D3444] bg-[#0A0C10] p-3 space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <strong className="text-xs text-white">{group.name}</strong>
+                        <span className="text-[10px] text-[#A0A8B8]">
+                          {group.isRequired ? 'Obrigatório' : 'Opcional'} · escolha{' '}
+                          {group.minSelect} a {group.maxSelect}
+                        </span>
+                      </div>
+                      {group.options
+                        .filter((o) => o.active)
+                        .map((option) => {
+                          const checked = selectedIds.includes(option.id);
+                          return (
+                            <label
+                              key={option.id}
+                              className="flex items-center justify-between gap-3 py-1 text-xs text-[#D1D5DB] cursor-pointer"
+                            >
+                              <span className="flex items-center gap-2">
+                                <input
+                                  type={group.maxSelect === 1 ? 'radio' : 'checkbox'}
+                                  name={`addon-${group.id}`}
+                                  checked={checked}
+                                  onChange={() => toggleOption(option.id)}
+                                  className="accent-[#F5B900]"
+                                />
+                                {option.name}
+                              </span>
+                              <span className="font-mono tabular-nums">
+                                {option.price > 0
+                                  ? `+${formatCurrencyBRL(option.price)}`
+                                  : 'Grátis'}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </section>
+                  );
+                })}
+
             <div>
               <label
                 htmlFor="modal-item-note"
@@ -1809,28 +2064,37 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 value={modalNote}
                 onChange={(e) => setModalNote(e.target.value)}
                 placeholder="Ex: sem cebola, maionese à parte..."
-                className="w-full min-h-[42px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                className="w-full min-h-[42px] px-3 rounded-xl bg-[#0A0C10] border border-[#242936] focus:border-[#F5B900] focus:outline-none text-sm text-white"
               />
             </div>
 
+            {checkoutError && (
+              <div
+                role="alert"
+                className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5]"
+              >
+                {checkoutError}
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-3 pt-1">
-              <div className="inline-flex items-center gap-2 bg-[#0B0D11] border border-[#232834] rounded-xl p-1">
+              <div className="inline-flex items-center gap-2 bg-[#0A0C10] border border-[#242936] rounded-xl p-1">
                 <button
                   type="button"
                   onClick={() => setModalQty((q) => Math.max(1, q - 1))}
                   aria-label="Diminuir quantidade"
-                  className="w-9 h-9 rounded-lg bg-[#181C24] flex items-center justify-center text-[#F3F4F6] cursor-pointer"
+                  className="w-9 h-9 rounded-lg bg-[#181C24] flex items-center justify-center text-white cursor-pointer"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="w-6 text-center text-sm font-mono font-bold tabular-nums text-[#F3F4F6]">
+                <span className="w-6 text-center text-sm font-mono font-bold tabular-nums text-white">
                   {modalQty}
                 </span>
                 <button
                   type="button"
                   onClick={() => setModalQty((q) => Math.min(99, q + 1))}
                   aria-label="Aumentar quantidade"
-                  className="w-9 h-9 rounded-lg bg-[#181C24] flex items-center justify-center text-[#F3F4F6] cursor-pointer"
+                  className="w-9 h-9 rounded-lg bg-[#181C24] flex items-center justify-center text-white cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -1840,8 +2104,18 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                 type="button"
                 onClick={() => {
                   if (inspectItem.kind === 'product') {
-                    const invalid = (inspectItem.product.addonGroups || []).find((g) => g.active && ((modalAddonSelections[g.id] || []).length < g.minSelect || (modalAddonSelections[g.id] || []).length > g.maxSelect));
-                    if (invalid) { setCheckoutError(`Selecione entre ${invalid.minSelect} e ${invalid.maxSelect} opções em ${invalid.name}.`); return; }
+                    const invalid = (inspectItem.product.addonGroups || []).find(
+                      (g) =>
+                        g.active &&
+                        ((modalAddonSelections[g.id] || []).length < g.minSelect ||
+                          (modalAddonSelections[g.id] || []).length > g.maxSelect),
+                    );
+                    if (invalid) {
+                      setCheckoutError(
+                        `Selecione entre ${invalid.minSelect} e ${invalid.maxSelect} opções em ${invalid.name}.`,
+                      );
+                      return;
+                    }
                   }
                   setCheckoutError(null);
                   addItemFromDetailModal(
@@ -1851,17 +2125,36 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
                       : inspectItem.product.id,
                     modalQty,
                     modalNote,
-                    inspectItem.kind === 'product' ? (inspectItem.product.addonGroups || []).filter((g) => (modalAddonSelections[g.id] || []).length > 0).map((g) => ({ groupId: g.id, optionIds: modalAddonSelections[g.id] || [] })) : [],
+                    inspectItem.kind === 'product'
+                      ? (inspectItem.product.addonGroups || [])
+                          .filter((g) => (modalAddonSelections[g.id] || []).length > 0)
+                          .map((g) => ({
+                            groupId: g.id,
+                            optionIds: modalAddonSelections[g.id] || [],
+                          }))
+                      : [],
                   );
                 }}
-                className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-xs sm:text-sm font-bold inline-flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                className="flex-1 min-h-[46px] px-4 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs sm:text-sm font-bold inline-flex items-center justify-between gap-2 cursor-pointer transition-colors"
               >
                 <span>Adicionar à sacola</span>
                 <span className="font-mono tabular-nums">
                   {formatCurrencyBRL(
-                    ((inspectItem.kind === 'combo'
+                    (inspectItem.kind === 'combo'
                       ? inspectItem.combo.salePrice
-                      : inspectItem.product.unitPrice + (inspectItem.product.addonGroups || []).reduce((sum, group) => sum + (modalAddonSelections[group.id] || []).reduce((groupSum, optionId) => groupSum + (group.options.find((option) => option.id === optionId)?.price || 0), 0), 0)) * modalQty),
+                      : inspectItem.product.unitPrice +
+                        (inspectItem.product.addonGroups || []).reduce(
+                          (sum, group) =>
+                            sum +
+                            (modalAddonSelections[group.id] || []).reduce(
+                              (groupSum, optionId) =>
+                                groupSum +
+                                (group.options.find((option) => option.id === optionId)
+                                  ?.price || 0),
+                              0,
+                            ),
+                          0,
+                        )) * modalQty,
                   )}
                 </span>
               </button>
@@ -1870,22 +2163,33 @@ export function PublicMenuView({ slug, onOrderCreated }: PublicMenuViewProps) {
         </div>
       )}
 
-      {/* Mobile Bottom Sacola Bar */}
-      {cartSummary.totalItemsCount > 0 && !mobileCartOpen && !inspectItem && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-4 py-2.5 bg-[#0B0D11]/95 backdrop-blur-md border-t border-[#232834]">
-          <button
-            type="button"
-            onClick={() => setMobileCartOpen(true)}
-            className="w-full min-h-[46px] px-4 rounded-xl bg-[#F5B731] hover:bg-[#FCD34D] text-[#0B0D11] text-sm font-bold flex items-center justify-between cursor-pointer transition-colors"
-          >
-            <span className="inline-flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4" />
-              Ver sacola ({cartSummary.totalItemsCount})
-            </span>
-            <span className="font-mono tabular-nums">
-              {formatCurrencyBRL(cartSummary.totalAmount)}
-            </span>
-          </button>
+      {/* Fixed Bottom Cart Bar ("Meu Pedido") */}
+      {!mobileCartOpen && !inspectItem && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pt-2 pb-[max(0.65rem,env(safe-area-inset-bottom))] bg-[#0A0C10]/95 backdrop-blur-md border-t border-[#242936]">
+          <div className="max-w-lg mx-auto rounded-2xl bg-[#14171F] border border-[#F5B900]/45 px-3.5 py-2 flex items-center justify-between gap-3 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+            <div className="flex items-center gap-3 min-w-0">
+              <ShoppingCart className="w-5 h-5 text-[#F5B900] shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white leading-tight">Meu Pedido</p>
+                <p className="text-xs text-[#A0A8B8] font-mono tabular-nums truncate">
+                  {cartSummary.totalItemsCount}{' '}
+                  {cartSummary.totalItemsCount === 1 ? 'item' : 'itens'}
+                  {cartSummary.totalItemsCount > 0
+                    ? ` · ${formatCurrencyBRL(cartSummary.totalAmount)}`
+                    : ''}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMobileCartOpen(true)}
+              className="min-h-[42px] px-4 rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#0B0D11] text-xs sm:text-sm font-bold inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+            >
+              <span>Ver Carrinho</span>
+              <ChevronRight className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       )}
     </div>

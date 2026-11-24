@@ -200,3 +200,45 @@ export function computeCashChangeAmount(
   return Math.round((changeFor - totalAmount) * 100) / 100;
 }
 
+export function isBeverageCategory(category: string): boolean {
+  const normalized = category
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return (
+    normalized === 'bebida' ||
+    normalized === 'bebidas' ||
+    normalized.includes('bebida') ||
+    normalized.includes('refrigerante') ||
+    normalized.includes('suco')
+  );
+}
+
+export function groupProductsByCategory<T extends { category: string }>(
+  products: T[],
+): Array<{ category: string; isBeverage: boolean; items: T[] }> {
+  const map = new Map<string, T[]>();
+  for (const product of products) {
+    const key = (product.category || '').trim() || 'Outro';
+    const existing = map.get(key);
+    if (existing) {
+      existing.push(product);
+    } else {
+      map.set(key, [product]);
+    }
+  }
+
+  return Array.from(map.entries())
+    .sort(([a], [b]) => {
+      const aBev = isBeverageCategory(a);
+      const bBev = isBeverageCategory(b);
+      if (aBev !== bBev) return aBev ? -1 : 1;
+      return a.localeCompare(b, 'pt-BR');
+    })
+    .map(([category, items]) => ({
+      category,
+      isBeverage: isBeverageCategory(category),
+      items,
+    }));
+}

@@ -1,11 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { PublicMenuView } from '../components/PublicMenuView';
+import type { PublicDigitalMenuPayload } from '../types/finance';
 import {
   buildCartStorageKey,
   computeCashChangeAmount,
   computeMenuCategoryCounts,
   formatComboComposition,
   getStoreMonogram,
+  groupProductsByCategory,
+  isBeverageCategory,
   parseStoredCart,
   parseStoredCustomerProfile,
   serializeStoredCart,
@@ -126,5 +132,241 @@ test('computeCashChangeAmount returns positive change only when payment exceeds 
   assert.equal(computeCashChangeAmount(34.5, 34.5), null);
   assert.equal(computeCashChangeAmount(20, 34.5), null);
   assert.equal(computeCashChangeAmount(null, 34.5), null);
+});
+
+test('isBeverageCategory and groupProductsByCategory sort beverages and preserve custom categories', () => {
+  assert.equal(isBeverageCategory('Bebidas'), true);
+  assert.equal(isBeverageCategory('Sucos Naturais'), true);
+  assert.equal(isBeverageCategory('Refrigerantes'), true);
+  assert.equal(isBeverageCategory('Porções'), false);
+
+  const grouped = groupProductsByCategory([
+    { id: '1', category: 'Porções' },
+    { id: '2', category: 'Bebidas Geladas' },
+    { id: '3', category: 'Lanches' },
+    { id: '4', category: 'Porções' },
+  ]);
+
+  assert.equal(grouped.length, 3);
+  assert.equal(grouped[0].category, 'Bebidas Geladas');
+  assert.equal(grouped[0].isBeverage, true);
+  assert.equal(grouped[1].category, 'Lanches');
+  assert.equal(grouped[1].isBeverage, false);
+  assert.equal(grouped[2].category, 'Porções');
+  assert.equal(grouped[2].items.length, 2);
+});
+
+test('PublicMenuView preserves each establishment visual identity, dynamic catalog, dark-gold theme, and mobile cart bar', () => {
+  const noop = () => {};
+
+  const storeAPayload: PublicDigitalMenuPayload = {
+    found: true,
+    store: {
+      slug: 'sabor-da-villa',
+      isActive: true,
+      isOpen: true,
+      storeName: 'Sabor da Villa',
+      description: 'Hambúrgueres na brasa desde 2021',
+      phoneWhatsapp: '92991234567',
+      address: 'Rua das Flores, 42',
+      openingHours: 'Terça a Domingo 18h às 23h',
+      pixKey: 'sabor@villa.com',
+      deliveryFee: 7.5,
+      minimumOrderAmount: 20,
+      acceptsDelivery: true,
+      acceptsPickup: true,
+      logoUrl: 'https://cdn.example.com/villa-logo.png',
+      bannerUrl: 'https://cdn.example.com/villa-banner.jpg',
+    },
+    combos: [
+      {
+        id: 'combo-villa-1',
+        name: 'Combo Villa Duplo',
+        description: '2 Villa Smash + 1 Guaraná Lata',
+        salePrice: 42.9,
+        imageUrl: 'https://cdn.example.com/villa-combo.jpg',
+        items: [
+          {
+            productId: 'prod-smash',
+            productName: 'Villa Smash',
+            quantity: 2,
+            countsAsXSalada: true,
+          },
+        ],
+      },
+    ],
+    products: [
+      {
+        id: 'prod-coca',
+        name: 'Coca-Cola 350ml',
+        category: 'Bebida',
+        unitPrice: 6.5,
+        countsAsXSalada: false,
+        imageUrl: 'https://cdn.example.com/coca.png',
+      },
+      {
+        id: 'prod-smash',
+        name: 'Villa Smash',
+        category: 'Lanche',
+        unitPrice: 21.0,
+        countsAsXSalada: true,
+        addonGroups: [
+          {
+            id: 'grp-molhos',
+            name: 'Molho Extra',
+            isRequired: false,
+            minSelect: 0,
+            maxSelect: 2,
+            active: true,
+            sortOrder: 1,
+            options: [
+              {
+                id: 'opt-bacon',
+                groupId: 'grp-molhos',
+                name: 'Maionese Defumada',
+                price: 3.0,
+                active: true,
+                sortOrder: 1,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'prod-fritas',
+        name: 'Batata Rústica',
+        category: 'Porções',
+        unitPrice: 18.0,
+        countsAsXSalada: false,
+      },
+    ],
+  };
+
+  const htmlA = renderToStaticMarkup(
+    createElement(PublicMenuView, {
+      slug: 'sabor-da-villa',
+      onOrderCreated: noop,
+      initialPayload: storeAPayload,
+    }),
+  );
+
+  // Store A own visual identity and operational data
+  assert.ok(htmlA.includes('Sabor da Villa'));
+  assert.ok(htmlA.includes('Hambúrgueres na brasa desde 2021'));
+  assert.ok(htmlA.includes('https://cdn.example.com/villa-logo.png'));
+  assert.ok(htmlA.includes('https://cdn.example.com/villa-banner.jpg'));
+  assert.ok(htmlA.includes('Terça a Domingo 18h às 23h'));
+  assert.ok(htmlA.includes('Rua das Flores, 42'));
+  assert.ok(htmlA.includes('92991234567'));
+  assert.ok(htmlA.includes('Aberto para pedidos'));
+  assert.ok(htmlA.includes('Retirada disponível'));
+  assert.ok(htmlA.includes('Compartilhar'));
+  assert.ok(htmlA.includes('Falar no WhatsApp'));
+
+  // Dynamic categories & sections & dark-gold tokens
+  assert.ok(htmlA.includes('data-testid="menu-category-tabs"'));
+  assert.ok(htmlA.includes('Combos Especiais'));
+  assert.ok(htmlA.includes('Combo Villa Duplo'));
+  assert.ok(htmlA.includes('Porções'));
+  assert.ok(htmlA.includes('Batata Rústica'));
+  assert.ok(htmlA.includes('Toque para escolher adicionais'));
+  assert.ok(htmlA.includes('bg-[#0A0C10]'));
+  assert.ok(htmlA.includes('bg-[#14171F]'));
+  assert.ok(htmlA.includes('bg-[#F5B900]'));
+  assert.ok(htmlA.includes('Meu Pedido'));
+  assert.ok(htmlA.includes('Ver Carrinho'));
+
+  // No fabricated promo badges or hard-coded other store branding
+  assert.ok(!htmlA.includes('MAIS PEDIDO'));
+  assert.ok(!htmlA.includes('MELHOR CUSTO-BENEFÍCIO'));
+  assert.ok(!htmlA.includes('MGW Burger'));
+
+  // Store B: completely isolated second establishment
+  const storeBPayload: PublicDigitalMenuPayload = {
+    found: true,
+    store: {
+      slug: 'pizzaria-aurora',
+      isActive: true,
+      isOpen: false,
+      storeName: 'Pizzaria Aurora',
+      description: 'Forno a lenha artesanal',
+      phoneWhatsapp: '11988887777',
+      address: 'Av. Paulista, 900',
+      openingHours: 'Todos os dias 19h às 00h',
+      pixKey: '',
+      deliveryFee: 0,
+      minimumOrderAmount: 0,
+      acceptsDelivery: true,
+      acceptsPickup: false,
+      logoUrl: 'https://cdn.example.com/aurora-logo.png',
+      bannerUrl: 'https://cdn.example.com/aurora-banner.jpg',
+    },
+    combos: [],
+    products: [
+      {
+        id: 'pizza-marguerita',
+        name: 'Marguerita Clássica',
+        category: 'Pizzas',
+        unitPrice: 54.0,
+        countsAsXSalada: false,
+      },
+    ],
+  };
+
+  const htmlB = renderToStaticMarkup(
+    createElement(PublicMenuView, {
+      slug: 'pizzaria-aurora',
+      onOrderCreated: noop,
+      initialPayload: storeBPayload,
+    }),
+  );
+
+  assert.ok(htmlB.includes('Pizzaria Aurora'));
+  assert.ok(htmlB.includes('Forno a lenha artesanal'));
+  assert.ok(htmlB.includes('https://cdn.example.com/aurora-logo.png'));
+  assert.ok(htmlB.includes('https://cdn.example.com/aurora-banner.jpg'));
+  assert.ok(htmlB.includes('Fechado no momento'));
+  assert.ok(htmlB.includes('Entrega grátis'));
+  assert.ok(htmlB.includes('Marguerita Clássica'));
+  assert.ok(!htmlB.includes('Retirada disponível'));
+  assert.ok(!htmlB.includes('Sabor da Villa'));
+  assert.ok(!htmlB.includes('villa-logo.png'));
+  assert.ok(!htmlB.includes('MGW Burger'));
+
+  // Store C: fallback monogram when logoUrl/bannerUrl are absent
+  const storeCPayload: PublicDigitalMenuPayload = {
+    found: true,
+    store: {
+      slug: 'toca-do-acai',
+      isActive: true,
+      isOpen: true,
+      storeName: 'Toca do Açaí',
+      description: '',
+      phoneWhatsapp: '',
+      address: '',
+      openingHours: '',
+      pixKey: '',
+      deliveryFee: 4,
+      minimumOrderAmount: 0,
+      acceptsDelivery: false,
+      acceptsPickup: true,
+    },
+    combos: [],
+    products: [],
+  };
+
+  const htmlC = renderToStaticMarkup(
+    createElement(PublicMenuView, {
+      slug: 'toca-do-acai',
+      onOrderCreated: noop,
+      initialPayload: storeCPayload,
+    }),
+  );
+
+  assert.ok(htmlC.includes('Toca do Açaí'));
+  assert.ok(htmlC.includes('>T<'));
+  assert.ok(htmlC.includes('Somente retirada'));
+  assert.ok(!htmlC.includes('villa-logo.png'));
+  assert.ok(!htmlC.includes('aurora-logo.png'));
 });
 
