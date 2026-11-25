@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock3, RefreshCw, Wallet, Bike, CircleDollarSign, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, RefreshCw, Wallet, Bike, AlertCircle } from 'lucide-react';
 import type { DeliveryCourierRecord, DeliveryDispatchRecord, OnlineOrderRecord } from '../types/finance';
 import { getSupabaseClient } from '../lib/supabase';
 import { formatCurrencyBRL } from '../utils/finance';
