@@ -66,6 +66,8 @@ export function resolveShellPageTitle(
       return 'Central de Despacho · MGW Delivery';
     case 'delivery_regions':
       return 'Regiões e Taxas · MGW Delivery';
+    case 'delivery_finance':
+      return 'Financeiro · MGW Delivery';
     case 'sales':
       return 'Vendas';
     case 'expenses':
