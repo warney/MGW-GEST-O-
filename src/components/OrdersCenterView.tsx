@@ -63,9 +63,16 @@ import {
 import { OrderDetailsModal, OrderStatusIcon } from './OrderDetailsModal';
 import { OrderPrintModal } from './OrderPrintModal';
 import { PWAInstallButton } from './PWAInstallButton';
+import { DeliveryDispatchAssignModal } from './DeliveryDispatchAssignModal';
+import type { DeliveryCourierRecord, DeliveryDispatchRecord } from '../types/finance';
 
 interface OrdersCenterViewProps {
   orders: OnlineOrderRecord[];
+  couriers: DeliveryCourierRecord[];
+  dispatches: DeliveryDispatchRecord[];
+  operatorEmail?: string;
+  onAssignCourier: (orderId: string, courierId: string, notes: string) => Promise<void>;
+  onOpenCouriers?: () => void;
   digitalMenuSettings: DigitalMenuSettings;
   soundEnabled: boolean;
   pushEnabled: boolean;
@@ -132,6 +139,11 @@ function OrdersCenterSkeleton() {
 
 export function OrdersCenterView({
   orders,
+  couriers,
+  dispatches,
+  operatorEmail,
+  onAssignCourier,
+  onOpenCouriers,
   digitalMenuSettings,
   soundEnabled,
   pushEnabled,
@@ -157,6 +169,7 @@ export function OrdersCenterView({
   const [page, setPage] = useState(1);
   const [busyOrderId, setBusyOrderId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
   const [openMenuOrderId, setOpenMenuOrderId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshStatusText, setRefreshStatusText] = useState<string | null>(
@@ -195,6 +208,11 @@ export function OrdersCenterView({
   const selectedOrder = useMemo(
     () => orders.find((o) => o.id === selectedOrderId) ?? null,
     [orders, selectedOrderId],
+  );
+
+  const dispatchByOrderId = useMemo(
+    () => new Map(dispatches.filter((dispatch) => !['delivered', 'delivery_cancelled', 'delivery_rejected'].includes(dispatch.dispatchStatus)).map((dispatch) => [dispatch.orderId, dispatch])),
+    [dispatches],
   );
 
   // Reset to page 1 when filter or search query changes
@@ -267,6 +285,11 @@ export function OrdersCenterView({
     nextStatus: OnlineOrderStatus,
   ) {
     if (busyOrderId) return;
+    if (nextStatus === 'out_for_delivery' && order.fulfillmentType === 'delivery') {
+      setAssigningOrderId(order.id);
+      setSelectedOrderId(null);
+      return;
+    }
     setActionError(null);
     setOpenMenuOrderId(null);
     setBusyOrderId(order.id);
@@ -952,6 +975,25 @@ export function OrdersCenterView({
         </article>
       </section>
 
+      {/* Fluxo operacional visual — os contadores acompanham os status reais */}
+      <section aria-label="Fluxo dos pedidos" className="bg-white border border-[#E8EAF0] rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(23,32,51,0.03)]">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {[
+            { id: 'all' as const, label: 'Todos', count: summary.totalCount, tone: 'border-[#F5B900] bg-[#FFFBEB] text-[#9A6B00]' },
+            { id: 'preparing' as const, label: 'Em preparo', count: summary.preparingCount, tone: 'border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]' },
+            { id: 'ready' as const, label: 'Prontos', count: summary.readyCount, tone: 'border-[#A7F3D0] bg-[#ECFDF5] text-[#15803D]' },
+            { id: 'dispatch' as const, label: 'Saiu para entrega', count: summary.dispatchCount, tone: 'border-[#DDD6FE] bg-[#F5F3FF] text-[#6D28D9]' },
+            { id: 'completed' as const, label: 'Entregues', count: summary.completedCount, tone: 'border-[#A7F3D0] bg-[#ECFDF5] text-[#15803D]' },
+          ].map((step) => (
+            <button key={step.id} type="button" onClick={() => setFilterTab(step.id)} aria-pressed={filterTab === step.id}
+              className={`min-h-[76px] rounded-xl border px-3 py-2 text-left transition-all ${step.tone} ${filterTab === step.id ? 'ring-2 ring-[#F5B900] ring-offset-1' : 'hover:shadow-sm'}`}>
+              <span className="block text-[11px] font-semibold opacity-80">{step.label}</span>
+              <span className="block text-2xl font-extrabold font-mono tabular-nums">{step.count}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* 3. Barra de Filtros por Status & Busca */}
       <section
         aria-label="Filtros e busca de pedidos"
@@ -1115,6 +1157,7 @@ export function OrdersCenterView({
                     <th className="py-3.5 px-4">Cliente</th>
                     <th className="py-3.5 px-4">Itens</th>
                     <th className="py-3.5 px-4 whitespace-nowrap">Valor</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Entregador</th>
                     <th className="py-3.5 px-4 whitespace-nowrap">Status</th>
                     <th className="py-3.5 px-4 text-right whitespace-nowrap">
                       Ações
@@ -1212,6 +1255,18 @@ export function OrdersCenterView({
                           <span className="text-[13px] font-bold text-[#172033] font-mono tabular-nums">
                             {formatCurrencyBRL(order.totalAmount)}
                           </span>
+                        </td>
+
+                        {/* Entregador atribuído */}
+                        <td className="py-3.5 px-4 align-middle">
+                          {dispatchByOrderId.get(order.id) ? (
+                            <div className="min-w-[125px]">
+                              <p className="text-[12px] font-semibold text-[#172033]">{dispatchByOrderId.get(order.id)?.courierNameSnapshot}</p>
+                              <p className="text-[10px] text-[#778094]">Responsável</p>
+                            </div>
+                          ) : order.fulfillmentType === 'delivery' ? (
+                            <button type="button" onClick={(event) => { event.stopPropagation(); setAssigningOrderId(order.id); }} className="text-[11px] font-semibold text-[#9A6B00] hover:underline">Atribuir entregador</button>
+                          ) : <span className="text-[11px] text-[#778094]">Retirada</span>}
                         </td>
 
                         {/* Status */}
@@ -1392,6 +1447,7 @@ export function OrdersCenterView({
               const primaryAction = actions.find((a) => !a.requiresReason);
               const isBusy = busyOrderId === order.id;
               const orderCode = formatOrderNumber(order.orderNumber);
+              const assignedDispatch = dispatchByOrderId.get(order.id);
 
               return (
                 <article
@@ -1432,6 +1488,14 @@ export function OrdersCenterView({
                       <span>{badgeSpec.label}</span>
                     </span>
                   </div>
+
+                  {assignedDispatch ? (
+                    <div className="rounded-lg bg-[#F5F3FF] border border-[#DDD6FE] px-3 py-2 text-xs text-[#5B21B6]">
+                      <strong>Entregador:</strong> {assignedDispatch.courierNameSnapshot}
+                    </div>
+                  ) : order.fulfillmentType === 'delivery' && order.status === 'ready' ? (
+                    <button type="button" onClick={(event) => { event.stopPropagation(); setAssigningOrderId(order.id); }} className="text-xs font-semibold text-[#9A6B00]">+ Atribuir entregador</button>
+                  ) : null}
 
                   <div className="flex items-center justify-between gap-3 text-xs pt-2 border-t border-[#E8EAF0]">
                     <div className="min-w-0">
@@ -1587,6 +1651,21 @@ export function OrdersCenterView({
           )
         }
         onPrint={openPrintModalForOrder}
+      />
+
+      <DeliveryDispatchAssignModal
+        isOpen={Boolean(assigningOrderId)}
+        mode="assign"
+        order={orders.find((item) => item.id === assigningOrderId) ?? null}
+        couriers={couriers}
+        dispatches={dispatches}
+        operatorEmail={operatorEmail}
+        onClose={() => setAssigningOrderId(null)}
+        onOpenCouriers={onOpenCouriers}
+        onConfirmAssign={async (orderId, courierId, notes) => {
+          await onAssignCourier(orderId, courierId, notes);
+          setAssigningOrderId(null);
+        }}
       />
 
       {/* Reason Modal for Rejection or Cancellation */}
