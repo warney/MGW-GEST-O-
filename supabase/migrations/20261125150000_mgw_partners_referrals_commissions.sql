@@ -140,6 +140,7 @@ as $
 declare
   v_admin public.platform_admins%rowtype;
   v_commission public.mgw_partner_commissions%rowtype;
+  v_before public.mgw_partner_commissions%rowtype;
   v_profile public.mgw_partner_payout_profiles%rowtype;
   v_partner public.mgw_partners%rowtype;
 begin
@@ -147,6 +148,7 @@ begin
   select * into v_commission from public.mgw_partner_commissions
     where id=p_commission_id for update;
   if not found then raise exception 'Comissao nao encontrada.'; end if;
+  v_before := v_commission;
   if v_commission.status not in ('available','failed','processing') then
     raise exception 'Comissao nao esta disponivel para repasse.';
   end if;
@@ -168,7 +170,7 @@ begin
 
   perform public.write_platform_audit_log(
     v_admin,'mgw_partner_payout_requested','mgw_partner_commission',p_commission_id::text,
-    to_jsonb(v_commission),jsonb_build_object('status','processing','payout_reference',v_commission.payout_reference),
+    to_jsonb(v_before),jsonb_build_object('status','processing','payout_reference',v_commission.payout_reference),
     'Solicitacao de repasse Pix individual','{}'::jsonb
   );
 
