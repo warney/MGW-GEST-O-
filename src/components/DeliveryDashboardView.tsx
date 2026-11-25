@@ -52,6 +52,7 @@ interface DeliveryDashboardViewProps {
   onOpenCouriers?: () => void;
   onOpenDispatch?: () => void;
   onOpenRegions?: () => void;
+  onOpenReports?: () => void;
   onOpenDigitalMenuSettings?: () => void;
 }
 
@@ -117,6 +118,7 @@ export function DeliveryDashboardView({
   onOpenCouriers,
   onOpenDispatch,
   onOpenRegions,
+  onOpenReports,
   onOpenDigitalMenuSettings,
 }: DeliveryDashboardViewProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -581,15 +583,15 @@ export function DeliveryDashboardView({
         )}
       </section>
 
-      {/* 4. Acesso Rápido — Estrutura Preparada para as Próximas Etapas */}
-      <section aria-label="Acesso rápido aos futuros recursos do MGW Delivery" className="space-y-3">
+      {/* 4. Acesso rápido aos módulos do MGW Delivery */}
+      <section aria-label="Acesso rápido aos módulos do MGW Delivery" className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
           <div>
             <h3 className="text-base font-bold text-[#172033] tracking-tight">
               Acesso rápido e estrutura do módulo
             </h3>
             <p className="text-xs text-[#778094] mt-0.5">
-              Recursos planejados para implantação nas próximas etapas do MGW Delivery.
+              Acesse os recursos operacionais e os relatórios do seu delivery.
             </p>
           </div>
           {summary.configuredDeliveryFee > 0 && (
@@ -606,11 +608,13 @@ export function DeliveryDashboardView({
             const isCouriersModule = item.id === 'couriers';
             const isDispatchModule = item.id === 'dispatch';
             const isRegionsModule = item.id === 'regions_fees';
+            const isReportsModule = item.id === 'reports';
             const isActiveModule =
               isCustomersModule ||
               isCouriersModule ||
               isDispatchModule ||
-              isRegionsModule;
+              isRegionsModule ||
+              isReportsModule;
             const actionHandler = isCustomersModule
               ? onOpenCustomers
               : isCouriersModule
@@ -619,7 +623,9 @@ export function DeliveryDashboardView({
                   ? onOpenDispatch
                   : isRegionsModule
                     ? onOpenRegions
-                    : undefined;
+                    : isReportsModule
+                      ? onOpenReports
+                      : undefined;
 
             const extraDetail = isCustomersModule
               ? summary.registeredCustomersCount > 0
@@ -639,7 +645,9 @@ export function DeliveryDashboardView({
                       : summary.configuredDeliveryFee > 0
                         ? `Taxa padrão: ${formatCurrencyBRL(summary.configuredDeliveryFee)} · Configure regiões`
                         : 'Módulo ativo · Áreas, bairros e taxas'
-                    : 'Em desenvolvimento · Próximas etapas';
+                    : isReportsModule
+                      ? 'Relatórios, desempenho e clientes recorrentes'
+                      : 'GPS em tempo real · Etapa futura';
 
             return (
               <article
