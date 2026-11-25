@@ -1264,6 +1264,15 @@ export default function App() {
     );
   }
 
+  if (passwordRecovery) {
+    return (
+      <PasswordRecoveryScreen
+        onSave={handleUpdatePassword}
+        errorMessage={authError}
+      />
+    );
+  }
+
   const isPartnerRoute =
     publicRoute.kind === 'partnerLogin' ||
     publicRoute.kind === 'partnerRegister' ||
@@ -1290,15 +1299,6 @@ export default function App() {
         onRegister={handlePartnerRegister}
         onForgotPassword={handlePasswordReset}
         onNavigate={navigatePublicPath}
-      />
-    );
-  }
-
-  if (passwordRecovery) {
-    return (
-      <PasswordRecoveryScreen
-        onSave={handleUpdatePassword}
-        errorMessage={authError}
       />
     );
   }
