@@ -72,6 +72,7 @@ export function parsePublicUrlRoute(
 export function isAuthShellRoute(route: PublicUrlRoute): boolean {
   return (
     route.kind === 'landing' ||
+    route.kind === 'institutional' ||
     route.kind === 'login' ||
     route.kind === 'register' ||
     route.kind === 'admin' ||
