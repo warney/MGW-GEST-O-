@@ -170,6 +170,20 @@ const TENANT_PREF_KEY = 'mgw_active_tenant_id';
 const SOUND_PREF_KEY = 'mgw_order_sound_enabled';
 const PUSH_PREF_KEY = 'mgw_order_push_enabled';
 
+async function recordPartnerReferralAccess(url: URL) {
+  const referralCode = url.searchParams.get('ref');
+  if (!referralCode) return;
+  const campaignSlug = url.searchParams.get('campanha') || url.searchParams.get('campaign');
+  try {
+    await getSupabaseClient().rpc('record_mgw_partner_link_click', {
+      p_referral_code: referralCode,
+      p_campaign_slug: campaignSlug,
+    });
+  } catch {
+    // O rastreamento é auxiliar e nunca deve bloquear o cadastro do estabelecimento.
+  }
+}
+
 function resolveCurrentPublicRoute(): PublicUrlRoute {
   if (typeof window === 'undefined') return { kind: 'landing' };
   let lastPublicMenuSlug = '';
@@ -187,7 +201,9 @@ export default function App() {
   );
 
   useEffect(() => {
+    void recordPartnerReferralAccess(new URL(window.location.href));
     const onPopState = () => {
+      void recordPartnerReferralAccess(new URL(window.location.href));
       setPublicRoute(resolveCurrentPublicRoute());
     };
     window.addEventListener('popstate', onPopState);
@@ -244,6 +260,7 @@ export default function App() {
     const isDemo = new URLSearchParams(window.location.search).get('demo') === '1';
     const nextUrl = isDemo && !path.includes('demo=') ? `${path}?demo=1` : path;
     window.history.pushState({}, '', nextUrl);
+    void recordPartnerReferralAccess(new URL(window.location.href));
     let lastSlug = '';
     try {
       lastSlug = window.localStorage.getItem('mgw_public_menu_last_slug') || '';
