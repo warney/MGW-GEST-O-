@@ -205,7 +205,7 @@ create or replace function public.record_mgw_partner_link_click(
 returns boolean
 language plpgsql
 security definer
-set search_path = pg_catalog, public
+set search_path = pg_catalog
 as $function$
 declare
   v_partner public.mgw_partners%rowtype;
@@ -242,7 +242,7 @@ create or replace function public.audit_mgw_partner_lead_change()
 returns trigger
 language plpgsql
 security definer
-set search_path = pg_catalog, public, auth
+set search_path = pg_catalog
 as $function$
 declare
   v_partner_id uuid;
@@ -285,7 +285,7 @@ create or replace function public.validate_mgw_partner_lead_referral()
 returns trigger
 language plpgsql
 security definer
-set search_path = pg_catalog, public
+set search_path = pg_catalog
 as $function$
 begin
   if new.converted_referral_id is not null and not exists (
