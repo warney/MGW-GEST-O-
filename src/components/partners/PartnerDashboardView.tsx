@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, LogOut, ShieldCheck, Users, Wallet, CreditCard, RefreshCw } from 'lucide-react';
 import { fetchPartnerDashboardData, savePartnerPayoutProfile, type PartnerDashboardData } from '../../services/dataService';
 
@@ -31,7 +31,7 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
     catch(error){setLoadError(error instanceof Error?error.message:'Não foi possível carregar os dados.');}
   }
   useEffect(()=>{void reloadDashboard();},[]);
-  async function handleSavePix(event:React.FormEvent<HTMLFormElement>){
+  async function handleSavePix(event:FormEvent<HTMLFormElement>){
     event.preventDefault();setSavingPix(true);setPixNotice(null);
     try{await savePartnerPayoutProfile({pixKey,pixKeyType,holderName});setPixNotice('Dados Pix salvos.');await reloadDashboard();}
     catch(error){setPixNotice(error instanceof Error?error.message:'Não foi possível salvar.');}

@@ -136,10 +136,16 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists trg_mgw_partner_commission_on_payment on public.platform_payments;
-create trigger trg_mgw_partner_commission_on_payment
-after insert or update of status on public.platform_payments
+drop trigger if exists trg_mgw_partner_commission_on_insert on public.platform_payments;
+create trigger trg_mgw_partner_commission_on_insert
+after insert on public.platform_payments
 for each row when (new.status='approved')
+execute function public.create_mgw_partner_commission();
+
+drop trigger if exists trg_mgw_partner_commission_on_status_update on public.platform_payments;
+create trigger trg_mgw_partner_commission_on_status_update
+after update of status on public.platform_payments
+for each row when (new.status='approved' and old.status is distinct from new.status)
 execute function public.create_mgw_partner_commission();
 
 create or replace function public.admin_list_mgw_partners()
