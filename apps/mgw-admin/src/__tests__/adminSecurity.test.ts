@@ -24,7 +24,7 @@ import {
 import type { ClientRecord, EstablishmentRecord } from '../types/admin';
 
 const APP_ROOT = path.resolve(import.meta.dirname, '../..');
-const WORKSPACE_ROOT = path.resolve(APP_ROOT, '../..');
+const WORKSPACE_ROOT = path.resolve(import.meta.dirname, '../../../..');
 
 const MIGRATION_4_1_PATH = path.join(
   WORKSPACE_ROOT,
