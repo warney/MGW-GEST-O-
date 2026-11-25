@@ -103,7 +103,7 @@ create index if not exists idx_mgw_partner_leads_campaign
 
 create table if not exists public.mgw_partner_lead_events (
   id bigint generated always as identity primary key,
-  lead_id uuid not null references public.mgw_partner_leads(id) on delete cascade,
+  lead_id uuid not null, -- UUID preservado inclusive quando o lead é excluído.
   partner_id uuid not null references public.mgw_partners(id) on delete restrict,
   actor_user_id uuid references auth.users(id) on delete set null,
   action text not null check (action in ('created','updated','stage_changed','deleted')),
