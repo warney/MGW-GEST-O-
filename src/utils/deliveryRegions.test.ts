@@ -532,7 +532,7 @@ test('DeliveryRegionsView, DeliveryDashboardView, AppShell, and PublicMenuView r
   assert.match(regionsHtml, /Zona Centro|Centro/);
   assert.match(regionsHtml, /Manaus/);
   assert.match(regionsHtml, /Aparecida/);
-  assert.match(regionsHtml, /Entrega grátis por valor mínimo/);
+  assert.match(regionsHtml, /Entrega grátis automática a partir de um valor mínimo/);
 
   const dashHtml = renderToStaticMarkup(
     createElement(DeliveryDashboardView, {
