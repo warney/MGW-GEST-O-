@@ -16,7 +16,7 @@ create table if not exists public.mgw_partner_payout_profiles (
   pix_key_type text not null check (pix_key_type in ('cpf','cnpj','email','phone','random')),
   holder_name text not null,
   updated_at timestamptz not null default now(),
-  constraint mgw_partner_pix_key_len check (char_length(btrim(pix_key)) between 3 and 160),
+  constraint mgw_partner_pix_ciphertext_len check (char_length(pix_key_ciphertext) between 30 and 500),
   constraint mgw_partner_holder_name_len check (char_length(btrim(holder_name)) between 2 and 120)
 );
 
