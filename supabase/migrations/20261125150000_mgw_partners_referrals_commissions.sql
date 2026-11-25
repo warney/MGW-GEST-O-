@@ -129,7 +129,7 @@ set search_path=pg_catalog,public,auth
 as $$
 declare v_items jsonb;
 begin
-  perform public.assert_platform_admin(array['super_admin'],false);
+  perform public.assert_platform_admin(array['super_admin','finance'],false);
   select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc),'[]'::jsonb) into v_items
   from (
     select p.id,p.email,p.full_name,p.referral_code,p.status,p.created_at,
@@ -149,7 +149,7 @@ set search_path=pg_catalog,public,auth
 as $$
 declare v_items jsonb;
 begin
-  perform public.assert_platform_admin(array['super_admin'],false);
+  perform public.assert_platform_admin(array['super_admin','finance'],false);
   if p_status not in ('available','paid','all') then raise exception 'Filtro de comissoes invalido.'; end if;
   select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc),'[]'::jsonb) into v_items
   from (
@@ -266,7 +266,7 @@ returns jsonb language plpgsql stable security definer
 set search_path=pg_catalog,public,auth
 as $$
 begin
-  perform public.assert_platform_admin(array['super_admin'],false);
+  perform public.assert_platform_admin(array['super_admin','finance'],false);
   return (select to_jsonb(s) from public.mgw_partner_program_settings s where id=1);
 end;
 $$;
