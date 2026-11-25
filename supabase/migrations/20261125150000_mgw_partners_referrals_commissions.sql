@@ -3,7 +3,6 @@ begin;
 
 create table if not exists public.mgw_partner_program_settings (
   id integer primary key default 1 check (id = 1),
-  subscription_amount_cents integer not null default 4990 check (subscription_amount_cents between 0 and 10000000),
   commission_percent numeric(5,2) not null default 15.00 check (commission_percent >= 0 and commission_percent <= 100),
   payout_enabled boolean not null default false,
   updated_by uuid references auth.users(id) on delete set null,
@@ -184,7 +183,7 @@ end;
 $$;
 
 create or replace function public.admin_update_mgw_partner_settings(
-  p_subscription_amount_cents integer,p_commission_percent numeric,p_reason text
+  p_commission_percent numeric,p_reason text
 )
 returns jsonb
 language plpgsql security definer
@@ -193,11 +192,11 @@ as $$
 declare v_admin public.platform_admins%rowtype; v_before public.mgw_partner_program_settings%rowtype; v_after public.mgw_partner_program_settings%rowtype; v_reason text:=left(btrim(coalesce(p_reason,'')),500);
 begin
   v_admin:=public.assert_platform_admin(array['super_admin'],true);
-  if p_subscription_amount_cents not between 0 and 10000000 or p_commission_percent not between 0 and 100 or char_length(v_reason)<3 then
+  if p_commission_percent is null or p_commission_percent not between 0 and 100 or char_length(v_reason)<3 then
     raise exception 'Valor, percentual ou motivo invalido.';
   end if;
   select * into v_before from public.mgw_partner_program_settings where id=1 for update;
-  update public.mgw_partner_program_settings set subscription_amount_cents=p_subscription_amount_cents,commission_percent=p_commission_percent,updated_by=v_admin.user_id,updated_at=now() where id=1 returning * into v_after;
+  update public.mgw_partner_program_settings set commission_percent=p_commission_percent,updated_by=v_admin.user_id,updated_at=now() where id=1 returning * into v_after;
   perform public.write_platform_audit_log(v_admin,'mgw_partner_program_settings_updated','mgw_partner_program','1',to_jsonb(v_before),to_jsonb(v_after),v_reason);
   return to_jsonb(v_after);
 end;
@@ -225,7 +224,7 @@ revoke all on function public.admin_list_mgw_partners() from public,anon,authent
 grant execute on function public.admin_list_mgw_partners() to authenticated,service_role;
 revoke all on function public.admin_update_mgw_partner(uuid,text,text) from public,anon,authenticated;
 grant execute on function public.admin_update_mgw_partner(uuid,text,text) to authenticated,service_role;
-revoke all on function public.admin_update_mgw_partner_settings(integer,numeric,text) from public,anon,authenticated;
-grant execute on function public.admin_update_mgw_partner_settings(integer,numeric,text) to authenticated,service_role;
+revoke all on function public.admin_update_mgw_partner_settings(numeric,text) from public,anon,authenticated;
+grant execute on function public.admin_update_mgw_partner_settings(numeric,text) to authenticated,service_role;
 
 commit;
