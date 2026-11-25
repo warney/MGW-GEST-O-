@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, LogOut, ShieldCheck, Users, Wallet, CreditCard, RefreshCw } from 'lucide-react';
 import { fetchPartnerDashboardData, savePartnerPayoutProfile, type PartnerDashboardData } from '../../services/dataService';
+import { PartnerCrmView } from './PartnerCrmView';
 
 export interface PartnerAccount {
   id: string;
@@ -117,6 +118,7 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
             </form>
           </article>
         </section>
+        <PartnerCrmView />
         <section className="mt-6 rounded-2xl border border-[#E5E7EB] bg-white p-5"><h2 className="font-bold">Histórico de comissões</h2>
           {(data?.commissions??[]).map(item=><div key={item.id} className="border-b py-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><span>{new Date(item.created_at).toLocaleDateString('pt-BR')}</span><b>{money(item.amount_cents)}</b><span>{item.status==='paid'?'Pago':item.status==='available'?'A receber':item.status==='cancelled'?'Cancelada':'Pendente'}</span></div>{item.status==='paid'&&<p className="mt-1 text-xs text-slate-500">Recebido em {item.paid_at?new Date(item.paid_at).toLocaleDateString('pt-BR'):'—'} · referencia {item.payment_reference||'—'}</p>}{item.reversal_required&&<p className="mt-1 text-xs font-semibold text-amber-700">A assinatura foi estornada apos o repasse; o caso esta em revisao administrativa.</p>}</div>)}
           {data && !data.commissions.length&&<p className="mt-3 text-sm text-slate-500">Nenhuma comissão registrada ainda.</p>}
