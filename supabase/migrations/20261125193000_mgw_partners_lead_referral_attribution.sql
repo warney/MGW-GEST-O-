@@ -10,7 +10,7 @@ create or replace function public.sync_mgw_partner_referral_attribution()
 returns trigger
 language plpgsql
 security definer
-set search_path=pg_catalog,public,auth
+set search_path=pg_catalog
 as $function$
 declare
   v_email text;
@@ -73,7 +73,7 @@ create or replace function public.sync_mgw_partner_lead_conversion()
 returns trigger
 language plpgsql
 security definer
-set search_path=pg_catalog,public
+set search_path=pg_catalog
 as $function$
 begin
   if old.status is distinct from new.status and new.status='converted' then
@@ -98,7 +98,7 @@ create or replace function public.validate_mgw_partner_lead_converted_stage()
 returns trigger
 language plpgsql
 security definer
-set search_path=pg_catalog,public
+set search_path=pg_catalog
 as $function$
 begin
   if new.stage='converted' and not exists(
