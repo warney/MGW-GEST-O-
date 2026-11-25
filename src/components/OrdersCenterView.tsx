@@ -210,6 +210,11 @@ export function OrdersCenterView({
     [orders, selectedOrderId],
   );
 
+  const dispatchByOrderId = useMemo(
+    () => new Map(dispatches.filter((dispatch) => !['delivered', 'delivery_cancelled', 'delivery_rejected'].includes(dispatch.dispatchStatus)).map((dispatch) => [dispatch.orderId, dispatch])),
+    [dispatches],
+  );
+
   // Reset to page 1 when filter or search query changes
   useEffect(() => {
     setPage(1);
@@ -1152,6 +1157,7 @@ export function OrdersCenterView({
                     <th className="py-3.5 px-4">Cliente</th>
                     <th className="py-3.5 px-4">Itens</th>
                     <th className="py-3.5 px-4 whitespace-nowrap">Valor</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Entregador</th>
                     <th className="py-3.5 px-4 whitespace-nowrap">Status</th>
                     <th className="py-3.5 px-4 text-right whitespace-nowrap">
                       Ações
@@ -1249,6 +1255,18 @@ export function OrdersCenterView({
                           <span className="text-[13px] font-bold text-[#172033] font-mono tabular-nums">
                             {formatCurrencyBRL(order.totalAmount)}
                           </span>
+                        </td>
+
+                        {/* Entregador atribuído */}
+                        <td className="py-3.5 px-4 align-middle">
+                          {dispatchByOrderId.get(order.id) ? (
+                            <div className="min-w-[125px]">
+                              <p className="text-[12px] font-semibold text-[#172033]">{dispatchByOrderId.get(order.id)?.courierNameSnapshot}</p>
+                              <p className="text-[10px] text-[#778094]">Responsável</p>
+                            </div>
+                          ) : order.fulfillmentType === 'delivery' ? (
+                            <button type="button" onClick={(event) => { event.stopPropagation(); setAssigningOrderId(order.id); }} className="text-[11px] font-semibold text-[#9A6B00] hover:underline">Atribuir entregador</button>
+                          ) : <span className="text-[11px] text-[#778094]">Retirada</span>}
                         </td>
 
                         {/* Status */}
@@ -1429,6 +1447,7 @@ export function OrdersCenterView({
               const primaryAction = actions.find((a) => !a.requiresReason);
               const isBusy = busyOrderId === order.id;
               const orderCode = formatOrderNumber(order.orderNumber);
+              const assignedDispatch = dispatchByOrderId.get(order.id);
 
               return (
                 <article
@@ -1469,6 +1488,14 @@ export function OrdersCenterView({
                       <span>{badgeSpec.label}</span>
                     </span>
                   </div>
+
+                  {assignedDispatch ? (
+                    <div className="rounded-lg bg-[#F5F3FF] border border-[#DDD6FE] px-3 py-2 text-xs text-[#5B21B6]">
+                      <strong>Entregador:</strong> {assignedDispatch.courierNameSnapshot}
+                    </div>
+                  ) : order.fulfillmentType === 'delivery' && order.status === 'ready' ? (
+                    <button type="button" onClick={(event) => { event.stopPropagation(); setAssigningOrderId(order.id); }} className="text-xs font-semibold text-[#9A6B00]">+ Atribuir entregador</button>
+                  ) : null}
 
                   <div className="flex items-center justify-between gap-3 text-xs pt-2 border-t border-[#E8EAF0]">
                     <div className="min-w-0">
