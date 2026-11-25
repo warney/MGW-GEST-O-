@@ -838,6 +838,8 @@ export default function App() {
         cardapio: 'Cardápio Digital MGW — Sua loja na internet',
         recursos: 'Recursos MGW — Gestão e pedidos integrados',
         planos: 'Planos MGW — Experimente grátis',
+        parceiros: 'Programa de Parceiros MGW — Cresça com a gente',
+        contato: 'Contato — MGW Tecnologia',
       } as const;
       document.title = titles[publicRoute.page];
       return;
