@@ -284,6 +284,14 @@ export function AppShell({
         mobileLabel: 'Regiões',
         icon: MapPin,
       });
+      items.push({
+        id: 'delivery_finance',
+        route: 'delivery_finance',
+        section: 'delivery',
+        label: 'Financeiro',
+        mobileLabel: 'Financeiro',
+        icon: Wallet,
+      });
     }
     if (canWriteCatalog) {
       items.push({
