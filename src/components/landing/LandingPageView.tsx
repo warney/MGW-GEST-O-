@@ -564,28 +564,21 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               </p>
 
               <h1 className="font-display text-3xl sm:text-4xl lg:text-[46px] font-extrabold tracking-[-0.025em] leading-[1.12] text-[#111827]">
-                Você cuida da sua lanchonete. O MGW cuida da gestão.
+                Gestão inteligente para transformar a rotina do seu negócio.
               </h1>
 
               <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-xl">
-                Controle vendas no balcão, pedidos pelo celular, cardápio digital,
-                produtos, combos, despesas e resultados do mês em um único painel
-                simples para o dia a dia.
+                Organize vendas, acompanhe resultados e receba pedidos online. Com o MGW Gestão e o Cardápio Digital, sua operação fica conectada em uma experiência simples para você e prática para seus clientes.
               </p>
 
-              <p className="text-sm sm:text-base font-semibold text-[#111827] flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <span className="text-[#A87500] font-mono tabular-nums font-bold whitespace-nowrap">
-                  R$ 49,90 por mês
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="inline-flex items-center rounded-full border border-[#F5B731]/45 bg-[#FFF8E8] px-3 py-1.5 text-xs font-bold text-[#805800]">
+                  3 dias grátis para experimentar
                 </span>
-                <span className="text-[#6B7280]" aria-hidden="true">
-                  ·
+                <span className="text-xs sm:text-sm font-medium text-[#667085]">
+                  Sem cartão de crédito · Depois R$ 49,90/mês
                 </span>
-                <span className="whitespace-nowrap">3 dias grátis</span>
-                <span className="text-[#6B7280]" aria-hidden="true">
-                  ·
-                </span>
-                <span className="whitespace-nowrap">Sem cartão de crédito</span>
-              </p>
+              </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
                 <button
@@ -602,8 +595,23 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   onClick={() => scrollToSection('sistema')}
                   className="min-h-[48px] px-5 rounded-xl border border-[#E5E7EB] hover:border-[#F5B731]/60 bg-white text-[#111827] text-sm sm:text-base font-semibold inline-flex items-center justify-center cursor-pointer transition-colors whitespace-nowrap shrink-0"
                 >
-                  Conhecer o sistema
+                  Ver como funciona
                 </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 max-w-xl">
+                <div className="flex items-center gap-2 text-xs font-medium text-[#475467]">
+                  <span className="w-6 h-6 rounded-full bg-[#F5B731]/15 flex items-center justify-center text-[#946500]"><Check className="w-3.5 h-3.5" /></span>
+                  Gestão em um só lugar
+                </div>
+                <div className="flex items-center gap-2 text-xs font-medium text-[#475467]">
+                  <span className="w-6 h-6 rounded-full bg-[#F5B731]/15 flex items-center justify-center text-[#946500]"><Check className="w-3.5 h-3.5" /></span>
+                  Pedidos online
+                </div>
+                <div className="flex items-center gap-2 text-xs font-medium text-[#475467]">
+                  <span className="w-6 h-6 rounded-full bg-[#F5B731]/15 flex items-center justify-center text-[#946500]"><Check className="w-3.5 h-3.5" /></span>
+                  Cardápio próprio
+                </div>
               </div>
 
               <div className="text-xs sm:text-sm text-[#6B7280] flex flex-wrap items-center gap-2">
