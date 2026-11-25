@@ -53,6 +53,8 @@ alter table public.mgw_partner_commissions enable row level security;
 alter table public.mgw_partner_program_settings enable row level security;
 revoke all on table public.mgw_partner_payout_profiles,public.mgw_partner_commissions,
   public.mgw_partner_program_settings from public,anon,authenticated;
+grant select on table public.mgw_partners to service_role;
+grant select,insert,update on table public.mgw_partner_payout_profiles to service_role;
 
 create or replace function public.partner_get_dashboard()
 returns jsonb language plpgsql stable security definer
