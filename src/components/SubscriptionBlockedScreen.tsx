@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Building2, Clock, CreditCard, Lock, LogOut, ShieldAlert, QrCode, Copy } from 'lucide-react';
 import { getSupabaseClient } from '../lib/supabase';
+import { isPaymentActionDisabled, shouldPollBillingReturn } from '../utils/subscriptionPaymentState';
 import type { TenantBillingBlockReason, TenantContext } from '../types/finance';
 
 interface SubscriptionBlockedScreenProps {
@@ -86,8 +87,14 @@ export function SubscriptionBlockedScreen({
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const cameBackFromCheckout = new URLSearchParams(window.location.search).get('billing') === 'return';
+    const cameBackFromCheckout = shouldPollBillingReturn(window.location.search);
     let active = true;
+    // A primeira visita nao significa que existe pagamento pendente. O PIX tem
+    // polling proprio apos gerar a cobranca; o checkout de cartao retorna com billing=return.
+    if (!cameBackFromCheckout) {
+      setCheckingPayment(false);
+      return () => { active = false; };
+    }
     let attempts = 0;
     setCheckingPayment(true);
     const check = async () => {
@@ -232,10 +239,10 @@ export function SubscriptionBlockedScreen({
         {billingError && <p role="alert" className="text-xs text-red-600">{billingError}</p>}
         {tenant.role === 'owner' && !tenant.billingExempt && !pixPayment && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button type="button" onClick={() => void handlePixSubscribe()} disabled={pixSubmitting || submitting || checkingPayment} className="w-full min-h-[48px] rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white font-bold text-sm disabled:opacity-60 inline-flex items-center justify-center gap-2">
+            <button type="button" onClick={() => void handlePixSubscribe()} disabled={isPaymentActionDisabled(pixSubmitting, submitting)} className="w-full min-h-[48px] rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white font-bold text-sm disabled:opacity-60 inline-flex items-center justify-center gap-2">
               <QrCode className="w-4 h-4" /> {pixSubmitting ? 'Gerando Pix...' : 'Pagar com Pix'}
             </button>
-            <button type="button" onClick={() => void handleSubscribe()} disabled={submitting || pixSubmitting || checkingPayment} className="w-full min-h-[48px] rounded-xl bg-[#EAB308] hover:bg-[#FACC15] text-[#111827] font-bold text-sm disabled:opacity-60 inline-flex items-center justify-center gap-2">
+            <button type="button" onClick={() => void handleSubscribe()} disabled={isPaymentActionDisabled(submitting, pixSubmitting)} className="w-full min-h-[48px] rounded-xl bg-[#EAB308] hover:bg-[#FACC15] text-[#111827] font-bold text-sm disabled:opacity-60 inline-flex items-center justify-center gap-2">
               <CreditCard className="w-4 h-4" /> {submitting ? 'Preparando...' : 'Cartão de crédito'}
             </button>
           </div>
