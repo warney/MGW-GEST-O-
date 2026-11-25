@@ -34,6 +34,7 @@ create table if not exists public.mgw_partner_commissions (
   payment_method text check(payment_method is null or payment_method='manual_pix'),
   payment_reference text,
   payment_note text not null default '',
+  reversal_required boolean not null default false,
   paid_by uuid references auth.users(id) on delete set null,
   paid_at timestamptz,
   created_at timestamptz not null default now(),
@@ -78,7 +79,7 @@ begin
     'commissions',coalesce((
       select jsonb_agg(jsonb_build_object('id',c.id,'amount_cents',c.amount_cents,'base_amount_cents',c.base_amount_cents,
         'commission_percent',c.commission_percent,'status',c.status,'created_at',c.created_at,
-        'paid_at',c.paid_at,'payment_reference',c.payment_reference,'payment_method',c.payment_method)
+        'paid_at',c.paid_at,'payment_reference',c.payment_reference,'payment_method',c.payment_method,'reversal_required',c.reversal_required)
       order by c.created_at desc)
       from (select * from public.mgw_partner_commissions where partner_id=v_partner.id order by created_at desc limit 100) c
     ),'[]'::jsonb),
@@ -125,6 +126,29 @@ create trigger trg_mgw_partner_commission_on_status_update after update of statu
 for each row when(new.status='approved' and old.status is distinct from new.status)
 execute function public.create_mgw_partner_commission();
 
+create or replace function public.handle_mgw_partner_source_payment_reversal()
+returns trigger language plpgsql security definer
+set search_path=pg_catalog,public
+as $
+begin
+  if old.status='approved' and new.status in ('refunded','cancelled','rejected') then
+    update public.mgw_partner_commissions
+    set status='cancelled',updated_at=now()
+    where source_payment_id=new.id and status='available';
+
+    update public.mgw_partner_commissions
+    set reversal_required=true,updated_at=now()
+    where source_payment_id=new.id and status='paid';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists trg_mgw_partner_commission_source_reversal on public.platform_payments;
+create trigger trg_mgw_partner_commission_source_reversal
+after update of status on public.platform_payments
+for each row when(old.status='approved' and new.status in ('refunded','cancelled','rejected'))
+execute function public.handle_mgw_partner_source_payment_reversal();
+
 create or replace function public.admin_list_mgw_partners()
 returns jsonb language plpgsql stable security definer
 set search_path=pg_catalog,public,auth
@@ -157,7 +181,7 @@ begin
   from (
     select c.id,c.partner_id,p.full_name partner_name,p.email partner_email,p.referral_code,
       c.base_amount_cents,c.commission_percent,c.amount_cents,c.status,c.created_at,c.paid_at,
-      c.payment_reference,c.payment_method,c.payment_note,
+      c.payment_reference,c.payment_method,c.payment_note,c.reversal_required,
       (pp.partner_id is not null) has_pix_key,pp.pix_key_type,pp.holder_name pix_holder_name
     from public.mgw_partner_commissions c
     join public.mgw_partners p on p.id=c.partner_id
@@ -276,6 +300,7 @@ $$;
 revoke all on function public.partner_get_dashboard() from public,anon;
 grant execute on function public.partner_get_dashboard() to authenticated;
 revoke all on function public.create_mgw_partner_commission() from public,anon,authenticated;
+revoke all on function public.handle_mgw_partner_source_payment_reversal() from public,anon,authenticated;
 revoke all on function public.admin_list_mgw_partners() from public,anon,authenticated;
 grant execute on function public.admin_list_mgw_partners() to authenticated;
 revoke all on function public.admin_list_mgw_partner_commissions(text) from public,anon,authenticated;

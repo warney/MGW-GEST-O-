@@ -491,7 +491,7 @@ export interface MgwPartnerCommissionRecord {
   id:string; partner_id:string; partner_name:string; partner_email:string; referral_code:string;
   base_amount_cents:number; commission_percent:number; amount_cents:number;
   status:'available'|'paid'|'cancelled'; created_at:string; paid_at:string|null;
-  payment_reference:string|null; payment_method:string|null; payment_note:string;
+  payment_reference:string|null; payment_method:string|null; payment_note:string; reversal_required:boolean;
   has_pix_key:boolean; pix_key_type:string|null; pix_holder_name:string|null;
 }
 export interface MgwPartnerPixDetails { pix_key:string; pix_key_type:string; holder_name:string; }
