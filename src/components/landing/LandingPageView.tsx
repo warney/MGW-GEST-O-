@@ -434,6 +434,10 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
             aria-label="Navegação principal"
             className="hidden md:flex items-center gap-7 text-sm font-medium text-[#4B5563]"
           >
+            <button type="button" onClick={() => onNavigate('/mgw-gestao')} className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0">MGW Gestão</button>
+            <button type="button" onClick={() => onNavigate('/cardapio-digital')} className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0">Cardápio Digital</button>
+            <button type="button" onClick={() => onNavigate('/mgw-gestao')} className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#A87500] cursor-pointer">Conhecer MGW Gestão</button>
+            <button type="button" onClick={() => onNavigate('/cardapio-digital')} className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#A87500] cursor-pointer">Conhecer Cardápio Digital</button>
             <button
               type="button"
               onClick={() => scrollToSection('sistema')}
