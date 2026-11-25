@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImagePlus, Loader2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getSupabaseClient } from '../lib/supabase';
 import { deleteTenantMenuImage, uploadTenantMenuImage } from '../services/storageService';
@@ -47,6 +47,7 @@ export function PublicMenuPromoCarousel({
 }) {
   const [banners, setBanners] = useState<PublicPromoBanner[]>([]);
   const [active, setActive] = useState(0);
+  const touchStartX = useRef<number | null>(null);
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -94,7 +95,7 @@ export function PublicMenuPromoCarousel({
         <h2 className="text-xs sm:text-sm font-bold tracking-wide text-white">Ofertas especiais</h2>
         {banners.length > 1 && <span className="text-[10px] font-mono text-[#9CA3AF]">{String(active + 1).padStart(2, '0')} / {String(banners.length).padStart(2, '0')}</span>}
       </div>
-      <div className="relative overflow-hidden rounded-xl border border-[#262B38] bg-[#14171F] aspect-[16/5] min-h-[86px] max-h-[156px]">
+      <div className="relative overflow-hidden rounded-xl border border-[#262B38] bg-[#14171F] aspect-[16/5] min-h-[86px] max-h-[156px]" onTouchStart={(event) => { touchStartX.current = event.touches[0]?.clientX ?? null; }} onTouchEnd={(event) => { const start = touchStartX.current; const end = event.changedTouches[0]?.clientX; touchStartX.current = null; if (start === null || end === undefined || banners.length < 2) return; const delta = end - start; if (Math.abs(delta) < 35) return; setActive((currentIndex) => (currentIndex + (delta < 0 ? 1 : banners.length - 1)) % banners.length); }}>
         <button type="button" onClick={activate} disabled={current.clickAction === 'none' || !current.targetId} aria-label={current.clickAction === 'none' ? 'Banner informativo' : 'Abrir oferta'} className={`absolute inset-0 w-full h-full ${current.clickAction !== 'none' && current.targetId ? 'cursor-pointer' : 'cursor-default'}`}>
           <img src={current.imageUrl} alt="Banner promocional" loading="lazy" className="w-full h-full object-cover" style={{ transform: `scale(${current.zoom})`, objectPosition: `${current.positionX}% ${current.positionY}%` }} />
         </button>
