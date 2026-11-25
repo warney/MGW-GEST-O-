@@ -48,7 +48,7 @@ export function PartnersView({role,mfaVerified,onRequestMfa,refreshTrigger}:Prop
     setBusy(true);setError('');setMessage('');
     try{
       const s=await updateMgwPartnerProgram({commissionPercent:Number(percent.replace(',','.')),reason});
-      setSettings(s);setReason('');setMessage('Percentual atualizado. A nova regra vale somente para conversoes futuras.');
+      setPercent(String(s.commission_percent));setReason('');setMessage('Percentual atualizado. A nova regra vale somente para conversoes futuras.');
     }catch(e){setError(e instanceof Error?e.message:'Falha ao salvar as regras.');}
     finally{setBusy(false);}
   }
