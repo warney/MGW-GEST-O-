@@ -832,6 +832,16 @@ export default function App() {
       document.title = 'Política de Privacidade — MGW Gestão';
       return;
     }
+    if (publicRoute.kind === 'institutional') {
+      const titles = {
+        gestao: 'MGW Gestão — Controle da sua operação',
+        cardapio: 'Cardápio Digital MGW — Sua loja na internet',
+        recursos: 'Recursos MGW — Gestão e pedidos integrados',
+        planos: 'Planos MGW — Experimente grátis',
+      } as const;
+      document.title = titles[publicRoute.page];
+      return;
+    }
     if (publicRoute.kind === 'menu' || publicRoute.kind === 'tracking') {
       return;
     }
