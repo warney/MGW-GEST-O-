@@ -135,6 +135,7 @@ import { DeliveryCustomersView } from './components/DeliveryCustomersView';
 import { DeliveryDashboardView } from './components/DeliveryDashboardView';
 import { DeliveryDispatchView } from './components/DeliveryDispatchView';
 import { DeliveryRegionsView } from './components/DeliveryRegionsView';
+import { DeliveryFinanceView } from './components/DeliveryFinanceView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { ExpensesView } from './components/ExpensesView';
 import { LoginScreen } from './components/LoginScreen';
@@ -1643,6 +1644,7 @@ export default function App() {
     visibleRouteIds.push('delivery_customers');
     visibleRouteIds.push('delivery_couriers');
     visibleRouteIds.push('delivery_regions');
+    visibleRouteIds.push('delivery_finance');
   }
   if (canReadSales || canCreateSales) visibleRouteIds.push('sales');
   if (canReadExpenses) visibleRouteIds.push('expenses');
@@ -2028,6 +2030,18 @@ export default function App() {
               onToggleRegionSuspension={handleToggleDeliveryRegionSuspension}
               onDeleteRegion={handleDeleteDeliveryRegion}
               onSavePricingSettings={handleSaveDeliveryPricingSettings}
+            />
+          )}
+
+          {effectiveRoute === 'delivery_finance' && canAccessDelivery && dataContext && (
+            <DeliveryFinanceView
+              tenantId={activeTenant.tenantId}
+              userId={user.uid}
+              establishmentName={digitalMenuSettings.storeName || settings.establishmentName || activeTenant.name}
+              orders={onlineOrders}
+              dispatches={deliveryDispatches}
+              couriers={deliveryCouriers}
+              onRefresh={handleRefreshOrders}
             />
           )}
 
