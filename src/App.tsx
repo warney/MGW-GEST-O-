@@ -1860,6 +1860,11 @@ export default function App() {
           {effectiveRoute === 'orders' && canReadSales && (
             <OrdersCenterView
               orders={onlineOrders}
+              couriers={deliveryCouriers}
+              dispatches={deliveryDispatches}
+              operatorEmail={user.email}
+              onAssignCourier={handleAssignDeliveryCourier}
+              onOpenCouriers={() => setRoute('delivery_couriers')}
               digitalMenuSettings={digitalMenuSettings}
               soundEnabled={soundEnabled}
               pushEnabled={pushEnabled}
