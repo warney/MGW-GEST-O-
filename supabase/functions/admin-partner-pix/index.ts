@@ -7,7 +7,7 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   copy.set(bytes);
   return copy.buffer;
 }
-function decodeClaims(jwt:string):Record<string,unknown>{const part=jwt.split(".")[1];if(!part)throw new Error("JWT invalido");const p=part.replace(/-/g,"+").replace(/_/g,"/");return JSON.parse(atob(p.padEnd(Math.ceil(p.length/4)*4,"=")));}
+function decodeClaims(jwt:string):Record<string,unknown>{const part=jwt.split(".")[1];if(!part)throw new Error("JWT invalido");const p=part.replace(/-/g,"+").replace(/_/g,"/");const binary=atob(p.padEnd(Math.ceil(p.length/4)*4,"="));const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes));}
 async function decryptPixKey(value:string,secret:string):Promise<string>{
  const raw=fromBase64(secret);if(raw.length!==32)throw new Error("Chave criptografica invalida");
  const [version,ivPart,cipherPart]=value.split(".");if(version!=="v1"||!ivPart||!cipherPart)throw new Error("Ciphertext invalido");
