@@ -5,6 +5,7 @@ create table if not exists public.mgw_partner_program_settings (
   id integer primary key default 1 check (id = 1),
   commission_percent numeric(5,2) not null default 15.00 check (commission_percent >= 0 and commission_percent <= 100),
   payout_enabled boolean not null default false,
+  payout_schedule_day text not null default 'friday' check (payout_schedule_day in ('friday')),
   updated_by uuid references auth.users(id) on delete set null,
   updated_at timestamptz not null default now()
 );

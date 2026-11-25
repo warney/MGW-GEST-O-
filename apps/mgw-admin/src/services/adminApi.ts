@@ -477,7 +477,7 @@ export interface MgwPartnerAdminRecord {
   id:string; email:string; full_name:string; referral_code:string; status:'active'|'suspended'|'blocked';
   created_at:string; referral_count:number; converted_count:number; pending_cents:number; paid_cents:number;
 }
-export interface MgwPartnerProgramSettings { id:number; commission_percent:number; payout_enabled:boolean; }
+export interface MgwPartnerProgramSettings { id:number; commission_percent:number; payout_enabled:boolean; payout_schedule_day:'friday'; }
 export async function fetchMgwPartners():Promise<MgwPartnerAdminRecord[]> { return callRpc('admin_list_mgw_partners'); }
 export async function fetchMgwPartnerSettings():Promise<MgwPartnerProgramSettings> { return callRpc('admin_get_mgw_partner_settings'); }
 export async function updateMgwPartnerStatus(partnerId:string,status:'active'|'suspended'|'blocked',reason:string):Promise<unknown>{

@@ -93,7 +93,7 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ECFDF3] text-emerald-700"><Wallet className="h-5 w-5" /></div>
             <p className="mt-4 text-sm font-semibold text-[#667085]">Comissões</p>
             <p className="mt-1 text-2xl font-extrabold">{data ? money(data.pending_cents+data.paid_cents) : '—'}</p>
-            <p className="mt-1 text-xs text-[#98A2B3]">{data ? `${money(data.pending_cents)} pendentes · ${money(data.paid_cents)} pagos` : 'Carregando...'}</p>
+            <p className="mt-1 text-xs text-[#98A2B3]">{data ? `${money(data.pending_cents)} pendentes · ${money(data.paid_cents)} pagos` : 'Carregando...'}</p><p className="mt-2 text-xs font-semibold text-emerald-700">Pagamentos semanais: toda sexta-feira</p>
           </article>
         </section>
         {loadError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{loadError} <button onClick={()=>void reloadDashboard()} className="underline font-bold">Tentar novamente</button></p>}
