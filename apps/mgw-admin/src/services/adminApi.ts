@@ -472,3 +472,17 @@ export async function fetchAuditLogs(
     p_limit: limit,
   });
 }
+
+export interface MgwPartnerAdminRecord {
+  id:string; email:string; full_name:string; referral_code:string; status:'active'|'suspended'|'blocked';
+  created_at:string; referral_count:number; converted_count:number; pending_cents:number; paid_cents:number;
+}
+export interface MgwPartnerProgramSettings { id:number; subscription_amount_cents:number; commission_percent:number; payout_enabled:boolean; }
+export async function fetchMgwPartners():Promise<MgwPartnerAdminRecord[]> { return callRpc('admin_list_mgw_partners'); }
+export async function fetchMgwPartnerSettings():Promise<MgwPartnerProgramSettings> { return callRpc('admin_get_mgw_partner_settings'); }
+export async function updateMgwPartnerStatus(partnerId:string,status:'active'|'suspended'|'blocked',reason:string):Promise<unknown>{
+  return callRpc('admin_update_mgw_partner',{p_partner_id:partnerId,p_status:status,p_reason:reason});
+}
+export async function updateMgwPartnerProgram(params:{subscriptionAmountCents:number;commissionPercent:number;reason:string}):Promise<MgwPartnerProgramSettings>{
+  return callRpc('admin_update_mgw_partner_settings',{p_subscription_amount_cents:params.subscriptionAmountCents,p_commission_percent:params.commissionPercent,p_reason:params.reason});
+}

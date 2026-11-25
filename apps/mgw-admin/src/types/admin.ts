@@ -10,7 +10,8 @@ export type AdminModuleId =
   | 'support'
   | 'settings'
   | 'admins'
-  | 'audit';
+  | 'audit'
+  | 'partners';
 
 export interface PlatformAdminProfile {
   id: string;
