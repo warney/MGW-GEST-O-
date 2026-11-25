@@ -22,6 +22,7 @@ import {
   sanitizeMenuSlug,
 } from '../utils/onlineOrders';
 import { ImageUploadField } from './ImageUploadField';
+import { DigitalMenuPromoManager } from './DigitalMenuPromoBanners';
 
 interface DigitalMenuSettingsPanelProps {
   workspaceId: string;
@@ -475,6 +476,8 @@ export function DigitalMenuSettingsPanel({
             />
           </div>
         </div>
+
+        <DigitalMenuPromoManager workspaceId={effectiveWorkspaceId} />
 
         <div className="pt-4 border-t border-[#E5E7EB]">
           <h3 className="text-sm font-semibold text-[#111827]">Contato e funcionamento</h3>
