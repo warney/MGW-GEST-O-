@@ -151,6 +151,7 @@ export type AppRoute =
   | 'delivery_couriers'
   | 'delivery_dispatch'
   | 'delivery_regions'
+  | 'delivery_finance'
   | 'sales'
   | 'expenses'
   | 'reports'
