@@ -38,7 +38,7 @@ Deno.serve(async (req: Request) => {
     if (memberError || !member || member.role !== "owner") return json({ error: "Apenas o proprietário pode consultar a cobrança." }, 403);
 
     const { data: subscription, error } = await admin.from("subscriptions")
-      .select("id,status,trial_ends_at,current_period_end,grace_until,cancelled_at,mp_preapproval_id,plan_amount_cents,currency,mp_environment")
+      .select("id,status,trial_ends_at,current_period_start,current_period_end,grace_until,cancelled_at,mp_preapproval_id,plan_amount_cents,currency,mp_environment")
       .eq("tenant_id", tenantId).maybeSingle();
     if (error || !subscription) return json({ error: "Assinatura não encontrada." }, 404);
 
