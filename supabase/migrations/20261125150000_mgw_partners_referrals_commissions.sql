@@ -203,6 +203,19 @@ begin
 end;
 $$;
 
+create or replace function public.admin_get_mgw_partner_settings()
+returns jsonb
+language plpgsql stable security definer
+set search_path = pg_catalog, public, auth
+as $
+begin
+  perform public.assert_platform_admin(array['super_admin','finance'],false);
+  return (select to_jsonb(s) from public.mgw_partner_program_settings s where id=1);
+end;
+$;
+revoke all on function public.admin_get_mgw_partner_settings() from public,anon,authenticated;
+grant execute on function public.admin_get_mgw_partner_settings() to authenticated,service_role;
+
 revoke all on function public.partner_get_dashboard() from public,anon;
 grant execute on function public.partner_get_dashboard() to authenticated,service_role;
 revoke all on function public.partner_update_payout_profile(text,text,text) from public,anon;
