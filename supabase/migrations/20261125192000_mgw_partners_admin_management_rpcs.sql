@@ -3,7 +3,7 @@ begin;
 
 create or replace function public.admin_list_mgw_partner_campaigns()
 returns jsonb language plpgsql stable security definer
-set search_path=pg_catalog,public,auth
+set search_path=pg_catalog
 as $function$
 declare v_items jsonb;
 begin
@@ -16,7 +16,7 @@ $function$;
 
 create or replace function public.admin_list_mgw_partner_materials()
 returns jsonb language plpgsql stable security definer
-set search_path=pg_catalog,public,auth
+set search_path=pg_catalog
 as $function$
 declare v_items jsonb;
 begin
@@ -29,7 +29,7 @@ $function$;
 
 create or replace function public.admin_list_mgw_partner_leads(p_limit integer default 300)
 returns jsonb language plpgsql stable security definer
-set search_path=pg_catalog,public,auth
+set search_path=pg_catalog
 as $function$
 declare v_items jsonb;
 begin
@@ -51,7 +51,7 @@ create or replace function public.admin_create_mgw_partner_campaign(
   p_instructions text default '',p_starts_at timestamptz default now(),p_ends_at timestamptz default null
 )
 returns jsonb language plpgsql security definer
-set search_path=pg_catalog,public,auth
+set search_path=pg_catalog
 as $function$
 declare v_row public.mgw_partner_campaigns%rowtype;
 begin
@@ -66,7 +66,7 @@ $function$;
 
 create or replace function public.admin_set_mgw_partner_campaign_status(p_campaign_id uuid,p_status text)
 returns jsonb language plpgsql security definer
-set search_path=pg_catalog,public,auth
+set search_path=pg_catalog
 as $function$
 declare v_row public.mgw_partner_campaigns%rowtype;
 begin
@@ -83,7 +83,7 @@ create or replace function public.admin_create_mgw_partner_material(
   p_title text,p_description text,p_category text,p_resource_url text,p_resource_type text,p_campaign_id uuid default null
 )
 returns jsonb language plpgsql security definer
-set search_path=pg_catalog,public,auth
+set search_path=pg_catalog
 as $function$
 declare v_row public.mgw_partner_materials%rowtype;
 begin
@@ -101,7 +101,7 @@ $function$;
 
 create or replace function public.admin_set_mgw_partner_material_active(p_material_id uuid,p_active boolean)
 returns jsonb language plpgsql security definer
-set search_path=pg_catalog,public,auth
+set search_path=pg_catalog
 as $function$
 declare v_row public.mgw_partner_materials%rowtype;
 begin
