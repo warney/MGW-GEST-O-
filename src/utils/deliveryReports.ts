@@ -104,11 +104,13 @@ export function computeDeliveryReportMetrics(
   const buckets = new Map<string, { label: string; orders: number; revenue: number }>();
   const bucketSize = period === '90d' ? 7 * DAY : period === 'all' ? 30 * DAY : DAY;
   const bucketCount = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 13 : 12;
-  const chartStart = period === 'all'
-    ? new Date(now - (bucketCount - 1) * 30 * DAY).setDate(1)
-    : now - (bucketCount - 1) * bucketSize;
+  const currentDate = new Date(now);
+  const firstMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 11, 1);
+  const chartStart = period === 'all' ? firstMonth.getTime() : start;
   for (let i = 0; i < bucketCount; i++) {
-    const date = new Date(chartStart + i * bucketSize);
+    const date = period === 'all'
+      ? new Date(firstMonth.getFullYear(), firstMonth.getMonth() + i, 1)
+      : new Date(chartStart + i * bucketSize);
     const key = period === 'all'
       ? `${date.getFullYear()}-${date.getMonth()}`
       : String(i);
