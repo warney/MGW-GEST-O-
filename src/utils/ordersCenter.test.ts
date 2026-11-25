@@ -204,6 +204,9 @@ test('summarizeOrderItems, paginateOrders, and getOrderStatusBadgeSpec format do
 test('OrdersCenterView renders loading skeleton, empty state, error state, and populated reference UI faithfully', () => {
   const baseProps = {
     orders: [] as OnlineOrderRecord[],
+    couriers: [],
+    dispatches: [],
+    onAssignCourier: async () => {},
     digitalMenuSettings: baseMenuSettings,
     soundEnabled: true,
     pushEnabled: false,
