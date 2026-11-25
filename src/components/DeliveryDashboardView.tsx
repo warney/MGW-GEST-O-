@@ -3,8 +3,8 @@ import {
   AlertCircle,
   ArrowUpRight,
   BarChart3,
+  Bike,
   CheckCircle2,
-  Clock,
   MapPin,
   Motorbike,
   Navigation,
@@ -18,7 +18,10 @@ import {
   Wallet,
 } from 'lucide-react';
 import type {
+  DeliveryCourierRecord,
   DeliveryCustomerRecord,
+  DeliveryDispatchRecord,
+  DeliveryRegionRecord,
   DigitalMenuSettings,
   OnlineOrderRecord,
 } from '../types/finance';
@@ -35,6 +38,9 @@ interface DeliveryDashboardViewProps {
   establishmentName: string;
   orders: OnlineOrderRecord[];
   customers?: DeliveryCustomerRecord[];
+  couriers?: DeliveryCourierRecord[];
+  dispatches?: DeliveryDispatchRecord[];
+  regions?: DeliveryRegionRecord[];
   digitalMenuSettings: DigitalMenuSettings;
   isLoading?: boolean;
   errorMessage?: string | null;
@@ -43,6 +49,9 @@ interface DeliveryDashboardViewProps {
   onRefreshOrders?: () => Promise<void> | void;
   onOpenOrders?: () => void;
   onOpenCustomers?: () => void;
+  onOpenCouriers?: () => void;
+  onOpenDispatch?: () => void;
+  onOpenRegions?: () => void;
   onOpenDigitalMenuSettings?: () => void;
 }
 
@@ -94,6 +103,9 @@ export function DeliveryDashboardView({
   establishmentName,
   orders,
   customers = [],
+  couriers = [],
+  dispatches = [],
+  regions = [],
   digitalMenuSettings,
   isLoading = false,
   errorMessage = null,
@@ -102,6 +114,9 @@ export function DeliveryDashboardView({
   onRefreshOrders,
   onOpenOrders,
   onOpenCustomers,
+  onOpenCouriers,
+  onOpenDispatch,
+  onOpenRegions,
   onOpenDigitalMenuSettings,
 }: DeliveryDashboardViewProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -116,8 +131,11 @@ export function DeliveryDashboardView({
         today,
         8,
         customers,
+        couriers,
+        dispatches,
+        regions,
       ),
-    [orders, digitalMenuSettings, today, customers],
+    [orders, digitalMenuSettings, today, customers, couriers, dispatches, regions],
   );
 
   const displayEstablishment =
@@ -356,11 +374,11 @@ export function DeliveryDashboardView({
         {/* Card 4 — Entregadores disponíveis */}
         <article className="bg-white border border-[#E8EAF0] rounded-2xl p-4 sm:p-5 shadow-[0_2px_8px_rgba(23,32,51,0.04)] flex flex-col justify-between min-h-[138px]">
           <div className="flex items-center justify-between gap-2">
-            <div className="w-10 h-10 rounded-full bg-[#F5F6FA] border border-[#E8EAF0] text-[#778094] flex items-center justify-center shrink-0">
-              <Clock className="w-[18px] h-[18px]" aria-hidden="true" />
+            <div className="w-10 h-10 rounded-full bg-[#FFFBEB] border border-[#FDE68A]/80 text-[#B38300] flex items-center justify-center shrink-0">
+              <Bike className="w-[18px] h-[18px]" aria-hidden="true" />
             </div>
             <span className="text-[11px] font-medium text-[#778094] truncate">
-              Próximas etapas
+              Equipe ativa
             </span>
           </div>
 
@@ -374,9 +392,22 @@ export function DeliveryDashboardView({
             >
               {summary.availableCouriersCount}
             </p>
-            <p className="text-[11px] sm:text-xs text-[#778094] mt-1.5 truncate">
-              Cadastro disponível nas próximas etapas
-            </p>
+            {onOpenCouriers ? (
+              <button
+                type="button"
+                onClick={onOpenCouriers}
+                className="mt-1.5 inline-flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-[#8A6200] hover:text-[#172033] cursor-pointer transition-colors"
+              >
+                <span>Ver entregadores</span>
+                <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
+              </button>
+            ) : (
+              <p className="text-[11px] sm:text-xs text-[#778094] mt-1.5 truncate">
+                {couriers.length > 0
+                  ? `${couriers.length} entregador(es) cadastrado(s)`
+                  : 'Equipe de entrega integrada'}
+              </p>
+            )}
           </div>
         </article>
 
@@ -572,19 +603,49 @@ export function DeliveryDashboardView({
           {DELIVERY_QUICK_ACCESS_MODULES.map((item) => {
             const Icon = MODULE_ICON_MAP[item.id];
             const isCustomersModule = item.id === 'customers';
+            const isCouriersModule = item.id === 'couriers';
+            const isDispatchModule = item.id === 'dispatch';
+            const isRegionsModule = item.id === 'regions_fees';
+            const isActiveModule =
+              isCustomersModule ||
+              isCouriersModule ||
+              isDispatchModule ||
+              isRegionsModule;
+            const actionHandler = isCustomersModule
+              ? onOpenCustomers
+              : isCouriersModule
+                ? onOpenCouriers
+                : isDispatchModule
+                  ? onOpenDispatch
+                  : isRegionsModule
+                    ? onOpenRegions
+                    : undefined;
+
             const extraDetail = isCustomersModule
               ? summary.registeredCustomersCount > 0
                 ? `${summary.registeredCustomersCount} cliente(s) cadastrado(s)`
                 : 'Módulo ativo · Carteira de clientes'
-              : item.id === 'regions_fees' && summary.configuredDeliveryFee > 0
-                ? `Taxa base atual: ${formatCurrencyBRL(summary.configuredDeliveryFee)} · Em desenvolvimento`
-                : 'Em desenvolvimento · Próximas etapas';
+              : isCouriersModule
+                ? couriers.length > 0
+                  ? `${summary.availableCouriersCount} disponível(is) · ${couriers.length} cadastrado(s)`
+                  : 'Módulo ativo · Equipe de entrega'
+                : isDispatchModule
+                  ? summary.awaitingDispatchCount > 0
+                    ? `${summary.awaitingDispatchCount} pedido(s) aguardando despacho`
+                    : 'Módulo ativo · Distribuição de entregas'
+                  : isRegionsModule
+                    ? summary.configuredRegionsCount > 0
+                      ? `${summary.activeRegionsCount} ativa(s) · ${summary.configuredRegionsCount} região(ões)`
+                      : summary.configuredDeliveryFee > 0
+                        ? `Taxa padrão: ${formatCurrencyBRL(summary.configuredDeliveryFee)} · Configure regiões`
+                        : 'Módulo ativo · Áreas, bairros e taxas'
+                    : 'Em desenvolvimento · Próximas etapas';
 
             return (
               <article
                 key={item.id}
                 className={`bg-white border rounded-2xl p-4 shadow-[0_2px_8px_rgba(23,32,51,0.03)] flex flex-col justify-between gap-3 ${
-                  isCustomersModule
+                  isActiveModule
                     ? 'border-[#FDE68A] hover:border-[#F5B900] transition-colors'
                     : 'border-[#E8EAF0]'
                 }`}
@@ -592,7 +653,7 @@ export function DeliveryDashboardView({
                 <div className="flex items-start gap-3">
                   <div
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${
-                      isCustomersModule
+                      isActiveModule
                         ? 'bg-[#FFFBEB] border-[#FDE68A] text-[#B38300]'
                         : 'bg-[#F5F6FA] border-[#E8EAF0] text-[#778094]'
                     }`}
@@ -609,10 +670,10 @@ export function DeliveryDashboardView({
                   </div>
                 </div>
 
-                {isCustomersModule && onOpenCustomers ? (
+                {actionHandler ? (
                   <button
                     type="button"
-                    onClick={onOpenCustomers}
+                    onClick={actionHandler}
                     className="w-full pt-2 border-t border-[#E8EAF0] flex items-center justify-between gap-2 text-[11px] font-semibold text-[#8A6200] hover:text-[#172033] cursor-pointer transition-colors"
                   >
                     <span className="truncate">{extraDetail}</span>

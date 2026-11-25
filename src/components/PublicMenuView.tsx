@@ -51,6 +51,11 @@ import type {
 } from '../types/finance';
 import { formatCurrencyBRL } from '../utils/finance';
 import {
+  formatDeliveryFeeRuleLabel,
+  getPublicServedNeighborhoodOptions,
+  resolveDeliveryCoverageAndFee,
+} from '../utils/deliveryRegions';
+import {
   buildWhatsappUrl,
   computeCartSummary,
   formatOrderNumber,
@@ -204,6 +209,15 @@ export function PublicMenuView({
   const [deliveryReference, setDeliveryReference] = useState(
     initialStoredProfile?.deliveryReference ?? '',
   );
+  const [deliveryNeighborhood, setDeliveryNeighborhood] = useState(
+    initialStoredProfile?.deliveryNeighborhood ?? '',
+  );
+  const [deliveryCity, setDeliveryCity] = useState(
+    initialStoredProfile?.deliveryCity ?? '',
+  );
+  const [deliveryRegionId, setDeliveryRegionId] = useState(
+    initialStoredProfile?.deliveryRegionId ?? '',
+  );
   const [paymentMethod, setPaymentMethod] =
     useState<OnlineOrderPaymentMethod>(
       initialStoredProfile?.paymentMethod ?? 'Pix',
@@ -214,7 +228,8 @@ export function PublicMenuView({
     Boolean(
       initialStoredProfile?.customerName ||
         initialStoredProfile?.customerPhone ||
-        initialStoredProfile?.deliveryAddress,
+        initialStoredProfile?.deliveryAddress ||
+        initialStoredProfile?.deliveryNeighborhood,
     ),
   );
 
@@ -364,7 +379,18 @@ export function PublicMenuView({
     }
   }, [cart, store]);
 
-  const cartSummary = useMemo(() => {
+  const deliveryRegions = payload?.deliveryRegions ?? [];
+  const deliveryPricing = payload?.deliveryPricing ?? null;
+
+  const servedNeighborhoodOptions = useMemo(
+    () => getPublicServedNeighborhoodOptions(deliveryRegions),
+    [deliveryRegions],
+  );
+
+  const usesRegionalPricing =
+    deliveryRegions.length > 0 && deliveryPricing?.pricingMode !== 'default_only';
+
+  const rawCartSummary = useMemo(() => {
     if (!store) {
       return {
         lines: [],
@@ -380,6 +406,52 @@ export function PublicMenuView({
     }
     return computeCartSummary(cart, products, combos, store, fulfillmentType);
   }, [cart, products, combos, store, fulfillmentType]);
+
+  const coverageResolution = useMemo(() => {
+    if (!store) return null;
+    return resolveDeliveryCoverageAndFee({
+      fulfillmentType,
+      neighborhood: deliveryNeighborhood,
+      city: deliveryCity,
+      address: deliveryAddress,
+      regionId: deliveryRegionId || null,
+      subtotal: rawCartSummary.subtotal,
+      menuSettings: store,
+      pricingSettings: deliveryPricing,
+      regions: deliveryRegions,
+      timezone: store.timezone,
+    });
+  }, [
+    store,
+    fulfillmentType,
+    deliveryNeighborhood,
+    deliveryCity,
+    deliveryAddress,
+    deliveryRegionId,
+    rawCartSummary.subtotal,
+    deliveryPricing,
+    deliveryRegions,
+  ]);
+
+  const cartSummary = useMemo(() => {
+    if (!store) return rawCartSummary;
+    return computeCartSummary(
+      cart,
+      products,
+      combos,
+      store,
+      fulfillmentType,
+      coverageResolution,
+    );
+  }, [
+    store,
+    cart,
+    products,
+    combos,
+    fulfillmentType,
+    coverageResolution,
+    rawCartSummary,
+  ]);
 
   const categoryCounts = useMemo(
     () => computeMenuCategoryCounts(products, combos.length),
@@ -534,6 +606,9 @@ export function PublicMenuView({
           fulfillmentType,
           deliveryAddress,
           deliveryReference,
+          deliveryNeighborhood,
+          deliveryCity,
+          deliveryRegionId,
           paymentMethod,
         }),
       );
@@ -548,12 +623,37 @@ export function PublicMenuView({
     setCustomerPhone('');
     setDeliveryAddress('');
     setDeliveryReference('');
+    setDeliveryNeighborhood('');
+    setDeliveryCity('');
+    setDeliveryRegionId('');
     setHasSavedProfile(false);
     try {
       window.localStorage.removeItem(CUSTOMER_PROFILE_STORAGE_KEY);
     } catch {
       // Ignora erro de storage
     }
+  }
+
+  function handleSelectServedNeighborhood(value: string) {
+    setCheckoutError(null);
+    if (!value || value === '__other__') {
+      setDeliveryRegionId('');
+      if (value === '__other__') {
+        setDeliveryNeighborhood('');
+        setDeliveryCity('');
+      }
+      return;
+    }
+    const [selectedRegionId, selectedNeighborhood] = value.split('::');
+    const matched = servedNeighborhoodOptions.find(
+      (opt) =>
+        opt.regionId === selectedRegionId &&
+        opt.neighborhood === selectedNeighborhood,
+    );
+    if (!matched) return;
+    setDeliveryRegionId(matched.regionId);
+    setDeliveryNeighborhood(matched.neighborhood);
+    setDeliveryCity(matched.city);
   }
 
   function handleAdvanceToReview(e: React.FormEvent) {
@@ -568,12 +668,25 @@ export function PublicMenuView({
         fulfillmentType,
         deliveryAddress,
         deliveryReference,
+        deliveryNeighborhood:
+          fulfillmentType === 'delivery'
+            ? coverageResolution?.matchedNeighborhood || deliveryNeighborhood.trim()
+            : '',
+        deliveryCity:
+          fulfillmentType === 'delivery'
+            ? coverageResolution?.matchedCity || deliveryCity.trim()
+            : '',
+        deliveryRegionId:
+          fulfillmentType === 'delivery'
+            ? (coverageResolution?.matchedRegion?.id ?? (deliveryRegionId || null))
+            : null,
         paymentMethod,
         changeFor: parsedChangeForValue(),
         customerNote,
       },
       cartSummary,
       store,
+      coverageResolution,
     );
 
     if (!validation.valid) {
@@ -598,6 +711,18 @@ export function PublicMenuView({
         fulfillmentType === 'delivery' ? deliveryAddress.trim() : '',
       deliveryReference:
         fulfillmentType === 'delivery' ? deliveryReference.trim() : '',
+      deliveryNeighborhood:
+        fulfillmentType === 'delivery'
+          ? coverageResolution?.matchedNeighborhood || deliveryNeighborhood.trim()
+          : '',
+      deliveryCity:
+        fulfillmentType === 'delivery'
+          ? coverageResolution?.matchedCity || deliveryCity.trim()
+          : '',
+      deliveryRegionId:
+        fulfillmentType === 'delivery'
+          ? (coverageResolution?.matchedRegion?.id ?? (deliveryRegionId || null))
+          : null,
       paymentMethod,
       changeFor: parsedChangeForValue(),
       customerNote: customerNote.trim(),
@@ -610,7 +735,12 @@ export function PublicMenuView({
       })),
     };
 
-    const validation = validateCheckoutPayload(payloadToSend, cartSummary, store);
+    const validation = validateCheckoutPayload(
+      payloadToSend,
+      cartSummary,
+      store,
+      coverageResolution,
+    );
     if (!validation.valid) {
       setCheckoutError(validation.error ?? 'Revise os dados do pedido.');
       return;
@@ -914,7 +1044,7 @@ export function PublicMenuView({
           </div>
 
           {/* Fulfillment selector */}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <span className="block text-xs font-medium text-[#D1D5DB]">
               Como deseja receber?
             </span>
@@ -929,7 +1059,15 @@ export function PublicMenuView({
                       : 'bg-[#0B0D11] border-[#232834] text-[#D1D5DB] hover:border-[#374151]'
                   }`}
                 >
-                  Entrega ({store.deliveryFee <= 0 ? 'Grátis' : formatCurrencyBRL(store.deliveryFee)})
+                  {coverageResolution &&
+                  fulfillmentType === 'delivery' &&
+                  (deliveryNeighborhood.trim() || deliveryAddress.trim() || !usesRegionalPricing)
+                    ? cartSummary.deliveryFee <= 0
+                      ? 'Entrega (Grátis)'
+                      : `Entrega (${formatCurrencyBRL(cartSummary.deliveryFee)})`
+                    : usesRegionalPricing
+                      ? 'Entrega (por bairro)'
+                      : `Entrega (${store.deliveryFee <= 0 ? 'Grátis' : formatCurrencyBRL(store.deliveryFee)})`}
                 </button>
               )}
               {store.acceptsPickup && (
@@ -946,6 +1084,76 @@ export function PublicMenuView({
                 </button>
               )}
             </div>
+
+            {fulfillmentType === 'delivery' &&
+              usesRegionalPricing &&
+              servedNeighborhoodOptions.length > 0 && (
+                <div className="pt-1 space-y-1.5">
+                  <label
+                    htmlFor="cart-neighborhood-select"
+                    className="block text-[11px] font-medium text-[#9CA3AF]"
+                  >
+                    Simular taxa por bairro (opcional aqui)
+                  </label>
+                  <select
+                    id="cart-neighborhood-select"
+                    value={
+                      coverageResolution?.matchedRegion && coverageResolution.matchedNeighborhood
+                        ? `${coverageResolution.matchedRegion.id}::${coverageResolution.matchedNeighborhood}`
+                        : ''
+                    }
+                    onChange={(e) => handleSelectServedNeighborhood(e.target.value)}
+                    className="w-full min-h-[38px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-xs text-[#F3F4F6]"
+                  >
+                    <option value="">Selecione seu bairro para calcular a taxa...</option>
+                    {servedNeighborhoodOptions.map((opt) => (
+                      <option
+                        key={`${opt.regionId}::${opt.neighborhood}`}
+                        value={`${opt.regionId}::${opt.neighborhood}`}
+                      >
+                        {opt.neighborhood} ({opt.city}) —{' '}
+                        {opt.deliveryFee <= 0 ? 'Grátis' : formatCurrencyBRL(opt.deliveryFee)}
+                        {opt.isAvailableNow ? '' : ` · ${opt.unavailableReason}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+            {fulfillmentType === 'delivery' &&
+              coverageResolution &&
+              coverageResolution.freeDeliveryApplied && (
+                <div className="px-3 py-2 rounded-xl bg-[#22C55E]/10 border border-[#22C55E]/30 text-[11px] font-semibold text-[#4ADE80]">
+                  Entrega grátis aplicada neste pedido!
+                </div>
+              )}
+
+            {fulfillmentType === 'delivery' &&
+              coverageResolution &&
+              !coverageResolution.freeDeliveryApplied &&
+              coverageResolution.missingForFreeDelivery > 0 && (
+                <div className="px-3 py-2 rounded-xl bg-[#F5B731]/10 border border-[#F5B731]/30 text-[11px] text-[#FCD34D] font-mono tabular-nums">
+                  Faltam {formatCurrencyBRL(coverageResolution.missingForFreeDelivery)} em itens para ganhar entrega grátis!
+                </div>
+              )}
+
+            {fulfillmentType === 'delivery' &&
+              coverageResolution &&
+              !coverageResolution.available &&
+              coverageResolution.reasonCode !== 'missing_neighborhood' && (
+                <div className="p-2.5 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-[11px] text-[#FCA5A5] space-y-1.5">
+                  <p>{coverageResolution.message}</p>
+                  {store.acceptsPickup && (
+                    <button
+                      type="button"
+                      onClick={() => setFulfillmentType('pickup')}
+                      className="text-[11px] font-bold text-[#F5B731] hover:underline cursor-pointer"
+                    >
+                      Trocar para Retirada no balcão
+                    </button>
+                  )}
+                </div>
+              )}
           </div>
 
           {/* Totals */}
@@ -956,14 +1164,29 @@ export function PublicMenuView({
                 {formatCurrencyBRL(cartSummary.subtotal)}
               </span>
             </div>
-            <div className="flex justify-between text-[#9CA3AF]">
+            <div className="flex justify-between items-start gap-2 text-[#9CA3AF]">
               <span>
                 {fulfillmentType === 'delivery' ? 'Taxa de entrega' : 'Retirada'}
+                {fulfillmentType === 'delivery' &&
+                  coverageResolution?.matchedRegion?.name && (
+                    <span className="block text-[10px] text-[#9CA3AF]">
+                      {coverageResolution.matchedNeighborhood || coverageResolution.matchedRegion.name}
+                      {coverageResolution.estimatedTime
+                        ? ` · ${coverageResolution.estimatedTime}`
+                        : ''}
+                    </span>
+                  )}
               </span>
-              <span className="font-mono tabular-nums text-[#F3F4F6]">
-                {fulfillmentType === 'pickup' || cartSummary.deliveryFee <= 0
+              <span className="font-mono tabular-nums text-[#F3F4F6] shrink-0">
+                {fulfillmentType === 'pickup'
                   ? 'Grátis'
-                  : formatCurrencyBRL(cartSummary.deliveryFee)}
+                  : usesRegionalPricing &&
+                      !coverageResolution?.matchedRegion &&
+                      coverageResolution?.reasonCode === 'missing_neighborhood'
+                    ? 'A calcular'
+                    : cartSummary.deliveryFee <= 0
+                      ? 'Grátis'
+                      : formatCurrencyBRL(cartSummary.deliveryFee)}
               </span>
             </div>
             <div className="flex justify-between text-sm font-bold text-[#F3F4F6] pt-1.5 border-t border-[#232834]">
@@ -1069,6 +1292,130 @@ export function PublicMenuView({
 
           {fulfillmentType === 'delivery' && (
             <>
+              {usesRegionalPricing && servedNeighborhoodOptions.length > 0 && (
+                <div>
+                  <label
+                    htmlFor="ck-neighborhood-select"
+                    className="block text-xs font-medium text-[#D1D5DB] mb-1"
+                  >
+                    Selecione o bairro atendido *
+                  </label>
+                  <select
+                    id="ck-neighborhood-select"
+                    value={
+                      coverageResolution?.matchedRegion && coverageResolution.matchedNeighborhood
+                        ? `${coverageResolution.matchedRegion.id}::${coverageResolution.matchedNeighborhood}`
+                        : deliveryNeighborhood.trim()
+                          ? '__other__'
+                          : ''
+                    }
+                    onChange={(e) => handleSelectServedNeighborhood(e.target.value)}
+                    className="w-full min-h-[44px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                  >
+                    <option value="">Escolha seu bairro...</option>
+                    {servedNeighborhoodOptions.map((opt) => (
+                      <option
+                        key={`${opt.regionId}::${opt.neighborhood}`}
+                        value={`${opt.regionId}::${opt.neighborhood}`}
+                      >
+                        {opt.neighborhood} ({opt.city}) —{' '}
+                        {opt.deliveryFee <= 0 ? 'Grátis' : formatCurrencyBRL(opt.deliveryFee)}
+                        {opt.isAvailableNow ? '' : ` · ${opt.unavailableReason}`}
+                      </option>
+                    ))}
+                    <option value="__other__">Outro bairro (digitar manualmente)</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label
+                    htmlFor="ck-neighborhood"
+                    className="block text-xs font-medium text-[#D1D5DB] mb-1"
+                  >
+                    Bairro {usesRegionalPricing ? '*' : '(opcional)'}
+                  </label>
+                  <input
+                    id="ck-neighborhood"
+                    type="text"
+                    required={usesRegionalPricing}
+                    maxLength={100}
+                    value={deliveryNeighborhood}
+                    onChange={(e) => {
+                      setDeliveryNeighborhood(e.target.value);
+                      setDeliveryRegionId('');
+                    }}
+                    placeholder="Ex: Centro, Cidade Nova"
+                    className="w-full min-h-[44px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="ck-city"
+                    className="block text-xs font-medium text-[#D1D5DB] mb-1"
+                  >
+                    Cidade / Município (opcional)
+                  </label>
+                  <input
+                    id="ck-city"
+                    type="text"
+                    maxLength={100}
+                    value={deliveryCity}
+                    onChange={(e) => {
+                      setDeliveryCity(e.target.value);
+                      setDeliveryRegionId('');
+                    }}
+                    placeholder="Ex: Manaus"
+                    className="w-full min-h-[44px] px-3 rounded-xl bg-[#0B0D11] border border-[#232834] focus:border-[#F5B731] focus:outline-none text-sm text-[#F3F4F6]"
+                  />
+                </div>
+              </div>
+
+              {coverageResolution && !coverageResolution.available && (
+                <div
+                  role="alert"
+                  className="p-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/30 text-xs text-[#FCA5A5] space-y-1.5"
+                >
+                  <p>{coverageResolution.message}</p>
+                  {store.acceptsPickup && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCheckoutError(null);
+                        setFulfillmentType('pickup');
+                      }}
+                      className="text-xs font-bold text-[#F5B731] hover:underline cursor-pointer"
+                    >
+                      Trocar para Retirada no balcão
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {coverageResolution &&
+                coverageResolution.available &&
+                (coverageResolution.matchedRegion || usesRegionalPricing) && (
+                  <div className="p-3 rounded-xl bg-[#22C55E]/10 border border-[#22C55E]/25 text-xs text-[#E5E7EB] space-y-0.5">
+                    <p className="font-semibold text-[#4ADE80]">
+                      {coverageResolution.matchedRegion
+                        ? `Área atendida: ${coverageResolution.matchedRegion.name} (${coverageResolution.matchedCity || coverageResolution.matchedRegion.city})`
+                        : coverageResolution.message}
+                    </p>
+                    <p className="text-[11px] text-[#D1D5DB] font-mono tabular-nums">
+                      Taxa:{' '}
+                      {coverageResolution.appliedDeliveryFee <= 0
+                        ? 'Grátis'
+                        : formatCurrencyBRL(coverageResolution.appliedDeliveryFee)}{' '}
+                      · {formatDeliveryFeeRuleLabel(coverageResolution.feeRule, coverageResolution.freeDeliveryApplied)}
+                      {coverageResolution.estimatedTime
+                        ? ` · Previsão: ${coverageResolution.estimatedTime}`
+                        : ''}
+                    </p>
+                  </div>
+                )}
+
               <div>
                 <label
                   htmlFor="ck-address"
@@ -1227,6 +1574,23 @@ export function PublicMenuView({
                     }`
                   : `Retirada no balcão${store.address ? ` · ${store.address}` : ''}`}
               </p>
+              {fulfillmentType === 'delivery' &&
+                (coverageResolution?.matchedNeighborhood ||
+                  deliveryNeighborhood.trim() ||
+                  coverageResolution?.matchedRegion) && (
+                  <p className="text-[11px] text-[#9CA3AF] mt-0.5">
+                    Bairro:{' '}
+                    {coverageResolution?.matchedNeighborhood ||
+                      deliveryNeighborhood.trim() ||
+                      coverageResolution?.matchedRegion?.name}
+                    {(coverageResolution?.matchedCity || deliveryCity.trim())
+                      ? ` · ${coverageResolution?.matchedCity || deliveryCity.trim()}`
+                      : ''}
+                    {coverageResolution?.estimatedTime
+                      ? ` · Previsão ${coverageResolution.estimatedTime}`
+                      : ''}
+                  </p>
+                )}
             </div>
 
             <div>
@@ -1264,9 +1628,19 @@ export function PublicMenuView({
                   {formatCurrencyBRL(cartSummary.subtotal)}
                 </span>
               </div>
-              <div className="flex justify-between text-[#9CA3AF]">
-                <span>Entrega</span>
-                <span className="font-mono tabular-nums">
+              <div className="flex justify-between items-start gap-2 text-[#9CA3AF]">
+                <span>
+                  Entrega
+                  {fulfillmentType === 'delivery' && coverageResolution && (
+                    <span className="block text-[10px] text-[#9CA3AF]">
+                      {formatDeliveryFeeRuleLabel(
+                        coverageResolution.feeRule,
+                        coverageResolution.freeDeliveryApplied,
+                      )}
+                    </span>
+                  )}
+                </span>
+                <span className="font-mono tabular-nums shrink-0">
                   {cartSummary.deliveryFee <= 0
                     ? 'Grátis'
                     : formatCurrencyBRL(cartSummary.deliveryFee)}
@@ -1443,12 +1817,39 @@ export function PublicMenuView({
           <div className="pt-2 border-t border-[#242936]/75 flex flex-wrap items-center justify-center lg:justify-start gap-x-2.5 gap-y-1 text-xs font-semibold text-white">
             <Truck className="w-4 h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
             <span className="font-mono tabular-nums">
-              {store.acceptsDelivery
-                ? store.deliveryFee <= 0
-                  ? 'Entrega grátis'
-                  : `Entrega ${formatCurrencyBRL(store.deliveryFee)}`
-                : 'Somente retirada'}
+              {!store.acceptsDelivery
+                ? 'Somente retirada'
+                : usesRegionalPricing
+                  ? (() => {
+                      const activeList = deliveryRegions.filter(
+                        (r) => r.status === 'active' && !r.isTemporarilySuspended,
+                      );
+                      const sample = activeList.length > 0 ? activeList : deliveryRegions;
+                      const fees = sample.map((r) => r.deliveryFee);
+                      const minFee = Math.min(...fees);
+                      const maxFee = Math.max(...fees);
+                      return minFee === maxFee
+                        ? minFee <= 0
+                          ? 'Entrega grátis'
+                          : `Entrega ${formatCurrencyBRL(minFee)}`
+                        : `Entrega ${formatCurrencyBRL(minFee)} a ${formatCurrencyBRL(maxFee)} por bairro`;
+                    })()
+                  : store.deliveryFee <= 0
+                    ? 'Entrega grátis'
+                    : `Entrega ${formatCurrencyBRL(store.deliveryFee)}`}
             </span>
+            {store.acceptsDelivery &&
+              deliveryPricing?.freeDeliveryEnabled &&
+              deliveryPricing.freeDeliveryMinAmount > 0 && (
+                <>
+                  <span aria-hidden="true" className="text-[#6B7280]">
+                    •
+                  </span>
+                  <span className="text-[#4ADE80] font-mono tabular-nums">
+                    Grátis acima de {formatCurrencyBRL(deliveryPricing.freeDeliveryMinAmount)}
+                  </span>
+                </>
+              )}
             {store.acceptsDelivery && store.acceptsPickup && (
               <>
                 <span aria-hidden="true" className="text-[#6B7280]">

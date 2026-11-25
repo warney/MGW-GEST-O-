@@ -3,11 +3,23 @@ import type {
   ComboRecord,
   CreatePublicOrderPayload,
   CreatePublicOrderResponse,
+  DeliveryCourierAvailability,
+  DeliveryCourierInput,
+  DeliveryCourierRecord,
+  DeliveryCourierStatus,
   DeliveryCustomerAddressInput,
   DeliveryCustomerAddressRecord,
   DeliveryCustomerClassificationConfig,
   DeliveryCustomerInput,
   DeliveryCustomerRecord,
+  DeliveryDispatchHistoryRecord,
+  DeliveryDispatchRecord,
+  DeliveryDispatchStatus,
+  DeliveryPricingSettings,
+  DeliveryPricingSettingsInput,
+  DeliveryRegionInput,
+  DeliveryRegionRecord,
+  DeliveryRegionStatus,
   DigitalMenuSettings,
   DigitalMenuSettingsInput,
   ExpenseInput,
@@ -19,6 +31,7 @@ import type {
   ProductRecord,
   PublicCatalogCombo,
   PublicCatalogProduct,
+  PublicDeliveryRegion,
   PublicDigitalMenuPayload,
   PublicOrderTrackingRecord,
   SaleInput,
@@ -26,19 +39,42 @@ import type {
   ShopSettings,
 } from '../types/finance';
 import {
+  normalizeCourierPlateForStorage,
+  normalizeCourierType,
+} from '../utils/deliveryCouriers';
+import {
+  DISPATCH_STATUS_LABELS,
+  isActiveDispatchStatus,
+  validateCourierAssignmentEligibility,
+} from '../utils/deliveryDispatch';
+import {
   DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
   isValidCustomerPhone,
   isValidOptionalCpf,
   normalizeClassificationConfig,
   normalizeCustomerPhone,
 } from '../utils/deliveryCustomers';
-import { calculateSaleTotal, getLocalTodayDate, roundCurrency } from '../utils/finance';
+import {
+  DEFAULT_DELIVERY_PRICING_SETTINGS,
+  deduplicateNeighborhoods,
+  isValidTimeHHMM,
+  resolveDeliveryCoverageAndFee,
+  validateDeliveryPricingSettingsInput,
+  validateDeliveryRegionInput,
+} from '../utils/deliveryRegions';
+import {
+  calculateSaleTotal,
+  DEFAULT_SHOP_TIMEZONE,
+  getLocalTodayDate,
+  roundCurrency,
+} from '../utils/finance';
 import {
   buildSaleInputFromCompletedOrder,
   computeCartSummary,
   DEFAULT_DIGITAL_MENU_SETTINGS,
   formatOrderNumber,
   generateTrackingSecretToken,
+  isTerminalOrderStatus,
   normalizePixKeyInput,
   ORDER_STATUS_LABELS,
   sanitizeMenuSlug,
@@ -62,6 +98,11 @@ interface DemoState {
   customers: DeliveryCustomerRecord[];
   customerAddresses: DeliveryCustomerAddressRecord[];
   customerClassificationConfig: DeliveryCustomerClassificationConfig;
+  couriers: DeliveryCourierRecord[];
+  dispatches: DeliveryDispatchRecord[];
+  dispatchHistory: DeliveryDispatchHistoryRecord[];
+  deliveryRegions: DeliveryRegionRecord[];
+  deliveryPricingSettings: DeliveryPricingSettings;
   nextOrderSeq: number;
   tokensByHash: Record<string, string>;
 }
@@ -272,6 +313,18 @@ function createInitialDemoState(): DemoState {
     customers: [],
     customerAddresses: [],
     customerClassificationConfig: { ...DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG },
+    couriers: [],
+    dispatches: [],
+    dispatchHistory: [],
+    deliveryRegions: [],
+    deliveryPricingSettings: {
+      tenantId: 'mgw_lanches',
+      ...DEFAULT_DELIVERY_PRICING_SETTINGS,
+      defaultFeeEnabled: true,
+      defaultDeliveryFee: 5,
+      defaultMinimumOrderAmount: 15,
+      updatedAtMs: now,
+    },
     nextOrderSeq: 1,
     tokensByHash: {},
   };
@@ -298,6 +351,25 @@ function readDemoState(): DemoState {
       customerClassificationConfig: normalizeClassificationConfig(
         parsed.customerClassificationConfig,
       ),
+      couriers: Array.isArray(parsed.couriers)
+        ? parsed.couriers.map((c) => ({
+            ...c,
+            courierType: normalizeCourierType(c.courierType),
+          }))
+        : [],
+      dispatches: Array.isArray(parsed.dispatches) ? parsed.dispatches : [],
+      dispatchHistory: Array.isArray(parsed.dispatchHistory)
+        ? parsed.dispatchHistory
+        : [],
+      deliveryRegions: Array.isArray(parsed.deliveryRegions)
+        ? parsed.deliveryRegions
+        : [],
+      deliveryPricingSettings: parsed.deliveryPricingSettings
+        ? {
+            ...baseInit.deliveryPricingSettings,
+            ...parsed.deliveryPricingSettings,
+          }
+        : baseInit.deliveryPricingSettings,
       digitalMenu: {
         ...baseInit.digitalMenu,
         ...parsed.digitalMenu,
@@ -325,6 +397,85 @@ function writeDemoState(next: DemoState): void {
   for (const fn of listeners) fn();
 }
 
+function applyOrderStatusStep(
+  order: OnlineOrderRecord,
+  nextStatus: OnlineOrderStatus,
+  reason: string,
+  now: number,
+  currentSales: SaleRecord[],
+): { updatedOrder: OnlineOrderRecord; nextSales: SaleRecord[] } {
+  const cleanReason =
+    nextStatus === 'rejected' || nextStatus === 'cancelled'
+      ? reason.trim()
+      : `${ORDER_STATUS_LABELS[nextStatus]}.`;
+
+  let nextSales = currentSales;
+  let linkedSaleId = order.saleId;
+
+  if (nextStatus === 'completed' && !order.saleId) {
+    const deterministicSaleId = `demo_sale_online_${order.id}`;
+    linkedSaleId = deterministicSaleId;
+    const saleInput = buildSaleInputFromCompletedOrder({
+      ...order,
+      status: 'completed',
+      completedAtMs: now,
+    });
+    const totalAmount = roundCurrency(order.totalAmount);
+    nextSales = [
+      {
+        id: deterministicSaleId,
+        ownerId: 'demo-owner',
+        ...saleInput,
+        totalAmount,
+        saleOrigin: 'online',
+        onlineOrderId: order.id,
+        onlineOrderNumber: order.orderNumber,
+        deliveryFee: order.deliveryFee,
+        createdAtMs: now,
+        updatedAtMs: now,
+      },
+      ...currentSales.filter((s) => s.onlineOrderId !== order.id),
+    ];
+  }
+
+  const updatedOrder: OnlineOrderRecord = {
+    ...order,
+    status: nextStatus,
+    viewedAtMs: order.viewedAtMs ?? now,
+    rejectionReason:
+      nextStatus === 'rejected' || nextStatus === 'cancelled'
+        ? cleanReason
+        : order.rejectionReason,
+    acceptedAtMs: nextStatus === 'accepted' ? now : order.acceptedAtMs,
+    preparingAtMs: nextStatus === 'preparing' ? now : order.preparingAtMs,
+    readyAtMs: nextStatus === 'ready' ? now : order.readyAtMs,
+    dispatchedAtMs:
+      nextStatus === 'out_for_delivery' || nextStatus === 'ready_for_pickup'
+        ? now
+        : order.dispatchedAtMs,
+    completedAtMs: nextStatus === 'completed' ? now : order.completedAtMs,
+    cancelledAtMs:
+      nextStatus === 'rejected' || nextStatus === 'cancelled'
+        ? now
+        : order.cancelledAtMs,
+    saleId: linkedSaleId,
+    updatedAtMs: now,
+    statusHistory: [
+      ...order.statusHistory,
+      {
+        id: `dh_${now}_${order.statusHistory.length + 1}`,
+        fromStatus: order.status,
+        toStatus: nextStatus,
+        reason: cleanReason,
+        actorType: 'admin',
+        createdAtMs: now,
+      },
+    ],
+  };
+
+  return { updatedOrder, nextSales };
+}
+
 export function subscribeDemoAdminState(
   callbacks: {
     onSettings: (s: ShopSettings) => void;
@@ -337,6 +488,11 @@ export function subscribeDemoAdminState(
     onDeliveryCustomers?: (c: DeliveryCustomerRecord[]) => void;
     onDeliveryCustomerAddresses?: (a: DeliveryCustomerAddressRecord[]) => void;
     onCustomerClassificationConfig?: (cfg: DeliveryCustomerClassificationConfig) => void;
+    onDeliveryCouriers?: (couriers: DeliveryCourierRecord[]) => void;
+    onDeliveryDispatches?: (dispatches: DeliveryDispatchRecord[]) => void;
+    onDeliveryDispatchHistory?: (history: DeliveryDispatchHistoryRecord[]) => void;
+    onDeliveryRegions?: (regions: DeliveryRegionRecord[]) => void;
+    onDeliveryPricingSettings?: (settings: DeliveryPricingSettings) => void;
     onReady: () => void;
   },
 ): () => void {
@@ -353,6 +509,11 @@ export function subscribeDemoAdminState(
     callbacks.onDeliveryCustomers?.(st.customers);
     callbacks.onDeliveryCustomerAddresses?.(st.customerAddresses);
     callbacks.onCustomerClassificationConfig?.(st.customerClassificationConfig);
+    callbacks.onDeliveryCouriers?.(st.couriers);
+    callbacks.onDeliveryDispatches?.(st.dispatches);
+    callbacks.onDeliveryDispatchHistory?.(st.dispatchHistory);
+    callbacks.onDeliveryRegions?.(st.deliveryRegions);
+    callbacks.onDeliveryPricingSettings?.(st.deliveryPricingSettings);
     callbacks.onReady();
   };
   listeners.add(emit);
@@ -502,7 +663,14 @@ export const demoMutations = {
     const st = readDemoState();
     const reqSlug = slug ? sanitizeMenuSlug(slug, '') : '';
     if (reqSlug && reqSlug !== st.digitalMenu.slug && reqSlug !== 'mgw_lanches') {
-      return { found: false, store: null, products: [], combos: [] };
+      return {
+        found: false,
+        store: null,
+        products: [],
+        combos: [],
+        deliveryPricing: null,
+        deliveryRegions: [],
+      };
     }
     const products: PublicCatalogProduct[] = st.digitalMenu.isActive
       ? st.products.filter((p) => p.active).map((p) => ({
@@ -524,27 +692,82 @@ export const demoMutations = {
           imageUrl: c.imageUrl,
         }))
       : [];
-    return { found: true, store: st.digitalMenu, products, combos };
+    const deliveryRegions: PublicDeliveryRegion[] = st.deliveryRegions.map((r) => ({
+      id: r.id,
+      name: r.name,
+      city: r.city,
+      neighborhoods: r.neighborhoods,
+      description: r.description,
+      deliveryFee: r.deliveryFee,
+      minimumOrderAmount: r.minimumOrderAmount,
+      estimatedTime: r.estimatedTime,
+      status: r.status,
+      isTemporarilySuspended: r.isTemporarilySuspended,
+      suspensionReason: r.suspensionReason,
+      scheduleEnabled: r.scheduleEnabled,
+      scheduleDays: r.scheduleDays,
+      scheduleStart: r.scheduleStart,
+      scheduleEnd: r.scheduleEnd,
+    }));
+    return {
+      found: true,
+      store: {
+        ...st.digitalMenu,
+        timezone: st.settings.timezone || DEFAULT_SHOP_TIMEZONE,
+      },
+      products,
+      combos,
+      deliveryPricing: {
+        pricingMode: st.deliveryPricingSettings.pricingMode,
+        defaultFeeEnabled: st.deliveryPricingSettings.defaultFeeEnabled,
+        defaultDeliveryFee: st.deliveryPricingSettings.defaultDeliveryFee,
+        defaultMinimumOrderAmount: st.deliveryPricingSettings.defaultMinimumOrderAmount,
+        defaultEstimatedTime: st.deliveryPricingSettings.defaultEstimatedTime,
+        freeDeliveryEnabled: st.deliveryPricingSettings.freeDeliveryEnabled,
+        freeDeliveryMinAmount: st.deliveryPricingSettings.freeDeliveryMinAmount,
+      },
+      deliveryRegions,
+    };
   },
   async createPublicOrder(payload: CreatePublicOrderPayload): Promise<CreatePublicOrderResponse> {
     const st = readDemoState();
     const activeProds = st.products.filter((p) => p.active);
     const activeCombos = st.combos.filter((c) => c.active);
-    const summary = computeCartSummary(
+    const baseSummary = computeCartSummary(
       payload.items,
       activeProds,
       activeCombos,
       st.digitalMenu,
       payload.fulfillmentType,
     );
-    const check = validateCheckoutPayload(payload, summary, st.digitalMenu);
+    const coverage = resolveDeliveryCoverageAndFee({
+      fulfillmentType: payload.fulfillmentType,
+      neighborhood: payload.deliveryNeighborhood,
+      city: payload.deliveryCity,
+      address: payload.deliveryAddress,
+      regionId: payload.deliveryRegionId,
+      subtotal: baseSummary.subtotal,
+      menuSettings: st.digitalMenu,
+      pricingSettings: st.deliveryPricingSettings,
+      regions: st.deliveryRegions,
+      timezone: st.settings.timezone || DEFAULT_SHOP_TIMEZONE,
+    });
+    const summary = computeCartSummary(
+      payload.items,
+      activeProds,
+      activeCombos,
+      st.digitalMenu,
+      payload.fulfillmentType,
+      coverage,
+    );
+    const check = validateCheckoutPayload(payload, summary, st.digitalMenu, coverage);
     if (!check.valid) throw new Error(check.error || 'Pedido inválido.');
 
     const trackingToken = generateTrackingSecretToken();
     const tokenHash = await sha256Hex(trackingToken);
     const orderNumber = st.nextOrderSeq;
     const orderCode = trackingToken.slice(0, 6).toUpperCase();
-    const orderId = `demo_order_${Date.now()}`;
+    const orderId = `demo_order_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const now = Date.now();
     const comboMap = new Map(activeCombos.map((c) => [c.id, c]));
     const prodMap = new Map(activeProds.map((p) => [p.id, p]));
@@ -676,6 +899,22 @@ export const demoMutations = {
         payload.fulfillmentType === 'delivery' ? payload.deliveryAddress.trim() : '',
       deliveryReference:
         payload.fulfillmentType === 'delivery' ? payload.deliveryReference.trim() : '',
+      deliveryRegionId: coverage.matchedRegion?.id ?? null,
+      deliveryRegionName:
+        payload.fulfillmentType === 'delivery'
+          ? coverage.matchedRegion?.name ||
+            (coverage.feeRule === 'default_fallback'
+              ? coverage.matchedNeighborhood || 'Taxa padrão'
+              : '')
+          : '',
+      deliveryNeighborhood:
+        payload.fulfillmentType === 'delivery' ? coverage.matchedNeighborhood : '',
+      deliveryCity: payload.fulfillmentType === 'delivery' ? coverage.matchedCity : '',
+      deliveryBaseFee: coverage.baseDeliveryFee,
+      deliveryFeeRule: coverage.feeRule,
+      deliveryMinimumOrderApplied: coverage.minimumOrderAmount,
+      deliveryFreeApplied: coverage.freeDeliveryApplied,
+      deliveryFreeThresholdApplied: coverage.freeDeliveryThreshold,
       paymentMethod: payload.paymentMethod,
       changeFor: payload.changeFor,
       customerNote: payload.customerNote.trim(),
@@ -725,6 +964,11 @@ export const demoMutations = {
       subtotalAmount: summary.subtotal,
       deliveryFee: summary.deliveryFee,
       totalAmount: summary.totalAmount,
+      deliveryRegionName: newOrder.deliveryRegionName,
+      deliveryNeighborhood: newOrder.deliveryNeighborhood,
+      deliveryCity: newOrder.deliveryCity,
+      deliveryFeeRule: newOrder.deliveryFeeRule,
+      deliveryFreeApplied: newOrder.deliveryFreeApplied,
     };
   },
   async getPublicOrderByToken(token: string): Promise<PublicOrderTrackingRecord | null> {
@@ -742,6 +986,14 @@ export const demoMutations = {
       customerName: order.customerName,
       deliveryAddress: order.deliveryAddress,
       deliveryReference: order.deliveryReference,
+      deliveryRegionName: order.deliveryRegionName || '',
+      deliveryNeighborhood: order.deliveryNeighborhood || '',
+      deliveryCity: order.deliveryCity || '',
+      deliveryBaseFee: order.deliveryBaseFee ?? order.deliveryFee,
+      deliveryFeeRule: order.deliveryFeeRule || 'store_default',
+      deliveryMinimumOrderApplied: order.deliveryMinimumOrderApplied ?? 0,
+      deliveryFreeApplied: Boolean(order.deliveryFreeApplied),
+      deliveryFreeThresholdApplied: order.deliveryFreeThresholdApplied ?? 0,
       paymentMethod: order.paymentMethod,
       changeFor: order.changeFor,
       customerNote: order.customerNote,
@@ -817,79 +1069,130 @@ export const demoMutations = {
     if (!check.valid) throw new Error(check.error || 'Transição inválida.');
 
     const now = Date.now();
-    const cleanReason =
-      nextStatus === 'rejected' || nextStatus === 'cancelled'
-        ? reason.trim()
-        : `${ORDER_STATUS_LABELS[nextStatus]}.`;
+    const { updatedOrder, nextSales } = applyOrderStatusStep(
+      order,
+      nextStatus,
+      reason,
+      now,
+      st.sales,
+    );
 
-    let nextSales = st.sales;
-    let linkedSaleId = order.saleId;
+    let nextDispatches = st.dispatches;
+    let nextDispatchHistory = st.dispatchHistory;
 
-    if (nextStatus === 'completed' && !order.saleId) {
-      const deterministicSaleId = `demo_sale_online_${order.id}`;
-      linkedSaleId = deterministicSaleId;
-      const saleInput = buildSaleInputFromCompletedOrder({
-        ...order,
-        status: 'completed',
-        completedAtMs: now,
-      });
-      const totalAmount = roundCurrency(order.totalAmount);
-      nextSales = [
-        {
-          id: deterministicSaleId,
-          ownerId: 'demo-owner',
-          ...saleInput,
-          totalAmount,
-          saleOrigin: 'online',
-          onlineOrderId: order.id,
-          onlineOrderNumber: order.orderNumber,
-          deliveryFee: order.deliveryFee,
-          createdAtMs: now,
-          updatedAtMs: now,
-        },
-        ...st.sales.filter((s) => s.onlineOrderId !== order.id),
-      ];
+    if (order.fulfillmentType === 'delivery') {
+      const activeDispatch = st.dispatches.find(
+        (d) => d.orderId === orderId && isActiveDispatchStatus(d.dispatchStatus),
+      );
+      if (activeDispatch) {
+        if (nextStatus === 'rejected' || nextStatus === 'cancelled') {
+          const cancelReason =
+            reason.trim().length >= 3
+              ? reason.trim()
+              : 'Pedido cancelado ou recusado na Central de Pedidos.';
+          nextDispatches = st.dispatches.map((d) =>
+            d.id === activeDispatch.id
+              ? {
+                  ...d,
+                  dispatchStatus: 'delivery_cancelled',
+                  cancelledAtMs: now,
+                  cancellationReason: cancelReason,
+                  updatedAtMs: now,
+                }
+              : d,
+          );
+          nextDispatchHistory = [
+            ...st.dispatchHistory,
+            {
+              id: `demo_dh_${now}_${st.dispatchHistory.length + 1}`,
+              tenantId: activeDispatch.tenantId,
+              dispatchId: activeDispatch.id,
+              orderId: activeDispatch.orderId,
+              courierId: activeDispatch.courierId,
+              courierName: activeDispatch.courierNameSnapshot,
+              fromStatus: activeDispatch.dispatchStatus,
+              toStatus: 'delivery_cancelled',
+              actorUserId: null,
+              actorEmail: '',
+              actorType: 'system',
+              reason: cancelReason,
+              createdAtMs: now,
+            },
+          ];
+        } else {
+          let syncedStatus: DeliveryDispatchStatus | null = null;
+          if (
+            nextStatus === 'preparing' &&
+            activeDispatch.dispatchStatus === 'delivery_accepted'
+          ) {
+            syncedStatus = 'preparing';
+          } else if (
+            nextStatus === 'ready' &&
+            (activeDispatch.dispatchStatus === 'delivery_accepted' ||
+              activeDispatch.dispatchStatus === 'preparing')
+          ) {
+            syncedStatus = 'ready_for_dispatch';
+          } else if (
+            nextStatus === 'out_for_delivery' &&
+            (activeDispatch.dispatchStatus === 'delivery_accepted' ||
+              activeDispatch.dispatchStatus === 'preparing' ||
+              activeDispatch.dispatchStatus === 'ready_for_dispatch')
+          ) {
+            syncedStatus = 'out_for_delivery';
+          } else if (
+            nextStatus === 'completed' &&
+            activeDispatch.dispatchStatus !== 'delivered'
+          ) {
+            syncedStatus = 'delivered';
+          }
+
+          if (syncedStatus) {
+            nextDispatches = st.dispatches.map((d) =>
+              d.id === activeDispatch.id
+                ? {
+                    ...d,
+                    dispatchStatus: syncedStatus!,
+                    dispatchedAtMs:
+                      syncedStatus === 'out_for_delivery'
+                        ? d.dispatchedAtMs ?? now
+                        : d.dispatchedAtMs,
+                    deliveredAtMs:
+                      syncedStatus === 'delivered'
+                        ? d.deliveredAtMs ?? now
+                        : d.deliveredAtMs,
+                    updatedAtMs: now,
+                  }
+                : d,
+            );
+            nextDispatchHistory = [
+              ...st.dispatchHistory,
+              {
+                id: `demo_dh_${now}_${st.dispatchHistory.length + 1}`,
+                tenantId: activeDispatch.tenantId,
+                dispatchId: activeDispatch.id,
+                orderId: activeDispatch.orderId,
+                courierId: activeDispatch.courierId,
+                courierName: activeDispatch.courierNameSnapshot,
+                fromStatus: activeDispatch.dispatchStatus,
+                toStatus: syncedStatus,
+                actorUserId: null,
+                actorEmail: '',
+                actorType: 'system',
+                reason: 'Sincronizado automaticamente com o status do pedido.',
+                createdAtMs: now,
+              },
+            ];
+          }
+        }
+      }
     }
-
-    const updatedOrder: OnlineOrderRecord = {
-      ...order,
-      status: nextStatus,
-      viewedAtMs: order.viewedAtMs ?? now,
-      rejectionReason:
-        nextStatus === 'rejected' || nextStatus === 'cancelled'
-          ? cleanReason
-          : order.rejectionReason,
-      acceptedAtMs: nextStatus === 'accepted' ? now : order.acceptedAtMs,
-      preparingAtMs: nextStatus === 'preparing' ? now : order.preparingAtMs,
-      readyAtMs: nextStatus === 'ready' ? now : order.readyAtMs,
-      dispatchedAtMs:
-        nextStatus === 'out_for_delivery' || nextStatus === 'ready_for_pickup'
-          ? now
-          : order.dispatchedAtMs,
-      completedAtMs: nextStatus === 'completed' ? now : order.completedAtMs,
-      cancelledAtMs:
-        nextStatus === 'rejected' || nextStatus === 'cancelled'
-          ? now
-          : order.cancelledAtMs,
-      saleId: linkedSaleId,
-      updatedAtMs: now,
-      statusHistory: [
-        ...order.statusHistory,
-        {
-          id: `dh_${now}`,
-          fromStatus: order.status,
-          toStatus: nextStatus,
-          reason: cleanReason,
-          actorType: 'admin',
-          createdAtMs: now,
-        },
-      ],
-    };
 
     writeDemoState({
       ...st,
       orders: st.orders.map((o) => (o.id === orderId ? updatedOrder : o)),
       sales: nextSales,
+      dispatches: nextDispatches,
+      dispatchHistory: nextDispatchHistory,
     });
   },
   createDeliveryCustomer(
@@ -1086,4 +1389,816 @@ export const demoMutations = {
       customerClassificationConfig: normalizeClassificationConfig(config),
     });
   },
+  createDeliveryCourier(input: DeliveryCourierInput): string {
+    const st = readDemoState();
+    const name = input.name.trim();
+    if (name.length < 2) throw new Error('Informe o nome completo do entregador.');
+    if (!isValidCustomerPhone(input.phone)) {
+      throw new Error('Informe um telefone válido com DDD.');
+    }
+    const rawWa = (input.whatsapp || '').trim();
+    if (rawWa && !isValidCustomerPhone(rawWa)) {
+      throw new Error('Informe um WhatsApp válido com DDD ou deixe em branco.');
+    }
+    if (!isValidOptionalCpf(input.cpf)) {
+      throw new Error('O CPF informado é inválido.');
+    }
+    const normalizedPhone = normalizeCustomerPhone(input.phone);
+    if (st.couriers.some((c) => c.normalizedPhone === normalizedPhone)) {
+      throw new Error('Já existe um entregador cadastrado com este telefone.');
+    }
+    const now = Date.now();
+    const id = `demo_courier_${now}_${Math.random().toString(36).slice(2, 6)}`;
+    const status: DeliveryCourierStatus =
+      input.status === 'inactive' ? 'inactive' : 'active';
+    const availabilityStatus: DeliveryCourierAvailability =
+      status === 'inactive'
+        ? 'unavailable'
+        : input.availabilityStatus === 'unavailable'
+          ? 'unavailable'
+          : 'available';
+
+    const record: DeliveryCourierRecord = {
+      id,
+      tenantId: 'mgw_lanches',
+      name,
+      phone: input.phone.trim(),
+      normalizedPhone,
+      whatsapp: rawWa,
+      normalizedWhatsapp: rawWa ? normalizeCustomerPhone(rawWa) : '',
+      cpf: (input.cpf || '').replace(/\D/g, ''),
+      email: (input.email || '').trim().toLowerCase(),
+      motorcycleBrand: (input.motorcycleBrand || '').trim(),
+      motorcycleModel: (input.motorcycleModel || '').trim(),
+      motorcycleColor: (input.motorcycleColor || '').trim(),
+      motorcyclePlate: normalizeCourierPlateForStorage(input.motorcyclePlate),
+      courierType: normalizeCourierType(input.courierType),
+      status,
+      availabilityStatus,
+      notes: (input.notes || '').trim(),
+      createdAtMs: now,
+      updatedAtMs: now,
+    };
+
+    writeDemoState({
+      ...st,
+      couriers: [record, ...st.couriers],
+    });
+    return id;
+  },
+  updateDeliveryCourier(courierId: string, input: DeliveryCourierInput) {
+    const st = readDemoState();
+    const name = input.name.trim();
+    if (name.length < 2) throw new Error('Informe o nome completo do entregador.');
+    if (!isValidCustomerPhone(input.phone)) {
+      throw new Error('Informe um telefone válido com DDD.');
+    }
+    const rawWa = (input.whatsapp || '').trim();
+    if (rawWa && !isValidCustomerPhone(rawWa)) {
+      throw new Error('Informe um WhatsApp válido com DDD ou deixe em branco.');
+    }
+    if (!isValidOptionalCpf(input.cpf)) {
+      throw new Error('O CPF informado é inválido.');
+    }
+    const normalizedPhone = normalizeCustomerPhone(input.phone);
+    if (
+      st.couriers.some(
+        (c) => c.id !== courierId && c.normalizedPhone === normalizedPhone,
+      )
+    ) {
+      throw new Error('Já existe outro entregador cadastrado com este telefone.');
+    }
+    const now = Date.now();
+    const status: DeliveryCourierStatus =
+      input.status === 'inactive' ? 'inactive' : 'active';
+    const availabilityStatus: DeliveryCourierAvailability =
+      status === 'inactive'
+        ? 'unavailable'
+        : input.availabilityStatus === 'unavailable'
+          ? 'unavailable'
+          : 'available';
+
+    writeDemoState({
+      ...st,
+      couriers: st.couriers.map((c) =>
+        c.id === courierId
+          ? {
+              ...c,
+              name,
+              phone: input.phone.trim(),
+              normalizedPhone,
+              whatsapp: rawWa,
+              normalizedWhatsapp: rawWa ? normalizeCustomerPhone(rawWa) : '',
+              cpf: (input.cpf || '').replace(/\D/g, ''),
+              email: (input.email || '').trim().toLowerCase(),
+              motorcycleBrand: (input.motorcycleBrand || '').trim(),
+              motorcycleModel: (input.motorcycleModel || '').trim(),
+              motorcycleColor: (input.motorcycleColor || '').trim(),
+              motorcyclePlate: normalizeCourierPlateForStorage(input.motorcyclePlate),
+              courierType: normalizeCourierType(input.courierType),
+              status,
+              availabilityStatus,
+              notes: (input.notes || '').trim(),
+              updatedAtMs: now,
+            }
+          : c,
+      ),
+    });
+  },
+  setDeliveryCourierStatus(courierId: string, status: DeliveryCourierStatus) {
+    const st = readDemoState();
+    const now = Date.now();
+    writeDemoState({
+      ...st,
+      couriers: st.couriers.map((c) =>
+        c.id === courierId
+          ? {
+              ...c,
+              status,
+              availabilityStatus:
+                status === 'inactive' ? 'unavailable' : c.availabilityStatus,
+              updatedAtMs: now,
+            }
+          : c,
+      ),
+    });
+  },
+  setDeliveryCourierAvailability(
+    courierId: string,
+    availabilityStatus: DeliveryCourierAvailability,
+  ) {
+    const st = readDemoState();
+    const target = st.couriers.find((c) => c.id === courierId);
+    if (!target) return;
+    if (target.status === 'inactive' && availabilityStatus === 'available') {
+      throw new Error('Ative o entregador antes de marcá-lo como disponível.');
+    }
+    const now = Date.now();
+    writeDemoState({
+      ...st,
+      couriers: st.couriers.map((c) =>
+        c.id === courierId
+          ? { ...c, availabilityStatus, updatedAtMs: now }
+          : c,
+      ),
+    });
+  },
+  deleteDeliveryCourier(courierId: string) {
+    const st = readDemoState();
+    if (st.dispatches.some((d) => d.courierId === courierId)) {
+      throw new Error(
+        'Este entregador possui entregas vinculadas e não pode ser excluído definitivamente. Desative-o para preservar o histórico.',
+      );
+    }
+    writeDemoState({
+      ...st,
+      couriers: st.couriers.filter((c) => c.id !== courierId),
+    });
+  },
+  assignDeliveryCourier(
+    orderId: string,
+    courierId: string,
+    notes = '',
+    actorEmail = 'demo@mgw.com',
+  ): string {
+    const st = readDemoState();
+    const order = st.orders.find((o) => o.id === orderId) ?? null;
+    const courier = st.couriers.find((c) => c.id === courierId) ?? null;
+    const check = validateCourierAssignmentEligibility({
+      order,
+      courier,
+      existingDispatches: st.dispatches,
+    });
+    if (!check.valid || !order || !courier) {
+      throw new Error(check.error || 'Não foi possível atribuir o entregador.');
+    }
+
+    const now = Date.now();
+    const cleanNotes = notes.trim().slice(0, 500);
+    const courierType = normalizeCourierType(courier.courierType);
+    const dispatchId = `demo_disp_${now}_${Math.random().toString(36).slice(2, 6)}`;
+
+    let nextOrders = st.orders;
+    let nextSales = st.sales;
+    if (order.status === 'received') {
+      const stepped = applyOrderStatusStep(order, 'accepted', '', now, st.sales);
+      nextOrders = st.orders.map((o) => (o.id === order.id ? stepped.updatedOrder : o));
+      nextSales = stepped.nextSales;
+    }
+
+    const newDispatch: DeliveryDispatchRecord = {
+      id: dispatchId,
+      tenantId: order.tenantId,
+      orderId: order.id,
+      courierId: courier.id,
+      dispatchStatus: 'awaiting_acceptance',
+      courierNameSnapshot: courier.name,
+      courierPhoneSnapshot: courier.phone,
+      courierTypeSnapshot: courierType,
+      assignedByUserId: 'demo-owner',
+      assignedByEmail: actorEmail,
+      assignedAtMs: now,
+      acceptedAtMs: null,
+      dispatchedAtMs: null,
+      deliveredAtMs: null,
+      rejectedAtMs: null,
+      cancelledAtMs: null,
+      rejectionReason: '',
+      cancellationReason: '',
+      notes: cleanNotes,
+      createdAtMs: now,
+      updatedAtMs: now,
+    };
+
+    const h1: DeliveryDispatchHistoryRecord = {
+      id: `demo_dh_${now}_1_${Math.random().toString(36).slice(2, 5)}`,
+      tenantId: order.tenantId,
+      dispatchId,
+      orderId: order.id,
+      courierId: courier.id,
+      courierName: courier.name,
+      fromStatus: 'awaiting_dispatch',
+      toStatus: 'courier_assigned',
+      actorUserId: 'demo-owner',
+      actorEmail,
+      actorType: 'admin',
+      reason: cleanNotes || 'Entregador atribuído pela central de despacho.',
+      createdAtMs: now,
+    };
+
+    const h2: DeliveryDispatchHistoryRecord = {
+      id: `demo_dh_${now}_2_${Math.random().toString(36).slice(2, 5)}`,
+      tenantId: order.tenantId,
+      dispatchId,
+      orderId: order.id,
+      courierId: courier.id,
+      courierName: courier.name,
+      fromStatus: 'courier_assigned',
+      toStatus: 'awaiting_acceptance',
+      actorUserId: 'demo-owner',
+      actorEmail,
+      actorType: 'system',
+      reason: 'Entrega enviada para aceite do entregador.',
+      createdAtMs: now + 1,
+    };
+
+    writeDemoState({
+      ...st,
+      orders: nextOrders,
+      sales: nextSales,
+      dispatches: [newDispatch, ...st.dispatches],
+      dispatchHistory: [...st.dispatchHistory, h1, h2],
+    });
+    return dispatchId;
+  },
+  reassignDeliveryCourier(
+    dispatchId: string,
+    newCourierId: string,
+    reason = '',
+    actorEmail = 'demo@mgw.com',
+  ): string {
+    const st = readDemoState();
+    const current = st.dispatches.find((d) => d.id === dispatchId);
+    if (!current) throw new Error('Despacho não encontrado.');
+    if (!isActiveDispatchStatus(current.dispatchStatus)) {
+      throw new Error('Este despacho já foi encerrado e não pode ser reatribuído diretamente.');
+    }
+    if (current.dispatchStatus === 'out_for_delivery') {
+      throw new Error('Entrega já saiu em rota. Cancele o despacho antes de realizar nova atribuição.');
+    }
+    if (current.courierId === newCourierId) {
+      throw new Error('Selecione um entregador diferente do atual para reatribuir.');
+    }
+    const order = st.orders.find((o) => o.id === current.orderId);
+    if (!order || isTerminalOrderStatus(order.status)) {
+      throw new Error('Pedido finalizado não permite reatribuição.');
+    }
+    const newCourier = st.couriers.find(
+      (c) => c.id === newCourierId && c.tenantId === current.tenantId,
+    );
+    if (!newCourier) {
+      throw new Error('Novo entregador não encontrado neste estabelecimento.');
+    }
+    if (newCourier.status !== 'active' || newCourier.availabilityStatus !== 'available') {
+      throw new Error('Selecione um entregador ativo e disponível para reatribuir.');
+    }
+
+    const now = Date.now();
+    const cleanReason =
+      reason.trim().length >= 3
+        ? reason.trim().slice(0, 300)
+        : 'Reatribuição realizada pela central de despacho.';
+    const newDispatchId = `demo_disp_${now}_${Math.random().toString(36).slice(2, 6)}`;
+
+    const cancelledDispatch: DeliveryDispatchRecord = {
+      ...current,
+      dispatchStatus: 'delivery_cancelled',
+      cancelledAtMs: now,
+      cancellationReason: cleanReason,
+      updatedAtMs: now,
+    };
+
+    const newDispatch: DeliveryDispatchRecord = {
+      id: newDispatchId,
+      tenantId: current.tenantId,
+      orderId: current.orderId,
+      courierId: newCourier.id,
+      dispatchStatus: 'awaiting_acceptance',
+      courierNameSnapshot: newCourier.name,
+      courierPhoneSnapshot: newCourier.phone,
+      courierTypeSnapshot: normalizeCourierType(newCourier.courierType),
+      assignedByUserId: 'demo-owner',
+      assignedByEmail: actorEmail,
+      assignedAtMs: now + 1,
+      acceptedAtMs: null,
+      dispatchedAtMs: null,
+      deliveredAtMs: null,
+      rejectedAtMs: null,
+      cancelledAtMs: null,
+      rejectionReason: '',
+      cancellationReason: '',
+      notes: current.notes,
+      createdAtMs: now + 1,
+      updatedAtMs: now + 1,
+    };
+
+    const hCancel: DeliveryDispatchHistoryRecord = {
+      id: `demo_dh_${now}_rc_${Math.random().toString(36).slice(2, 5)}`,
+      tenantId: current.tenantId,
+      dispatchId: current.id,
+      orderId: current.orderId,
+      courierId: current.courierId,
+      courierName: current.courierNameSnapshot,
+      fromStatus: current.dispatchStatus,
+      toStatus: 'delivery_cancelled',
+      actorUserId: 'demo-owner',
+      actorEmail,
+      actorType: 'admin',
+      reason: cleanReason,
+      createdAtMs: now,
+    };
+
+    const hNew1: DeliveryDispatchHistoryRecord = {
+      id: `demo_dh_${now}_rn1_${Math.random().toString(36).slice(2, 5)}`,
+      tenantId: current.tenantId,
+      dispatchId: newDispatchId,
+      orderId: current.orderId,
+      courierId: newCourier.id,
+      courierName: newCourier.name,
+      fromStatus: 'awaiting_dispatch',
+      toStatus: 'courier_assigned',
+      actorUserId: 'demo-owner',
+      actorEmail,
+      actorType: 'admin',
+      reason: `Reatribuído: ${cleanReason}`,
+      createdAtMs: now + 2,
+    };
+
+    const hNew2: DeliveryDispatchHistoryRecord = {
+      id: `demo_dh_${now}_rn2_${Math.random().toString(36).slice(2, 5)}`,
+      tenantId: current.tenantId,
+      dispatchId: newDispatchId,
+      orderId: current.orderId,
+      courierId: newCourier.id,
+      courierName: newCourier.name,
+      fromStatus: 'courier_assigned',
+      toStatus: 'awaiting_acceptance',
+      actorUserId: 'demo-owner',
+      actorEmail,
+      actorType: 'system',
+      reason: 'Entrega enviada para aceite do novo entregador.',
+      createdAtMs: now + 3,
+    };
+
+    writeDemoState({
+      ...st,
+      dispatches: [
+        newDispatch,
+        ...st.dispatches.map((d) => (d.id === current.id ? cancelledDispatch : d)),
+      ],
+      dispatchHistory: [...st.dispatchHistory, hCancel, hNew1, hNew2],
+    });
+    return newDispatchId;
+  },
+  cancelDeliveryDispatch(
+    dispatchId: string,
+    reason: string,
+    actorEmail = 'demo@mgw.com',
+  ) {
+    const st = readDemoState();
+    const current = st.dispatches.find((d) => d.id === dispatchId);
+    if (!current) throw new Error('Atribuição de entrega não encontrada.');
+    if (!isActiveDispatchStatus(current.dispatchStatus)) {
+      throw new Error('Esta entrega já foi finalizada ou encerrada.');
+    }
+    const cleanReason = reason.trim().slice(0, 300);
+    if (cleanReason.length < 3) {
+      throw new Error('Informe o motivo do cancelamento (mínimo 3 caracteres).');
+    }
+    const now = Date.now();
+    writeDemoState({
+      ...st,
+      dispatches: st.dispatches.map((d) =>
+        d.id === current.id
+          ? {
+              ...d,
+              dispatchStatus: 'delivery_cancelled',
+              cancelledAtMs: now,
+              cancellationReason: cleanReason,
+              updatedAtMs: now,
+            }
+          : d,
+      ),
+      dispatchHistory: [
+        ...st.dispatchHistory,
+        {
+          id: `demo_dh_${now}_c_${Math.random().toString(36).slice(2, 5)}`,
+          tenantId: current.tenantId,
+          dispatchId: current.id,
+          orderId: current.orderId,
+          courierId: current.courierId,
+          courierName: current.courierNameSnapshot,
+          fromStatus: current.dispatchStatus,
+          toStatus: 'delivery_cancelled',
+          actorUserId: 'demo-owner',
+          actorEmail,
+          actorType: 'admin',
+          reason: cleanReason,
+          createdAtMs: now,
+        },
+      ],
+    });
+  },
+  respondDeliveryDispatch(
+    dispatchId: string,
+    decision: 'accept' | 'reject',
+    reason = '',
+    actorEmail = 'demo@mgw.com',
+  ) {
+    const st = readDemoState();
+    const current = st.dispatches.find((d) => d.id === dispatchId);
+    if (!current) throw new Error('Despacho não encontrado.');
+    if (current.dispatchStatus !== 'awaiting_acceptance') {
+      throw new Error('Este despacho não está mais aguardando aceite.');
+    }
+    const order = st.orders.find((o) => o.id === current.orderId);
+    if (!order || isTerminalOrderStatus(order.status)) {
+      throw new Error('O pedido vinculado já foi finalizado ou cancelado.');
+    }
+    const now = Date.now();
+    if (decision === 'accept') {
+      writeDemoState({
+        ...st,
+        dispatches: st.dispatches.map((d) =>
+          d.id === current.id
+            ? {
+                ...d,
+                dispatchStatus: 'delivery_accepted',
+                acceptedAtMs: d.acceptedAtMs ?? now,
+                updatedAtMs: now,
+              }
+            : d,
+        ),
+        dispatchHistory: [
+          ...st.dispatchHistory,
+          {
+            id: `demo_dh_${now}_acc_${Math.random().toString(36).slice(2, 5)}`,
+            tenantId: current.tenantId,
+            dispatchId: current.id,
+            orderId: current.orderId,
+            courierId: current.courierId,
+            courierName: current.courierNameSnapshot,
+            fromStatus: current.dispatchStatus,
+            toStatus: 'delivery_accepted',
+            actorUserId: 'demo-owner',
+            actorEmail,
+            actorType: 'courier',
+            reason: 'Entrega aceita pelo entregador.',
+            createdAtMs: now,
+          },
+        ],
+      });
+      return;
+    }
+
+    const cleanReason = reason.trim().slice(0, 300);
+    if (cleanReason.length < 3) {
+      throw new Error('Informe o motivo da recusa (mínimo 3 caracteres).');
+    }
+
+    writeDemoState({
+      ...st,
+      dispatches: st.dispatches.map((d) =>
+        d.id === current.id
+          ? {
+              ...d,
+              dispatchStatus: 'delivery_rejected',
+              rejectedAtMs: now,
+              rejectionReason: cleanReason,
+              updatedAtMs: now,
+            }
+          : d,
+      ),
+      dispatchHistory: [
+        ...st.dispatchHistory,
+        {
+          id: `demo_dh_${now}_rej_${Math.random().toString(36).slice(2, 5)}`,
+          tenantId: current.tenantId,
+          dispatchId: current.id,
+          orderId: current.orderId,
+          courierId: current.courierId,
+          courierName: current.courierNameSnapshot,
+          fromStatus: current.dispatchStatus,
+          toStatus: 'delivery_rejected',
+          actorUserId: 'demo-owner',
+          actorEmail,
+          actorType: 'courier',
+          reason: cleanReason,
+          createdAtMs: now,
+        },
+      ],
+    });
+  },
+  advanceDeliveryDispatchStatus(
+    dispatchId: string,
+    nextStatus: DeliveryDispatchStatus,
+    actorEmail = 'demo@mgw.com',
+  ) {
+    const st = readDemoState();
+    const current = st.dispatches.find((d) => d.id === dispatchId);
+    if (!current) throw new Error('Despacho não encontrado.');
+
+    const validTransition =
+      (current.dispatchStatus === 'delivery_accepted' &&
+        (nextStatus === 'preparing' ||
+          nextStatus === 'ready_for_dispatch' ||
+          nextStatus === 'out_for_delivery')) ||
+      (current.dispatchStatus === 'preparing' &&
+        (nextStatus === 'ready_for_dispatch' ||
+          nextStatus === 'out_for_delivery')) ||
+      (current.dispatchStatus === 'ready_for_dispatch' &&
+        nextStatus === 'out_for_delivery') ||
+      (current.dispatchStatus === 'out_for_delivery' &&
+        nextStatus === 'delivered');
+
+    if (!validTransition) {
+      throw new Error(
+        `Transição operacional inválida de ${DISPATCH_STATUS_LABELS[current.dispatchStatus]} para ${DISPATCH_STATUS_LABELS[nextStatus]}.`,
+      );
+    }
+
+    let order = st.orders.find((o) => o.id === current.orderId);
+    if (!order) throw new Error('Pedido vinculado não encontrado.');
+    if (isTerminalOrderStatus(order.status)) {
+      throw new Error('Pedido já finalizado não permite alteração.');
+    }
+
+    const now = Date.now();
+    let nextSales = st.sales;
+
+    const advanceOrderIfNeeded = (target: OnlineOrderStatus) => {
+      if (!order) return;
+      const res = applyOrderStatusStep(order, target, '', now, nextSales);
+      order = res.updatedOrder;
+      nextSales = res.nextSales;
+    };
+
+    if (order.status === 'received') {
+      advanceOrderIfNeeded('accepted');
+    }
+    if (
+      (nextStatus === 'preparing' ||
+        nextStatus === 'ready_for_dispatch' ||
+        nextStatus === 'out_for_delivery' ||
+        nextStatus === 'delivered') &&
+      order.status === 'accepted'
+    ) {
+      advanceOrderIfNeeded('preparing');
+    }
+    if (
+      (nextStatus === 'ready_for_dispatch' ||
+        nextStatus === 'out_for_delivery' ||
+        nextStatus === 'delivered') &&
+      order.status === 'preparing'
+    ) {
+      advanceOrderIfNeeded('ready');
+    }
+    if (
+      (nextStatus === 'out_for_delivery' || nextStatus === 'delivered') &&
+      order.status === 'ready'
+    ) {
+      advanceOrderIfNeeded('out_for_delivery');
+    }
+    if (nextStatus === 'delivered' && order.status === 'out_for_delivery') {
+      advanceOrderIfNeeded('completed');
+    }
+
+    writeDemoState({
+      ...st,
+      orders: st.orders.map((o) => (o.id === order!.id ? order! : o)),
+      sales: nextSales,
+      dispatches: st.dispatches.map((d) =>
+        d.id === current.id
+          ? {
+              ...d,
+              dispatchStatus: nextStatus,
+              dispatchedAtMs:
+                nextStatus === 'out_for_delivery'
+                  ? d.dispatchedAtMs ?? now
+                  : d.dispatchedAtMs,
+              deliveredAtMs:
+                nextStatus === 'delivered'
+                  ? d.deliveredAtMs ?? now
+                  : d.deliveredAtMs,
+              updatedAtMs: now,
+            }
+          : d,
+      ),
+      dispatchHistory: [
+        ...st.dispatchHistory,
+        {
+          id: `demo_dh_${now}_adv_${Math.random().toString(36).slice(2, 5)}`,
+          tenantId: current.tenantId,
+          dispatchId: current.id,
+          orderId: current.orderId,
+          courierId: current.courierId,
+          courierName: current.courierNameSnapshot,
+          fromStatus: current.dispatchStatus,
+          toStatus: nextStatus,
+          actorUserId: 'demo-owner',
+          actorEmail,
+          actorType: 'admin',
+          reason: DISPATCH_STATUS_LABELS[nextStatus],
+          createdAtMs: now,
+        },
+      ],
+    });
+  },
+  createDeliveryRegion(input: DeliveryRegionInput): string {
+    const st = readDemoState();
+    const validation = validateDeliveryRegionInput(input, st.deliveryRegions);
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Dados da região inválidos.');
+    }
+    const now = Date.now();
+    const id = `demo_region_${now}_${Math.random().toString(36).slice(2, 6)}`;
+    const suspended = Boolean(input.isTemporarilySuspended);
+    const record: DeliveryRegionRecord = {
+      id,
+      tenantId: 'mgw_lanches',
+      name: input.name.trim().replace(/\s+/g, ' ').slice(0, 100),
+      city: input.city.trim().replace(/\s+/g, ' ').slice(0, 100),
+      neighborhoods: deduplicateNeighborhoods(validation.normalizedNeighborhoods),
+      description: (input.description || '').trim().slice(0, 300),
+      deliveryFee: roundCurrency(Math.max(0, Number(input.deliveryFee) || 0)),
+      minimumOrderAmount: roundCurrency(
+        Math.max(0, Number(input.minimumOrderAmount ?? 0) || 0),
+      ),
+      estimatedTime: (input.estimatedTime || '').trim().slice(0, 60),
+      status: input.status === 'inactive' ? 'inactive' : 'active',
+      isTemporarilySuspended: suspended,
+      suspensionReason: suspended
+        ? (input.suspensionReason || '').trim().slice(0, 300)
+        : '',
+      scheduleEnabled: Boolean(input.scheduleEnabled),
+      scheduleDays:
+        input.scheduleDays && input.scheduleDays.length > 0
+          ? [...new Set(input.scheduleDays)].sort((a, b) => a - b)
+          : [0, 1, 2, 3, 4, 5, 6],
+      scheduleStart: isValidTimeHHMM(input.scheduleStart || '')
+        ? String(input.scheduleStart)
+        : '00:00',
+      scheduleEnd: isValidTimeHHMM(input.scheduleEnd || '')
+        ? String(input.scheduleEnd)
+        : '23:59',
+      notes: (input.notes || '').trim().slice(0, 1000),
+      createdAtMs: now,
+      updatedAtMs: now,
+    };
+
+    writeDemoState({
+      ...st,
+      deliveryRegions: [record, ...st.deliveryRegions],
+    });
+    return id;
+  },
+  updateDeliveryRegion(regionId: string, input: DeliveryRegionInput) {
+    const st = readDemoState();
+    const validation = validateDeliveryRegionInput(
+      input,
+      st.deliveryRegions,
+      regionId,
+    );
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Dados da região inválidos.');
+    }
+    const now = Date.now();
+    const suspended = Boolean(input.isTemporarilySuspended);
+    writeDemoState({
+      ...st,
+      deliveryRegions: st.deliveryRegions.map((r) =>
+        r.id === regionId
+          ? {
+              ...r,
+              name: input.name.trim().replace(/\s+/g, ' ').slice(0, 100),
+              city: input.city.trim().replace(/\s+/g, ' ').slice(0, 100),
+              neighborhoods: deduplicateNeighborhoods(
+                validation.normalizedNeighborhoods,
+              ),
+              description: (input.description || '').trim().slice(0, 300),
+              deliveryFee: roundCurrency(
+                Math.max(0, Number(input.deliveryFee) || 0),
+              ),
+              minimumOrderAmount: roundCurrency(
+                Math.max(0, Number(input.minimumOrderAmount ?? 0) || 0),
+              ),
+              estimatedTime: (input.estimatedTime || '').trim().slice(0, 60),
+              status: input.status === 'inactive' ? 'inactive' : 'active',
+              isTemporarilySuspended: suspended,
+              suspensionReason: suspended
+                ? (input.suspensionReason || '').trim().slice(0, 300)
+                : '',
+              scheduleEnabled: Boolean(input.scheduleEnabled),
+              scheduleDays:
+                input.scheduleDays && input.scheduleDays.length > 0
+                  ? [...new Set(input.scheduleDays)].sort((a, b) => a - b)
+                  : [0, 1, 2, 3, 4, 5, 6],
+              scheduleStart: isValidTimeHHMM(input.scheduleStart || '')
+                ? String(input.scheduleStart)
+                : '00:00',
+              scheduleEnd: isValidTimeHHMM(input.scheduleEnd || '')
+                ? String(input.scheduleEnd)
+                : '23:59',
+              notes: (input.notes || '').trim().slice(0, 1000),
+              updatedAtMs: now,
+            }
+          : r,
+      ),
+    });
+  },
+  toggleDeliveryRegionStatus(regionId: string, status: DeliveryRegionStatus) {
+    const st = readDemoState();
+    const now = Date.now();
+    writeDemoState({
+      ...st,
+      deliveryRegions: st.deliveryRegions.map((r) =>
+        r.id === regionId ? { ...r, status, updatedAtMs: now } : r,
+      ),
+    });
+  },
+  toggleDeliveryRegionSuspension(
+    regionId: string,
+    suspended: boolean,
+    reason = '',
+  ) {
+    const st = readDemoState();
+    const now = Date.now();
+    writeDemoState({
+      ...st,
+      deliveryRegions: st.deliveryRegions.map((r) =>
+        r.id === regionId
+          ? {
+              ...r,
+              isTemporarilySuspended: suspended,
+              suspensionReason: suspended ? reason.trim().slice(0, 300) : '',
+              updatedAtMs: now,
+            }
+          : r,
+      ),
+    });
+  },
+  deleteDeliveryRegion(regionId: string) {
+    const st = readDemoState();
+    writeDemoState({
+      ...st,
+      deliveryRegions: st.deliveryRegions.filter((r) => r.id !== regionId),
+    });
+  },
+  saveDeliveryPricingSettings(input: DeliveryPricingSettingsInput) {
+    const st = readDemoState();
+    const check = validateDeliveryPricingSettingsInput(input);
+    if (!check.valid) {
+      throw new Error(check.error || 'Configurações de taxa inválidas.');
+    }
+    const now = Date.now();
+    writeDemoState({
+      ...st,
+      deliveryPricingSettings: {
+        tenantId: st.deliveryPricingSettings.tenantId,
+        pricingMode: input.pricingMode,
+        defaultFeeEnabled: Boolean(input.defaultFeeEnabled),
+        defaultDeliveryFee: roundCurrency(Math.max(0, input.defaultDeliveryFee)),
+        defaultMinimumOrderAmount: roundCurrency(
+          Math.max(0, input.defaultMinimumOrderAmount),
+        ),
+        defaultEstimatedTime: (input.defaultEstimatedTime || '').trim().slice(0, 60),
+        freeDeliveryEnabled: Boolean(input.freeDeliveryEnabled),
+        freeDeliveryMinAmount: roundCurrency(
+          Math.max(0, input.freeDeliveryMinAmount),
+        ),
+        updatedAtMs: now,
+      },
+    });
+  },
 };
+

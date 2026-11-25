@@ -60,6 +60,12 @@ export function resolveShellPageTitle(
       return 'MGW Delivery';
     case 'delivery_customers':
       return 'Clientes · MGW Delivery';
+    case 'delivery_couriers':
+      return 'Entregadores · MGW Delivery';
+    case 'delivery_dispatch':
+      return 'Central de Despacho · MGW Delivery';
+    case 'delivery_regions':
+      return 'Regiões e Taxas · MGW Delivery';
     case 'sales':
       return 'Vendas';
     case 'expenses':

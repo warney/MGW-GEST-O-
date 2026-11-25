@@ -18,6 +18,7 @@ import type {
   OnlineOrderStatus,
 } from '../types/finance';
 import { formatCurrencyBRL } from '../utils/finance';
+import { formatDeliveryFeeRuleLabel } from '../utils/deliveryRegions';
 import {
   buildWhatsappUrl,
   formatDateTimeBR,
@@ -223,12 +224,31 @@ export function OrderDetailsModal({
                       : 'Retirada no balcão'}
                   </p>
                   {order.fulfillmentType === 'delivery' && (
-                    <p className="text-xs text-[#4B5563] break-words">
-                      {order.deliveryAddress}
-                      {order.deliveryReference
-                        ? ` · Ref: ${order.deliveryReference}`
-                        : ''}
-                    </p>
+                    <>
+                      <p className="text-xs text-[#4B5563] break-words">
+                        {order.deliveryAddress}
+                        {order.deliveryReference
+                          ? ` · Ref: ${order.deliveryReference}`
+                          : ''}
+                      </p>
+                      {(order.deliveryNeighborhood ||
+                        order.deliveryRegionName ||
+                        order.deliveryCity) && (
+                        <p className="text-[11px] text-[#8A6200] font-medium">
+                          {[
+                            order.deliveryNeighborhood
+                              ? `Bairro: ${order.deliveryNeighborhood}`
+                              : null,
+                            order.deliveryRegionName
+                              ? `Região: ${order.deliveryRegionName}`
+                              : null,
+                            order.deliveryCity || null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -326,8 +346,18 @@ export function OrderDetailsModal({
               </span>
             </div>
             {order.fulfillmentType === 'delivery' && (
-              <div className="flex items-center justify-between text-[#778094]">
-                <span>Taxa de entrega</span>
+              <div className="flex items-start justify-between gap-2 text-[#778094]">
+                <div>
+                  <span>Taxa de entrega</span>
+                  {(order.deliveryFeeRule || order.deliveryFreeApplied) && (
+                    <span className="block text-[11px] text-[#778094]">
+                      {formatDeliveryFeeRuleLabel(
+                        order.deliveryFeeRule,
+                        order.deliveryFreeApplied,
+                      )}
+                    </span>
+                  )}
+                </div>
                 <span className="font-mono tabular-nums text-[#172033]">
                   {order.deliveryFee <= 0
                     ? 'Grátis'

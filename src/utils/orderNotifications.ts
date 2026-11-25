@@ -78,8 +78,15 @@ export function formatPendingOrdersDocumentTitle(
 export function resolveInitialRouteFromSearch(search: string): AppRoute {
   try {
     const params = new URLSearchParams(search);
-    if (params.get('view') === 'orders') {
+    const view = params.get('view');
+    if (view === 'orders') {
       return 'orders';
+    }
+    if (view === 'dispatch') {
+      return 'delivery_dispatch';
+    }
+    if (view === 'regions') {
+      return 'delivery_regions';
     }
   } catch {
     // Ignora URLSearchParams invalido

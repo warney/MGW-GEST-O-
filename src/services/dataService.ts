@@ -6,11 +6,23 @@ import {
   type CreatePublicOrderPayload,
   type CreatePublicOrderResponse,
   DEFAULT_SHOP_SETTINGS,
+  type DeliveryCourierAvailability,
+  type DeliveryCourierInput,
+  type DeliveryCourierRecord,
+  type DeliveryCourierStatus,
   type DeliveryCustomerAddressInput,
   type DeliveryCustomerAddressRecord,
   type DeliveryCustomerClassificationConfig,
   type DeliveryCustomerInput,
   type DeliveryCustomerRecord,
+  type DeliveryDispatchHistoryRecord,
+  type DeliveryDispatchRecord,
+  type DeliveryDispatchStatus,
+  type DeliveryPricingSettings,
+  type DeliveryPricingSettingsInput,
+  type DeliveryRegionInput,
+  type DeliveryRegionRecord,
+  type DeliveryRegionStatus,
   type DigitalMenuSettings,
   type DigitalMenuSettingsInput,
   type ExpenseInput,
@@ -34,6 +46,7 @@ import {
   DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
   hasNonEmptyAddressFields,
 } from '../utils/deliveryCustomers';
+import { DEFAULT_DELIVERY_PRICING_SETTINGS } from '../utils/deliveryRegions';
 import { roundCurrency } from '../utils/finance';
 import {
   DEFAULT_DIGITAL_MENU_SETTINGS,
@@ -45,9 +58,12 @@ import { getSupabaseClient } from '../lib/supabase';
 import { hasTenantPermission } from './rbacPolicy';
 import {
   buildComboPayloadForSupabase,
+  buildDeliveryCourierPayloadForSupabase,
   buildDeliveryCustomerAddressPayloadForSupabase,
   buildDeliveryCustomerClassificationPayloadForSupabase,
   buildDeliveryCustomerPayloadForSupabase,
+  buildDeliveryPricingSettingsPayloadForSupabase,
+  buildDeliveryRegionPayloadForSupabase,
   buildDigitalMenuSettingsPayloadForSupabase,
   buildExpensePayloadForSupabase,
   buildProductPayloadForSupabase,
@@ -55,9 +71,14 @@ import {
   buildSettingsPayloadForSupabase,
   buildTenantContextFromRows,
   mapComboRow,
+  mapDeliveryCourierRow,
   mapDeliveryCustomerAddressRow,
   mapDeliveryCustomerClassificationSettingsRow,
   mapDeliveryCustomerRow,
+  mapDeliveryDispatchHistoryRow,
+  mapDeliveryDispatchRow,
+  mapDeliveryPricingSettingsRow,
+  mapDeliveryRegionRow,
   mapDigitalMenuSettingsRow,
   mapExpenseRow,
   mapOnlineOrderItemRow,
@@ -70,9 +91,14 @@ import {
   mapShopSettingsRow,
   mapSupabaseAuthErrorMessage,
   type SupabaseComboRow,
+  type SupabaseDeliveryCourierRow,
   type SupabaseDeliveryCustomerAddressRow,
   type SupabaseDeliveryCustomerClassificationSettingsRow,
   type SupabaseDeliveryCustomerRow,
+  type SupabaseDeliveryDispatchHistoryRow,
+  type SupabaseDeliveryDispatchRow,
+  type SupabaseDeliveryPricingSettingsRow,
+  type SupabaseDeliveryRegionRow,
   type SupabaseDigitalMenuSettingsRow,
   type SupabaseExpenseRow,
   type SupabaseOnlineOrderItemRow,
@@ -83,7 +109,6 @@ import {
   type SupabaseShopSettingsRow,
   type SupabaseSubscriptionRow,
   type SupabaseTenantMemberRow,
-  type SupabaseTenantRow,
 } from './supabaseMappers';
 
 export interface DataExecutionContext {
@@ -103,6 +128,11 @@ export interface DataSubscriptionsCallbacks {
   onDeliveryCustomers?: (customers: DeliveryCustomerRecord[]) => void;
   onDeliveryCustomerAddresses?: (addresses: DeliveryCustomerAddressRecord[]) => void;
   onCustomerClassificationConfig?: (config: DeliveryCustomerClassificationConfig) => void;
+  onDeliveryCouriers?: (couriers: DeliveryCourierRecord[]) => void;
+  onDeliveryDispatches?: (dispatches: DeliveryDispatchRecord[]) => void;
+  onDeliveryDispatchHistory?: (history: DeliveryDispatchHistoryRecord[]) => void;
+  onDeliveryRegions?: (regions: DeliveryRegionRecord[]) => void;
+  onDeliveryPricingSettings?: (settings: DeliveryPricingSettings) => void;
   onReady: () => void;
   onError: (err: Error) => void;
 }
@@ -637,6 +667,11 @@ export function subscribeAllTenantData(
       onDeliveryCustomers: (c) => callbacks.onDeliveryCustomers?.(c),
       onDeliveryCustomerAddresses: (a) => callbacks.onDeliveryCustomerAddresses?.(a),
       onCustomerClassificationConfig: (cfg) => callbacks.onCustomerClassificationConfig?.(cfg),
+      onDeliveryCouriers: (couriers) => callbacks.onDeliveryCouriers?.(couriers),
+      onDeliveryDispatches: (dispatches) => callbacks.onDeliveryDispatches?.(dispatches),
+      onDeliveryDispatchHistory: (history) => callbacks.onDeliveryDispatchHistory?.(history),
+      onDeliveryRegions: (regions) => callbacks.onDeliveryRegions?.(regions),
+      onDeliveryPricingSettings: (settings) => callbacks.onDeliveryPricingSettings?.(settings),
       onReady: callbacks.onReady,
     });
   }
@@ -944,6 +979,151 @@ export function subscribeAllTenantData(
     callbacks.onCustomerClassificationConfig?.(mappedConfig);
   };
 
+  const fetchDeliveryCouriersData = async () => {
+    if (!callbacks.onDeliveryCouriers) return;
+    if (!canAccessDelivery) {
+      if (active) callbacks.onDeliveryCouriers([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('delivery_couriers')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('name', { ascending: true });
+
+    if (error) {
+      if (error.message.toLowerCase().includes('does not exist')) {
+        if (active) callbacks.onDeliveryCouriers([]);
+        return;
+      }
+      throw new Error(error.message);
+    }
+
+    if (!active) return;
+    callbacks.onDeliveryCouriers(
+      ((data ?? []) as SupabaseDeliveryCourierRow[]).map(mapDeliveryCourierRow),
+    );
+  };
+
+  const fetchDeliveryDispatchesData = async () => {
+    if (
+      !callbacks.onDeliveryDispatches &&
+      !callbacks.onDeliveryDispatchHistory
+    ) {
+      return;
+    }
+    if (!canAccessDelivery) {
+      if (active) {
+        callbacks.onDeliveryDispatches?.([]);
+        callbacks.onDeliveryDispatchHistory?.([]);
+      }
+      return;
+    }
+
+    const [dispatchesRes, historyRes] = await Promise.all([
+      supabase
+        .from('delivery_dispatches')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('assigned_at', { ascending: false }),
+      supabase
+        .from('delivery_dispatch_history')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: true }),
+    ]);
+
+    if (dispatchesRes.error) {
+      if (dispatchesRes.error.message.toLowerCase().includes('does not exist')) {
+        if (active) {
+          callbacks.onDeliveryDispatches?.([]);
+          callbacks.onDeliveryDispatchHistory?.([]);
+        }
+        return;
+      }
+      throw new Error(dispatchesRes.error.message);
+    }
+
+    if (!active) return;
+
+    callbacks.onDeliveryDispatches?.(
+      ((dispatchesRes.data ?? []) as SupabaseDeliveryDispatchRow[]).map(
+        mapDeliveryDispatchRow,
+      ),
+    );
+    callbacks.onDeliveryDispatchHistory?.(
+      historyRes.error
+        ? []
+        : (
+            (historyRes.data ?? []) as SupabaseDeliveryDispatchHistoryRow[]
+          ).map(mapDeliveryDispatchHistoryRow),
+    );
+  };
+
+  const fetchDeliveryRegionsData = async () => {
+    if (
+      !callbacks.onDeliveryRegions &&
+      !callbacks.onDeliveryPricingSettings
+    ) {
+      return;
+    }
+    if (!canAccessDelivery) {
+      if (active) {
+        callbacks.onDeliveryRegions?.([]);
+        callbacks.onDeliveryPricingSettings?.({
+          tenantId,
+          ...DEFAULT_DELIVERY_PRICING_SETTINGS,
+        });
+      }
+      return;
+    }
+
+    const [regionsRes, pricingRes] = await Promise.all([
+      supabase
+        .from('delivery_regions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('city', { ascending: true })
+        .order('name', { ascending: true }),
+      supabase
+        .from('delivery_pricing_settings')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .maybeSingle(),
+    ]);
+
+    if (regionsRes.error) {
+      if (regionsRes.error.message.toLowerCase().includes('does not exist')) {
+        if (active) {
+          callbacks.onDeliveryRegions?.([]);
+          callbacks.onDeliveryPricingSettings?.({
+            tenantId,
+            ...DEFAULT_DELIVERY_PRICING_SETTINGS,
+          });
+        }
+        return;
+      }
+      throw new Error(regionsRes.error.message);
+    }
+
+    if (!active) return;
+
+    callbacks.onDeliveryRegions?.(
+      ((regionsRes.data ?? []) as SupabaseDeliveryRegionRow[]).map(
+        mapDeliveryRegionRow,
+      ),
+    );
+    callbacks.onDeliveryPricingSettings?.(
+      pricingRes.error
+        ? { tenantId, ...DEFAULT_DELIVERY_PRICING_SETTINGS }
+        : mapDeliveryPricingSettingsRow(
+            pricingRes.data as SupabaseDeliveryPricingSettingsRow | null,
+            tenantId,
+          ),
+    );
+  };
+
   const fetchAll = async () => {
     try {
       await Promise.all([
@@ -955,6 +1135,9 @@ export function subscribeAllTenantData(
         fetchExpenses(),
         fetchOnlineOrders(),
         fetchDeliveryCustomersData(),
+        fetchDeliveryCouriersData(),
+        fetchDeliveryDispatchesData(),
+        fetchDeliveryRegionsData(),
       ]);
       if (active) callbacks.onReady();
     } catch (err) {
@@ -1047,6 +1230,56 @@ export function subscribeAllTenantData(
           filter: `tenant_id=eq.${tenantId}`,
         },
         () => void fetchDeliveryCustomersData().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_couriers',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => void fetchDeliveryCouriersData().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_dispatches',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => void fetchDeliveryDispatchesData().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_dispatch_history',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => void fetchDeliveryDispatchesData().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_regions',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => void fetchDeliveryRegionsData().catch((e) => active && callbacks.onError(e as Error)),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_pricing_settings',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => void fetchDeliveryRegionsData().catch((e) => active && callbacks.onError(e as Error)),
       );
   }
 
@@ -1491,6 +1724,9 @@ export async function createPublicOnlineOrder(
     p_change_for: payload.changeFor,
     p_customer_note: payload.customerNote,
     p_items: payload.items,
+    p_delivery_neighborhood: payload.deliveryNeighborhood ?? '',
+    p_delivery_city: payload.deliveryCity ?? '',
+    p_delivery_region_id: payload.deliveryRegionId ?? null,
   });
   if (error) throw new Error(error.message);
   return data as CreatePublicOrderResponse;
@@ -1891,4 +2127,486 @@ export async function saveCustomerClassificationConfig(
   if (error) throw new Error(error.message);
   notifyTenantRefresh(ctx.tenant.tenantId);
 }
+
+// ==================== MGW DELIVERY — GESTÃO DE ENTREGADORES ====================
+
+function assertDeliveryCourierPermission(ctx: DataExecutionContext): void {
+  if (
+    !hasTenantPermission(ctx.tenant.role, 'delivery:view') ||
+    !hasTenantPermission(ctx.tenant.role, 'sales:read')
+  ) {
+    throw new Error('Permissão insuficiente para gerenciar entregadores do delivery.');
+  }
+}
+
+function mapDeliveryCourierMutationError(message: string): Error {
+  const lower = message.toLowerCase();
+  if (
+    lower.includes('uniq_delivery_couriers_tenant_phone') ||
+    lower.includes('duplicate key')
+  ) {
+    return new Error(
+      'Já existe um entregador cadastrado com este telefone neste estabelecimento.',
+    );
+  }
+  if (
+    lower.includes('foreign key') ||
+    lower.includes('violates foreign key constraint') ||
+    lower.includes('23503')
+  ) {
+    return new Error(
+      'Este entregador possui registros vinculados e não pode ser excluído definitivamente. Desative-o para preservar o histórico.',
+    );
+  }
+  return new Error(message);
+}
+
+export async function createDeliveryCourier(
+  ctx: DataExecutionContext,
+  input: DeliveryCourierInput,
+): Promise<string> {
+  assertDeliveryCourierPermission(ctx);
+  if (isDemoSandboxActive()) {
+    return demoMutations.createDeliveryCourier(input);
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDeliveryCourierPayloadForSupabase(input);
+  const { data, error } = await supabase
+    .from('delivery_couriers')
+    .insert({
+      tenant_id: ctx.tenant.tenantId,
+      ...payload,
+    })
+    .select('id')
+    .single();
+
+  if (error) throw mapDeliveryCourierMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  return String((data as { id: string }).id);
+}
+
+export async function updateDeliveryCourier(
+  ctx: DataExecutionContext,
+  courierId: string,
+  input: DeliveryCourierInput,
+): Promise<void> {
+  assertDeliveryCourierPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.updateDeliveryCourier(courierId, input);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDeliveryCourierPayloadForSupabase(input);
+  const { error } = await supabase
+    .from('delivery_couriers')
+    .update(payload)
+    .eq('id', courierId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw mapDeliveryCourierMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function updateDeliveryCourierStatus(
+  ctx: DataExecutionContext,
+  courierId: string,
+  status: DeliveryCourierStatus,
+): Promise<void> {
+  assertDeliveryCourierPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.setDeliveryCourierStatus(courierId, status);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const updatePayload: {
+    status: DeliveryCourierStatus;
+    availability_status?: DeliveryCourierAvailability;
+  } = {
+    status,
+  };
+  if (status === 'inactive') {
+    updatePayload.availability_status = 'unavailable';
+  }
+
+  const { error } = await supabase
+    .from('delivery_couriers')
+    .update(updatePayload)
+    .eq('id', courierId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw mapDeliveryCourierMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function updateDeliveryCourierAvailability(
+  ctx: DataExecutionContext,
+  courierId: string,
+  availabilityStatus: DeliveryCourierAvailability,
+): Promise<void> {
+  assertDeliveryCourierPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.setDeliveryCourierAvailability(courierId, availabilityStatus);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { data: currentRow, error: fetchError } = await supabase
+    .from('delivery_couriers')
+    .select('status')
+    .eq('id', courierId)
+    .eq('tenant_id', ctx.tenant.tenantId)
+    .maybeSingle();
+
+  if (fetchError) throw mapDeliveryCourierMutationError(fetchError.message);
+  if (!currentRow) {
+    throw new Error('Entregador não encontrado neste estabelecimento.');
+  }
+  if (
+    (currentRow as { status: string }).status === 'inactive' &&
+    availabilityStatus === 'available'
+  ) {
+    throw new Error('Ative o entregador antes de marcá-lo como disponível.');
+  }
+
+  const { error } = await supabase
+    .from('delivery_couriers')
+    .update({ availability_status: availabilityStatus })
+    .eq('id', courierId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw mapDeliveryCourierMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function deleteDeliveryCourier(
+  ctx: DataExecutionContext,
+  courierId: string,
+): Promise<void> {
+  assertDeliveryCourierPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.deleteDeliveryCourier(courierId);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('delivery_couriers')
+    .delete()
+    .eq('id', courierId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw mapDeliveryCourierMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+// ==================== MGW DELIVERY — CENTRAL DE DESPACHO ====================
+
+function assertDeliveryDispatchPermission(ctx: DataExecutionContext): void {
+  if (
+    !hasTenantPermission(ctx.tenant.role, 'delivery:view') ||
+    !hasTenantPermission(ctx.tenant.role, 'sales:read')
+  ) {
+    throw new Error('Permissão insuficiente para operar a Central de Despacho.');
+  }
+}
+
+function mapDeliveryDispatchMutationError(message: string): Error {
+  const lower = message.toLowerCase();
+  if (
+    lower.includes('uniq_delivery_dispatches_active_order') ||
+    lower.includes('duplicate key')
+  ) {
+    return new Error('Este pedido já possui um entregador ativo atribuído.');
+  }
+  return new Error(message);
+}
+
+export async function assignDeliveryCourier(
+  ctx: DataExecutionContext,
+  orderId: string,
+  courierId: string,
+  notes = '',
+): Promise<string> {
+  assertDeliveryDispatchPermission(ctx);
+  if (isDemoSandboxActive()) {
+    return demoMutations.assignDeliveryCourier(
+      orderId,
+      courierId,
+      notes,
+      ctx.user.email,
+    );
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('assign_delivery_courier', {
+    p_order_id: orderId,
+    p_courier_id: courierId,
+    p_notes: notes.trim().slice(0, 500),
+  });
+
+  if (error) throw mapDeliveryDispatchMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  return String(data || '');
+}
+
+export async function reassignDeliveryCourier(
+  ctx: DataExecutionContext,
+  dispatchId: string,
+  newCourierId: string,
+  reason = '',
+): Promise<string> {
+  assertDeliveryDispatchPermission(ctx);
+  if (isDemoSandboxActive()) {
+    return demoMutations.reassignDeliveryCourier(
+      dispatchId,
+      newCourierId,
+      reason,
+      ctx.user.email,
+    );
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('reassign_delivery_courier', {
+    p_dispatch_id: dispatchId,
+    p_new_courier_id: newCourierId,
+    p_reason: reason.trim().slice(0, 300),
+  });
+
+  if (error) throw mapDeliveryDispatchMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  return String(data || '');
+}
+
+export async function cancelDeliveryDispatch(
+  ctx: DataExecutionContext,
+  dispatchId: string,
+  reason: string,
+): Promise<void> {
+  assertDeliveryDispatchPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.cancelDeliveryDispatch(dispatchId, reason, ctx.user.email);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('cancel_delivery_dispatch', {
+    p_dispatch_id: dispatchId,
+    p_reason: reason.trim().slice(0, 300),
+  });
+
+  if (error) throw mapDeliveryDispatchMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function respondDeliveryDispatch(
+  ctx: DataExecutionContext,
+  dispatchId: string,
+  decision: 'accept' | 'reject',
+  reason = '',
+): Promise<void> {
+  assertDeliveryDispatchPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.respondDeliveryDispatch(
+      dispatchId,
+      decision,
+      reason,
+      ctx.user.email,
+    );
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('respond_delivery_dispatch', {
+    p_dispatch_id: dispatchId,
+    p_decision: decision,
+    p_reason: reason.trim().slice(0, 300),
+  });
+
+  if (error) throw mapDeliveryDispatchMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function advanceDeliveryDispatchStatus(
+  ctx: DataExecutionContext,
+  dispatchId: string,
+  nextStatus: DeliveryDispatchStatus,
+): Promise<void> {
+  assertDeliveryDispatchPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.advanceDeliveryDispatchStatus(
+      dispatchId,
+      nextStatus,
+      ctx.user.email,
+    );
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('advance_delivery_dispatch_status', {
+    p_dispatch_id: dispatchId,
+    p_next_status: nextStatus,
+  });
+
+  if (error) throw mapDeliveryDispatchMutationError(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+// ==================== MGW DELIVERY — REGIÕES E TAXAS DE ENTREGA ====================
+
+function assertDeliveryRegionsPermission(ctx: DataExecutionContext): void {
+  if (
+    !hasTenantPermission(ctx.tenant.role, 'delivery:view') ||
+    !hasTenantPermission(ctx.tenant.role, 'sales:read')
+  ) {
+    throw new Error('Permissão insuficiente para gerenciar regiões e taxas de entrega.');
+  }
+}
+
+export async function createDeliveryRegion(
+  ctx: DataExecutionContext,
+  input: DeliveryRegionInput,
+): Promise<string> {
+  assertDeliveryRegionsPermission(ctx);
+  if (isDemoSandboxActive()) {
+    return demoMutations.createDeliveryRegion(input);
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDeliveryRegionPayloadForSupabase(input);
+  const { data, error } = await supabase
+    .from('delivery_regions')
+    .insert({
+      tenant_id: ctx.tenant.tenantId,
+      ...payload,
+    })
+    .select('id')
+    .single();
+
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  return String((data as { id: string }).id);
+}
+
+export async function updateDeliveryRegion(
+  ctx: DataExecutionContext,
+  regionId: string,
+  input: DeliveryRegionInput,
+): Promise<void> {
+  assertDeliveryRegionsPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.updateDeliveryRegion(regionId, input);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDeliveryRegionPayloadForSupabase(input);
+  const { error } = await supabase
+    .from('delivery_regions')
+    .update(payload)
+    .eq('id', regionId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function toggleDeliveryRegionStatus(
+  ctx: DataExecutionContext,
+  regionId: string,
+  status: DeliveryRegionStatus,
+): Promise<void> {
+  assertDeliveryRegionsPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.toggleDeliveryRegionStatus(regionId, status);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('delivery_regions')
+    .update({ status })
+    .eq('id', regionId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function toggleDeliveryRegionSuspension(
+  ctx: DataExecutionContext,
+  regionId: string,
+  suspended: boolean,
+  reason = '',
+): Promise<void> {
+  assertDeliveryRegionsPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.toggleDeliveryRegionSuspension(regionId, suspended, reason);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('delivery_regions')
+    .update({
+      is_temporarily_suspended: suspended,
+      suspension_reason: suspended ? reason.trim().slice(0, 300) : '',
+    })
+    .eq('id', regionId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function deleteDeliveryRegion(
+  ctx: DataExecutionContext,
+  regionId: string,
+): Promise<void> {
+  assertDeliveryRegionsPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.deleteDeliveryRegion(regionId);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('delivery_regions')
+    .delete()
+    .eq('id', regionId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function saveDeliveryPricingSettings(
+  ctx: DataExecutionContext,
+  input: DeliveryPricingSettingsInput,
+): Promise<void> {
+  assertDeliveryRegionsPermission(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.saveDeliveryPricingSettings(input);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildDeliveryPricingSettingsPayloadForSupabase(input);
+  const { error } = await supabase
+    .from('delivery_pricing_settings')
+    .upsert(
+      {
+        tenant_id: ctx.tenant.tenantId,
+        ...payload,
+      },
+      { onConflict: 'tenant_id' },
+    );
+
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+
 

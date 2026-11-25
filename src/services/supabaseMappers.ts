@@ -3,11 +3,27 @@ import {
   type ComboProductItem,
   type ComboRecord,
   DEFAULT_SHOP_SETTINGS,
+  type DeliveryCourierAvailability,
+  type DeliveryCourierInput,
+  type DeliveryCourierRecord,
+  type DeliveryCourierStatus,
+  type DeliveryCourierType,
   type DeliveryCustomerAddressInput,
   type DeliveryCustomerAddressRecord,
   type DeliveryCustomerClassificationConfig,
   type DeliveryCustomerInput,
   type DeliveryCustomerRecord,
+  type DeliveryDispatchActorType,
+  type DeliveryDispatchHistoryRecord,
+  type DeliveryDispatchRecord,
+  type DeliveryDispatchStatus,
+  type DeliveryFeeRuleApplied,
+  type DeliveryPricingMode,
+  type DeliveryPricingSettings,
+  type DeliveryPricingSettingsInput,
+  type DeliveryRegionInput,
+  type DeliveryRegionRecord,
+  type DeliveryRegionStatus,
   type DigitalMenuSettings,
   type DigitalMenuSettingsInput,
   EXPENSE_CATEGORIES,
@@ -27,6 +43,8 @@ import {
   type ProductRecord,
   type PublicCatalogCombo,
   type PublicCatalogProduct,
+  type PublicDeliveryPricingSettings,
+  type PublicDeliveryRegion,
   type PublicDigitalMenuPayload,
   type PublicOrderTrackingRecord,
   type RetentionStatus,
@@ -43,13 +61,23 @@ import {
   type TenantRole,
 } from '../types/finance';
 import {
+  normalizeCourierPlateForStorage,
+  normalizeCourierType,
+} from '../utils/deliveryCouriers';
+import {
   DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
   isValidCustomerPhone,
   isValidOptionalCpf,
   normalizeClassificationConfig,
   normalizeCustomerPhone,
 } from '../utils/deliveryCustomers';
-import { calculateSaleTotal, roundCurrency } from '../utils/finance';
+import {
+  DEFAULT_DELIVERY_PRICING_SETTINGS,
+  deduplicateNeighborhoods,
+  isValidTimeHHMM,
+  normalizeDeliveryGeoText,
+} from '../utils/deliveryRegions';
+import { calculateSaleTotal, DEFAULT_SHOP_TIMEZONE, roundCurrency } from '../utils/finance';
 import {
   formatOrderNumber,
   normalizePixKeyInput,
@@ -226,6 +254,15 @@ export interface SupabaseOnlineOrderRow {
   customer_phone: string;
   delivery_address: string;
   delivery_reference: string;
+  delivery_region_id?: string | null;
+  delivery_region_name?: string | null;
+  delivery_neighborhood?: string | null;
+  delivery_city?: string | null;
+  delivery_base_fee?: number | string | null;
+  delivery_fee_rule?: string | null;
+  delivery_minimum_order_applied?: number | string | null;
+  delivery_free_applied?: boolean | null;
+  delivery_free_threshold_applied?: number | string | null;
   payment_method: string;
   change_for: number | string | null;
   customer_note: string;
@@ -283,6 +320,105 @@ export interface SupabaseDeliveryCustomerClassificationSettingsRow {
   vip_min_orders: number;
   vip_min_spent: number | string;
   inactive_days: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SupabaseDeliveryCourierRow {
+  id: string;
+  tenant_id: string;
+  name: string;
+  phone: string;
+  normalized_phone: string;
+  whatsapp: string;
+  normalized_whatsapp: string;
+  cpf: string;
+  email: string;
+  motorcycle_brand: string;
+  motorcycle_model: string;
+  motorcycle_color: string;
+  motorcycle_plate: string;
+  courier_type?: string | null;
+  status: string;
+  availability_status: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseDeliveryDispatchRow {
+  id: string;
+  tenant_id: string;
+  order_id: string;
+  courier_id: string;
+  dispatch_status: string;
+  courier_name_snapshot: string;
+  courier_phone_snapshot: string;
+  courier_type_snapshot: string;
+  assigned_by_user_id: string | null;
+  assigned_by_email: string;
+  assigned_at: string;
+  accepted_at: string | null;
+  dispatched_at: string | null;
+  delivered_at: string | null;
+  rejected_at: string | null;
+  cancelled_at: string | null;
+  rejection_reason: string;
+  cancellation_reason: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseDeliveryDispatchHistoryRow {
+  id: string;
+  tenant_id: string;
+  dispatch_id: string;
+  order_id: string;
+  courier_id: string | null;
+  courier_name: string;
+  from_status: string | null;
+  to_status: string;
+  actor_user_id: string | null;
+  actor_email: string;
+  actor_type: string;
+  reason: string;
+  created_at: string;
+}
+
+export interface SupabaseDeliveryRegionRow {
+  id: string;
+  tenant_id: string;
+  name: string;
+  city: string;
+  normalized_city: string;
+  neighborhoods: string[];
+  normalized_neighborhoods: string[];
+  description: string;
+  delivery_fee: number | string;
+  minimum_order_amount: number | string;
+  estimated_time: string;
+  status: string;
+  is_temporarily_suspended: boolean;
+  suspension_reason: string;
+  schedule_enabled: boolean;
+  schedule_days: number[];
+  schedule_start: string;
+  schedule_end: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseDeliveryPricingSettingsRow {
+  tenant_id: string;
+  pricing_mode: string;
+  default_fee_enabled: boolean;
+  default_delivery_fee: number | string;
+  default_minimum_order_amount: number | string;
+  default_estimated_time: string;
+  free_delivery_enabled: boolean;
+  free_delivery_min_amount: number | string;
   created_at?: string;
   updated_at?: string;
 }
@@ -1055,12 +1191,33 @@ export function mapOnlineOrderStatusHistoryRow(
   };
 }
 
+export function normalizeDeliveryFeeRule(raw: unknown): DeliveryFeeRuleApplied {
+  const s = String(raw || '').trim().toLowerCase();
+  if (
+    s === 'neighborhood' ||
+    s === 'region' ||
+    s === 'default_fallback' ||
+    s === 'store_default' ||
+    s === 'pickup'
+  ) {
+    return s;
+  }
+  return 'store_default';
+}
+
+export function normalizeDeliveryPricingMode(raw: unknown): DeliveryPricingMode {
+  const s = String(raw || '').trim().toLowerCase();
+  if (s === 'by_region' || s === 'default_only') return s;
+  return 'by_neighborhood';
+}
+
 export function mapOnlineOrderRow(
   row: SupabaseOnlineOrderRow,
   items: OnlineOrderItemSnapshot[],
   statusHistory: OnlineOrderStatusEvent[],
 ): OnlineOrderRecord {
   const orderNumber = Math.max(1, Math.trunc(Number(row.order_number) || 1));
+  const deliveryFee = roundCurrency(Number(row.delivery_fee) || 0);
   return {
     id: row.id,
     tenantId: row.tenant_id,
@@ -1074,6 +1231,22 @@ export function mapOnlineOrderRow(
     customerPhone: String(row.customer_phone || ''),
     deliveryAddress: String(row.delivery_address || ''),
     deliveryReference: String(row.delivery_reference || ''),
+    deliveryRegionId: row.delivery_region_id ?? null,
+    deliveryRegionName: String(row.delivery_region_name || ''),
+    deliveryNeighborhood: String(row.delivery_neighborhood || ''),
+    deliveryCity: String(row.delivery_city || ''),
+    deliveryBaseFee:
+      row.delivery_base_fee !== undefined && row.delivery_base_fee !== null
+        ? roundCurrency(Number(row.delivery_base_fee) || 0)
+        : deliveryFee,
+    deliveryFeeRule: normalizeDeliveryFeeRule(row.delivery_fee_rule),
+    deliveryMinimumOrderApplied: roundCurrency(
+      Number(row.delivery_minimum_order_applied) || 0,
+    ),
+    deliveryFreeApplied: Boolean(row.delivery_free_applied),
+    deliveryFreeThresholdApplied: roundCurrency(
+      Number(row.delivery_free_threshold_applied) || 0,
+    ),
     paymentMethod: normalizeOnlinePaymentMethod(row.payment_method),
     changeFor:
       row.change_for !== null && row.change_for !== undefined
@@ -1081,7 +1254,7 @@ export function mapOnlineOrderRow(
         : null,
     customerNote: String(row.customer_note || ''),
     subtotalAmount: roundCurrency(Number(row.subtotal_amount) || 0),
-    deliveryFee: roundCurrency(Number(row.delivery_fee) || 0),
+    deliveryFee,
     totalAmount: roundCurrency(Number(row.total_amount) || 0),
     rejectionReason: String(row.rejection_reason || ''),
     viewedAtMs: row.viewed_at ? isoTimestampToMs(row.viewed_at) : null,
@@ -1099,16 +1272,42 @@ export function mapOnlineOrderRow(
   };
 }
 
+function parseScheduleDays(raw: unknown): number[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [0, 1, 2, 3, 4, 5, 6];
+  const valid = Array.from(
+    new Set(
+      raw
+        .map((v) => Math.trunc(Number(v)))
+        .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),
+    ),
+  ).sort((a, b) => a - b);
+  return valid.length > 0 ? valid : [0, 1, 2, 3, 4, 5, 6];
+}
+
 export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenuPayload {
   if (!raw || typeof raw !== 'object') {
-    return { found: false, store: null, products: [], combos: [] };
+    return {
+      found: false,
+      store: null,
+      products: [],
+      combos: [],
+      deliveryPricing: null,
+      deliveryRegions: [],
+    };
   }
   const obj = raw as Record<string, unknown>;
   if (!obj.found || !obj.store || typeof obj.store !== 'object') {
-    return { found: false, store: null, products: [], combos: [] };
+    return {
+      found: false,
+      store: null,
+      products: [],
+      combos: [],
+      deliveryPricing: null,
+      deliveryRegions: [],
+    };
   }
   const st = obj.store as Record<string, unknown>;
-  const store: DigitalMenuSettingsInput = {
+  const store: DigitalMenuSettingsInput & { timezone?: string } = {
     slug: sanitizeMenuSlug(String(st.slug || 'mgw_lanches')),
     isActive: Boolean(st.isActive),
     isOpen: Boolean(st.isOpen),
@@ -1124,6 +1323,10 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
     minimumOrderAmount: roundCurrency(Math.max(0, Number(st.minimumOrderAmount) || 0)),
     acceptsDelivery: st.acceptsDelivery !== false,
     acceptsPickup: st.acceptsPickup !== false,
+    timezone:
+      typeof st.timezone === 'string' && st.timezone.trim()
+        ? st.timezone.trim()
+        : DEFAULT_SHOP_TIMEZONE,
   };
 
   const products: PublicCatalogProduct[] = Array.isArray(obj.products)
@@ -1138,6 +1341,9 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
             unitPrice: roundCurrency(Math.max(0, Number(p.unitPrice) || 0)),
             countsAsXSalada: Boolean(p.countsAsXSalada),
             imageUrl: typeof p.imageUrl === 'string' ? p.imageUrl : '',
+            addonGroups: Array.isArray(p.addonGroups)
+              ? (p.addonGroups as PublicCatalogProduct['addonGroups'])
+              : undefined,
           };
         })
     : [];
@@ -1155,7 +1361,60 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
         }))
     : [];
 
-  return { found: true, store, products, combos };
+  let deliveryPricing: PublicDeliveryPricingSettings | null = null;
+  if (obj.deliveryPricing && typeof obj.deliveryPricing === 'object') {
+    const dp = obj.deliveryPricing as Record<string, unknown>;
+    deliveryPricing = {
+      pricingMode: normalizeDeliveryPricingMode(dp.pricingMode),
+      defaultFeeEnabled: Boolean(dp.defaultFeeEnabled),
+      defaultDeliveryFee: roundCurrency(Math.max(0, Number(dp.defaultDeliveryFee) || 0)),
+      defaultMinimumOrderAmount: roundCurrency(
+        Math.max(0, Number(dp.defaultMinimumOrderAmount) || 0),
+      ),
+      defaultEstimatedTime: String(dp.defaultEstimatedTime || ''),
+      freeDeliveryEnabled: Boolean(dp.freeDeliveryEnabled),
+      freeDeliveryMinAmount: roundCurrency(
+        Math.max(0, Number(dp.freeDeliveryMinAmount) || 0),
+      ),
+    };
+  }
+
+  const deliveryRegions: PublicDeliveryRegion[] = Array.isArray(obj.deliveryRegions)
+    ? obj.deliveryRegions
+        .filter((r): r is Record<string, unknown> => Boolean(r && typeof r === 'object'))
+        .map((r) => ({
+          id: String(r.id || ''),
+          name: String(r.name || '').trim(),
+          city: String(r.city || '').trim(),
+          neighborhoods: Array.isArray(r.neighborhoods)
+            ? r.neighborhoods.map((n) => String(n || '').trim()).filter(Boolean)
+            : [],
+          description: String(r.description || ''),
+          deliveryFee: roundCurrency(Math.max(0, Number(r.deliveryFee) || 0)),
+          minimumOrderAmount: roundCurrency(Math.max(0, Number(r.minimumOrderAmount) || 0)),
+          estimatedTime: String(r.estimatedTime || ''),
+          status: r.status === 'inactive' ? 'inactive' : 'active',
+          isTemporarilySuspended: Boolean(r.isTemporarilySuspended),
+          suspensionReason: String(r.suspensionReason || ''),
+          scheduleEnabled: Boolean(r.scheduleEnabled),
+          scheduleDays: parseScheduleDays(r.scheduleDays),
+          scheduleStart: isValidTimeHHMM(String(r.scheduleStart || ''))
+            ? String(r.scheduleStart)
+            : '00:00',
+          scheduleEnd: isValidTimeHHMM(String(r.scheduleEnd || ''))
+            ? String(r.scheduleEnd)
+            : '23:59',
+        }))
+    : [];
+
+  return {
+    found: true,
+    store,
+    products,
+    combos,
+    deliveryPricing,
+    deliveryRegions,
+  };
 }
 
 export function mapPublicOrderTrackingRpcResponse(
@@ -1196,6 +1455,8 @@ export function mapPublicOrderTrackingRpcResponse(
         }))
     : [];
 
+  const deliveryFee = roundCurrency(Number(o.deliveryFee) || 0);
+
   return {
     orderId: String(o.orderId || ''),
     orderNumber,
@@ -1205,6 +1466,21 @@ export function mapPublicOrderTrackingRpcResponse(
     customerName: String(o.customerName || ''),
     deliveryAddress: String(o.deliveryAddress || ''),
     deliveryReference: String(o.deliveryReference || ''),
+    deliveryRegionName: String(o.deliveryRegionName || ''),
+    deliveryNeighborhood: String(o.deliveryNeighborhood || ''),
+    deliveryCity: String(o.deliveryCity || ''),
+    deliveryBaseFee:
+      o.deliveryBaseFee !== undefined && o.deliveryBaseFee !== null
+        ? roundCurrency(Number(o.deliveryBaseFee) || 0)
+        : deliveryFee,
+    deliveryFeeRule: normalizeDeliveryFeeRule(o.deliveryFeeRule),
+    deliveryMinimumOrderApplied: roundCurrency(
+      Number(o.deliveryMinimumOrderApplied) || 0,
+    ),
+    deliveryFreeApplied: Boolean(o.deliveryFreeApplied),
+    deliveryFreeThresholdApplied: roundCurrency(
+      Number(o.deliveryFreeThresholdApplied) || 0,
+    ),
     paymentMethod: normalizeOnlinePaymentMethod(o.paymentMethod),
     changeFor:
       o.changeFor !== null && o.changeFor !== undefined
@@ -1212,7 +1488,7 @@ export function mapPublicOrderTrackingRpcResponse(
         : null,
     customerNote: String(o.customerNote || ''),
     subtotalAmount: roundCurrency(Number(o.subtotalAmount) || 0),
-    deliveryFee: roundCurrency(Number(o.deliveryFee) || 0),
+    deliveryFee,
     totalAmount: roundCurrency(Number(o.totalAmount) || 0),
     rejectionReason: String(o.rejectionReason || ''),
     storeName: String(o.storeName || 'MGW Lanches'),
@@ -1388,5 +1664,398 @@ export function buildDeliveryCustomerClassificationPayloadForSupabase(
     inactive_days: clean.inactiveDays,
   };
 }
+
+// ==================== MGW DELIVERY — ENTREGADORES (MOTOBOYS) ====================
+
+function normalizeCourierStatus(raw: unknown): DeliveryCourierStatus {
+  return raw === 'inactive' ? 'inactive' : 'active';
+}
+
+function normalizeCourierAvailability(
+  raw: unknown,
+  status: DeliveryCourierStatus,
+): DeliveryCourierAvailability {
+  if (status === 'inactive') return 'unavailable';
+  return raw === 'unavailable' ? 'unavailable' : 'available';
+}
+
+export function mapDeliveryCourierRow(
+  row: SupabaseDeliveryCourierRow,
+): DeliveryCourierRecord {
+  const phone = String(row.phone || '');
+  const whatsapp = String(row.whatsapp || '');
+  const status = normalizeCourierStatus(row.status);
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    name: String(row.name || '').trim(),
+    phone,
+    normalizedPhone: String(row.normalized_phone || normalizeCustomerPhone(phone)),
+    whatsapp,
+    normalizedWhatsapp: String(
+      row.normalized_whatsapp || (whatsapp ? normalizeCustomerPhone(whatsapp) : ''),
+    ),
+    cpf: String(row.cpf || ''),
+    email: String(row.email || ''),
+    motorcycleBrand: String(row.motorcycle_brand || ''),
+    motorcycleModel: String(row.motorcycle_model || ''),
+    motorcycleColor: String(row.motorcycle_color || ''),
+    motorcyclePlate: String(row.motorcycle_plate || ''),
+    courierType: normalizeCourierType(row.courier_type),
+    status,
+    availabilityStatus: normalizeCourierAvailability(
+      row.availability_status,
+      status,
+    ),
+    notes: String(row.notes || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function buildDeliveryCourierPayloadForSupabase(
+  input: DeliveryCourierInput,
+): {
+  name: string;
+  phone: string;
+  normalized_phone: string;
+  whatsapp: string;
+  normalized_whatsapp: string;
+  cpf: string;
+  email: string;
+  motorcycle_brand: string;
+  motorcycle_model: string;
+  motorcycle_color: string;
+  motorcycle_plate: string;
+  courier_type: DeliveryCourierType;
+  status: DeliveryCourierStatus;
+  availability_status: DeliveryCourierAvailability;
+  notes: string;
+} {
+  const name = String(input.name || '').trim().slice(0, 120);
+  if (name.length < 2) {
+    throw new Error('Informe o nome completo do entregador (mínimo 2 caracteres).');
+  }
+
+  const rawPhone = String(input.phone || '').trim().slice(0, 32);
+  if (!isValidCustomerPhone(rawPhone)) {
+    throw new Error('Informe um telefone válido com DDD para o entregador.');
+  }
+  const normalizedPhone = normalizeCustomerPhone(rawPhone);
+
+  const rawWhatsapp = String(input.whatsapp || '').trim().slice(0, 32);
+  if (rawWhatsapp && !isValidCustomerPhone(rawWhatsapp)) {
+    throw new Error('Informe um WhatsApp válido com DDD ou deixe o campo em branco.');
+  }
+  const normalizedWhatsapp = rawWhatsapp
+    ? normalizeCustomerPhone(rawWhatsapp)
+    : '';
+
+  const email = String(input.email || '').trim().toLowerCase().slice(0, 160);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Informe um e-mail válido ou deixe o campo em branco.');
+  }
+
+  const cpfDigits = String(input.cpf || '').replace(/\D/g, '').slice(0, 14);
+  if (!isValidOptionalCpf(cpfDigits)) {
+    throw new Error('O CPF informado é inválido. Deixe em branco se preferir.');
+  }
+
+  const courierType = normalizeCourierType(input.courierType);
+  const status = normalizeCourierStatus(input.status);
+  const availabilityStatus = normalizeCourierAvailability(
+    input.availabilityStatus,
+    status,
+  );
+
+  return {
+    name,
+    phone: rawPhone,
+    normalized_phone: normalizedPhone,
+    whatsapp: rawWhatsapp,
+    normalized_whatsapp: normalizedWhatsapp,
+    cpf: cpfDigits,
+    email,
+    motorcycle_brand: String(input.motorcycleBrand || '').trim().slice(0, 60),
+    motorcycle_model: String(input.motorcycleModel || '').trim().slice(0, 80),
+    motorcycle_color: String(input.motorcycleColor || '').trim().slice(0, 40),
+    motorcycle_plate: normalizeCourierPlateForStorage(input.motorcyclePlate),
+    courier_type: courierType,
+    status,
+    availability_status: availabilityStatus,
+    notes: String(input.notes || '').trim().slice(0, 1000),
+  };
+}
+
+// ==================== MGW DELIVERY — CENTRAL DE DESPACHO ====================
+
+const VALID_DISPATCH_STATUSES: ReadonlySet<DeliveryDispatchStatus> = new Set([
+  'awaiting_dispatch',
+  'courier_assigned',
+  'awaiting_acceptance',
+  'delivery_accepted',
+  'preparing',
+  'ready_for_dispatch',
+  'out_for_delivery',
+  'delivered',
+  'delivery_rejected',
+  'delivery_cancelled',
+]);
+
+export function normalizeDispatchStatus(raw: unknown): DeliveryDispatchStatus {
+  const s = String(raw || '').trim().toLowerCase() as DeliveryDispatchStatus;
+  return VALID_DISPATCH_STATUSES.has(s) ? s : 'awaiting_acceptance';
+}
+
+function normalizeDispatchActorType(raw: unknown): DeliveryDispatchActorType {
+  if (raw === 'courier' || raw === 'system') return raw;
+  return 'admin';
+}
+
+export function mapDeliveryDispatchRow(
+  row: SupabaseDeliveryDispatchRow,
+): DeliveryDispatchRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    orderId: row.order_id,
+    courierId: row.courier_id,
+    dispatchStatus: normalizeDispatchStatus(row.dispatch_status),
+    courierNameSnapshot: String(row.courier_name_snapshot || '').trim(),
+    courierPhoneSnapshot: String(row.courier_phone_snapshot || '').trim(),
+    courierTypeSnapshot: normalizeCourierType(row.courier_type_snapshot),
+    assignedByUserId: row.assigned_by_user_id ?? null,
+    assignedByEmail: String(row.assigned_by_email || '').trim(),
+    assignedAtMs: isoTimestampToMs(row.assigned_at),
+    acceptedAtMs: row.accepted_at ? isoTimestampToMs(row.accepted_at) : null,
+    dispatchedAtMs: row.dispatched_at ? isoTimestampToMs(row.dispatched_at) : null,
+    deliveredAtMs: row.delivered_at ? isoTimestampToMs(row.delivered_at) : null,
+    rejectedAtMs: row.rejected_at ? isoTimestampToMs(row.rejected_at) : null,
+    cancelledAtMs: row.cancelled_at ? isoTimestampToMs(row.cancelled_at) : null,
+    rejectionReason: String(row.rejection_reason || '').trim(),
+    cancellationReason: String(row.cancellation_reason || '').trim(),
+    notes: String(row.notes || '').trim(),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function mapDeliveryDispatchHistoryRow(
+  row: SupabaseDeliveryDispatchHistoryRow,
+): DeliveryDispatchHistoryRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    dispatchId: row.dispatch_id,
+    orderId: row.order_id,
+    courierId: row.courier_id ?? null,
+    courierName: String(row.courier_name || '').trim(),
+    fromStatus: row.from_status ? normalizeDispatchStatus(row.from_status) : null,
+    toStatus: normalizeDispatchStatus(row.to_status),
+    actorUserId: row.actor_user_id ?? null,
+    actorEmail: String(row.actor_email || '').trim(),
+    actorType: normalizeDispatchActorType(row.actor_type),
+    reason: String(row.reason || '').trim(),
+    createdAtMs: isoTimestampToMs(row.created_at),
+  };
+}
+
+// ==================== MGW DELIVERY — REGIÕES E TAXAS ====================
+
+export function mapDeliveryRegionRow(
+  row: SupabaseDeliveryRegionRow,
+): DeliveryRegionRecord {
+  const status: DeliveryRegionStatus =
+    row.status === 'inactive' ? 'inactive' : 'active';
+  const neighborhoods = Array.isArray(row.neighborhoods)
+    ? deduplicateNeighborhoods(row.neighborhoods.map((n) => String(n || '')))
+    : [];
+
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    name: String(row.name || '').trim(),
+    city: String(row.city || '').trim(),
+    neighborhoods,
+    description: String(row.description || ''),
+    deliveryFee: roundCurrency(Math.max(0, Number(row.delivery_fee) || 0)),
+    minimumOrderAmount: roundCurrency(
+      Math.max(0, Number(row.minimum_order_amount) || 0),
+    ),
+    estimatedTime: String(row.estimated_time || ''),
+    status,
+    isTemporarilySuspended: Boolean(row.is_temporarily_suspended),
+    suspensionReason: String(row.suspension_reason || ''),
+    scheduleEnabled: Boolean(row.schedule_enabled),
+    scheduleDays: parseScheduleDays(row.schedule_days),
+    scheduleStart: isValidTimeHHMM(row.schedule_start)
+      ? row.schedule_start
+      : '00:00',
+    scheduleEnd: isValidTimeHHMM(row.schedule_end) ? row.schedule_end : '23:59',
+    notes: String(row.notes || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function buildDeliveryRegionPayloadForSupabase(
+  input: DeliveryRegionInput,
+): {
+  name: string;
+  city: string;
+  normalized_city: string;
+  neighborhoods: string[];
+  normalized_neighborhoods: string[];
+  description: string;
+  delivery_fee: number;
+  minimum_order_amount: number;
+  estimated_time: string;
+  status: DeliveryRegionStatus;
+  is_temporarily_suspended: boolean;
+  suspension_reason: string;
+  schedule_enabled: boolean;
+  schedule_days: number[];
+  schedule_start: string;
+  schedule_end: string;
+  notes: string;
+} {
+  const name = String(input.name || '').trim().replace(/\s+/g, ' ').slice(0, 100);
+  if (name.length < 2) {
+    throw new Error('Informe o nome da região de entrega (mínimo 2 caracteres).');
+  }
+
+  const city = String(input.city || '').trim().replace(/\s+/g, ' ').slice(0, 100);
+  if (city.length < 2) {
+    throw new Error('Informe o município da região.');
+  }
+
+  const neighborhoods = deduplicateNeighborhoods(input.neighborhoods || []);
+  if (neighborhoods.length === 0) {
+    throw new Error('Adicione ao menos um bairro atendido para esta região.');
+  }
+
+  const deliveryFee = roundCurrency(Number(input.deliveryFee));
+  if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
+    throw new Error('A taxa de entrega não pode ser negativa.');
+  }
+
+  const minimumOrder = roundCurrency(Number(input.minimumOrderAmount ?? 0));
+  if (!Number.isFinite(minimumOrder) || minimumOrder < 0) {
+    throw new Error('O pedido mínimo da região não pode ser negativo.');
+  }
+
+  const status: DeliveryRegionStatus =
+    input.status === 'inactive' ? 'inactive' : 'active';
+  const suspended = Boolean(input.isTemporarilySuspended);
+  const scheduleEnabled = Boolean(input.scheduleEnabled);
+  const scheduleStart = isValidTimeHHMM(input.scheduleStart || '')
+    ? String(input.scheduleStart).trim()
+    : '00:00';
+  const scheduleEnd = isValidTimeHHMM(input.scheduleEnd || '')
+    ? String(input.scheduleEnd).trim()
+    : '23:59';
+
+  return {
+    name,
+    city,
+    normalized_city: normalizeDeliveryGeoText(city),
+    neighborhoods,
+    normalized_neighborhoods: neighborhoods.map((n) => normalizeDeliveryGeoText(n)),
+    description: String(input.description || '').trim().slice(0, 300),
+    delivery_fee: deliveryFee,
+    minimum_order_amount: minimumOrder,
+    estimated_time: String(input.estimatedTime || '').trim().slice(0, 60),
+    status,
+    is_temporarily_suspended: suspended,
+    suspension_reason: suspended
+      ? String(input.suspensionReason || '').trim().slice(0, 300)
+      : '',
+    schedule_enabled: scheduleEnabled,
+    schedule_days: parseScheduleDays(input.scheduleDays),
+    schedule_start: scheduleStart,
+    schedule_end: scheduleEnd,
+    notes: String(input.notes || '').trim().slice(0, 1000),
+  };
+}
+
+export function mapDeliveryPricingSettingsRow(
+  row?: SupabaseDeliveryPricingSettingsRow | null,
+  tenantId = '',
+  fallbackMenu?: Pick<DigitalMenuSettings, 'deliveryFee' | 'minimumOrderAmount'> | null,
+): DeliveryPricingSettings {
+  if (!row) {
+    return {
+      tenantId,
+      ...DEFAULT_DELIVERY_PRICING_SETTINGS,
+      defaultDeliveryFee: roundCurrency(
+        Math.max(0, fallbackMenu?.deliveryFee ?? DEFAULT_DELIVERY_PRICING_SETTINGS.defaultDeliveryFee),
+      ),
+      defaultMinimumOrderAmount: roundCurrency(
+        Math.max(
+          0,
+          fallbackMenu?.minimumOrderAmount ??
+            DEFAULT_DELIVERY_PRICING_SETTINGS.defaultMinimumOrderAmount,
+        ),
+      ),
+    };
+  }
+
+  return {
+    tenantId: row.tenant_id || tenantId,
+    pricingMode: normalizeDeliveryPricingMode(row.pricing_mode),
+    defaultFeeEnabled: Boolean(row.default_fee_enabled),
+    defaultDeliveryFee: roundCurrency(Math.max(0, Number(row.default_delivery_fee) || 0)),
+    defaultMinimumOrderAmount: roundCurrency(
+      Math.max(0, Number(row.default_minimum_order_amount) || 0),
+    ),
+    defaultEstimatedTime: String(row.default_estimated_time || ''),
+    freeDeliveryEnabled: Boolean(row.free_delivery_enabled),
+    freeDeliveryMinAmount: roundCurrency(
+      Math.max(0, Number(row.free_delivery_min_amount) || 0),
+    ),
+    updatedAtMs: row.updated_at ? isoTimestampToMs(row.updated_at) : undefined,
+  };
+}
+
+export function buildDeliveryPricingSettingsPayloadForSupabase(
+  input: DeliveryPricingSettingsInput,
+): {
+  pricing_mode: DeliveryPricingMode;
+  default_fee_enabled: boolean;
+  default_delivery_fee: number;
+  default_minimum_order_amount: number;
+  default_estimated_time: string;
+  free_delivery_enabled: boolean;
+  free_delivery_min_amount: number;
+} {
+  const defaultFee = roundCurrency(Number(input.defaultDeliveryFee));
+  if (!Number.isFinite(defaultFee) || defaultFee < 0) {
+    throw new Error('A taxa padrão de entrega não pode ser negativa.');
+  }
+  const defaultMin = roundCurrency(Number(input.defaultMinimumOrderAmount));
+  if (!Number.isFinite(defaultMin) || defaultMin < 0) {
+    throw new Error('O pedido mínimo padrão não pode ser negativo.');
+  }
+  const freeMin = roundCurrency(Number(input.freeDeliveryMinAmount));
+  if (!Number.isFinite(freeMin) || freeMin < 0) {
+    throw new Error('O valor mínimo para entrega grátis não pode ser negativo.');
+  }
+  if (input.freeDeliveryEnabled && freeMin <= 0) {
+    throw new Error('Informe um valor mínimo maior que zero para entrega grátis.');
+  }
+
+  return {
+    pricing_mode: normalizeDeliveryPricingMode(input.pricingMode),
+    default_fee_enabled: Boolean(input.defaultFeeEnabled),
+    default_delivery_fee: defaultFee,
+    default_minimum_order_amount: defaultMin,
+    default_estimated_time: String(input.defaultEstimatedTime || '').trim().slice(0, 60),
+    free_delivery_enabled: Boolean(input.freeDeliveryEnabled),
+    free_delivery_min_amount: freeMin,
+  };
+}
+
+
+
 
 

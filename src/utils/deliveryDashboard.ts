@@ -1,5 +1,8 @@
 import type {
+  DeliveryCourierRecord,
   DeliveryCustomerRecord,
+  DeliveryDispatchRecord,
+  DeliveryRegionRecord,
   DigitalMenuSettings,
   OnlineOrderRecord,
 } from '../types/finance';
@@ -67,9 +70,15 @@ export interface DeliveryDashboardSummary {
   completedDeliveriesCount: number;
   completedDeliveriesTodayCount: number;
   availableCouriersCount: number;
+  awaitingDispatchCount: number;
   registeredCustomersCount: number;
+  configuredRegionsCount: number;
+  activeRegionsCount: number;
+  suspendedRegionsCount: number;
   couriersModuleReady: boolean;
   customersModuleReady: boolean;
+  dispatchModuleReady: boolean;
+  regionsModuleReady: boolean;
   recentDeliveryOrders: OnlineOrderRecord[];
   totalDeliveryOrdersCount: number;
   pickupOrdersExcludedCount: number;
@@ -78,9 +87,9 @@ export interface DeliveryDashboardSummary {
 }
 
 /**
- * Calcula indicadores reais exclusivos de Delivery a partir dos pedidos online do tenant ativo.
+ * Calcula indicadores reais exclusivos de Delivery a partir dos pedidos online,
+ * clientes, entregadores, despachos e regioes do tenant ativo.
  * Pedidos com retirada no balcao ('pickup') nunca sao contabilizados aqui.
- * Indicadores sem tabela implementada (entregadores) retornam 0 real sem simulacao.
  */
 export function computeDeliveryDashboardSummary(
   orders: OnlineOrderRecord[],
@@ -91,6 +100,9 @@ export function computeDeliveryDashboardSummary(
   referenceDate: string = getLocalTodayDate(),
   recentLimit = 8,
   customers: Pick<DeliveryCustomerRecord, 'id'>[] = [],
+  couriers: Pick<DeliveryCourierRecord, 'id' | 'status' | 'availabilityStatus'>[] = [],
+  dispatches: Pick<DeliveryDispatchRecord, 'orderId' | 'dispatchStatus'>[] = [],
+  regions: Pick<DeliveryRegionRecord, 'id' | 'status' | 'isTemporarilySuspended'>[] = [],
 ): DeliveryDashboardSummary {
   let deliveryOrdersTodayCount = 0;
   let pendingAcceptanceCount = 0;
@@ -99,6 +111,18 @@ export function computeDeliveryDashboardSummary(
   let completedDeliveriesCount = 0;
   let completedDeliveriesTodayCount = 0;
   let pickupOrdersExcludedCount = 0;
+  let awaitingDispatchCount = 0;
+
+  const activeDispatchOrderIds = new Set(
+    dispatches
+      .filter(
+        (d) =>
+          d.dispatchStatus !== 'delivered' &&
+          d.dispatchStatus !== 'delivery_rejected' &&
+          d.dispatchStatus !== 'delivery_cancelled',
+      )
+      .map((d) => d.orderId),
+  );
 
   const deliveryOrders: OnlineOrderRecord[] = [];
 
@@ -133,6 +157,15 @@ export function computeDeliveryDashboardSummary(
         }
       }
     }
+
+    if (
+      order.status !== 'completed' &&
+      order.status !== 'rejected' &&
+      order.status !== 'cancelled' &&
+      !activeDispatchOrderIds.has(order.id)
+    ) {
+      awaitingDispatchCount += 1;
+    }
   }
 
   const recentDeliveryOrders = [...deliveryOrders]
@@ -143,6 +176,17 @@ export function computeDeliveryDashboardSummary(
   const configuredDeliveryFee =
     Number.isFinite(rawFee) && rawFee > 0 ? rawFee : 0;
 
+  const availableCouriersCount = couriers.filter(
+    (c) => c.status === 'active' && c.availabilityStatus === 'available',
+  ).length;
+
+  const activeRegionsCount = regions.filter(
+    (r) => r.status === 'active' && !r.isTemporarilySuspended,
+  ).length;
+  const suspendedRegionsCount = regions.filter(
+    (r) => r.status === 'inactive' || r.isTemporarilySuspended,
+  ).length;
+
   return {
     deliveryOrdersTodayCount,
     pendingAcceptanceCount,
@@ -150,10 +194,16 @@ export function computeDeliveryDashboardSummary(
     outForDeliveryCount,
     completedDeliveriesCount,
     completedDeliveriesTodayCount,
-    availableCouriersCount: 0,
+    availableCouriersCount,
+    awaitingDispatchCount,
     registeredCustomersCount: customers.length,
-    couriersModuleReady: false,
+    configuredRegionsCount: regions.length,
+    activeRegionsCount,
+    suspendedRegionsCount,
+    couriersModuleReady: true,
     customersModuleReady: true,
+    dispatchModuleReady: true,
+    regionsModuleReady: true,
     recentDeliveryOrders,
     totalDeliveryOrdersCount: deliveryOrders.length,
     pickupOrdersExcludedCount,

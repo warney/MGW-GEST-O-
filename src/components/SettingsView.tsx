@@ -31,6 +31,7 @@ interface SettingsViewProps {
   onUpdateCombo: (comboId: string, input: ComboInput) => Promise<void>;
   onSeedCatalog: () => Promise<void>;
   onPreviewPublicMenu?: (slug: string) => void;
+  onOpenDeliveryRegions?: () => void;
   initialTab?: 'shop' | 'catalog' | 'digital_menu';
   hideNavigationTabs?: boolean;
   onTabChange?: (tab: 'shop' | 'catalog' | 'digital_menu') => void;
@@ -67,6 +68,7 @@ export function SettingsView({
   onUpdateCombo,
   onSeedCatalog,
   onPreviewPublicMenu,
+  onOpenDeliveryRegions,
   initialTab = 'shop',
   hideNavigationTabs = false,
   onTabChange,
@@ -253,6 +255,7 @@ export function SettingsView({
           activeCombosCount={combos.filter((c) => c.active).length}
           onSave={onSaveDigitalMenuSettings}
           onPreviewPublicMenu={onPreviewPublicMenu}
+          onOpenDeliveryRegions={onOpenDeliveryRegions}
         />
       ) : activeTab === 'shop' && canManageShopSettings ? (
         <div className="space-y-5">

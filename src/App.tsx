@@ -15,32 +15,48 @@ import {
   addExpense,
   addProduct,
   addSale,
+  advanceDeliveryDispatchStatus,
+  assignDeliveryCourier,
+  cancelDeliveryDispatch,
   completeTenantOnboarding,
+  createDeliveryCourier,
   createDeliveryCustomer,
+  createDeliveryRegion,
   type DataExecutionContext,
+  deleteDeliveryCourier,
   deleteDeliveryCustomerAddress,
+  deleteDeliveryRegion,
   deleteExpense,
   deleteSale,
   loginWithEmailPassword,
   loginWithGoogle,
   logoutSession,
   markOnlineOrderViewed,
+  reassignDeliveryCourier,
   requestPasswordReset,
+  respondDeliveryDispatch,
   updateAccountPassword,
   registerWithEmailPassword,
   registerPartnerWithEmailPassword,
   type PartnerAuthProfile,
   saveCustomerClassificationConfig,
   saveDeliveryCustomerAddress,
+  saveDeliveryPricingSettings,
   saveDigitalMenuSettings,
   saveSettings,
   seedDefaultCatalog,
   setPrimaryDeliveryCustomerAddress,
   subscribeAllTenantData,
   subscribeAuthSession,
+  toggleDeliveryRegionStatus,
+  toggleDeliveryRegionSuspension,
   transitionOnlineOrderStatus,
   updateCombo,
+  updateDeliveryCourier,
+  updateDeliveryCourierAvailability,
+  updateDeliveryCourierStatus,
   updateDeliveryCustomer,
+  updateDeliveryRegion,
   updateExpense,
   updateProduct,
   updateSale,
@@ -51,11 +67,21 @@ import {
   type AuthSessionUser,
   type ComboInput,
   type ComboRecord,
+  type DeliveryCourierInput,
+  type DeliveryCourierRecord,
   type DeliveryCustomerAddressInput,
   type DeliveryCustomerAddressRecord,
   type DeliveryCustomerClassificationConfig,
   type DeliveryCustomerInput,
   type DeliveryCustomerRecord,
+  type DeliveryDispatchHistoryRecord,
+  type DeliveryDispatchRecord,
+  type DeliveryDispatchStatus,
+  type DeliveryPricingSettings,
+  type DeliveryPricingSettingsInput,
+  type DeliveryRegionInput,
+  type DeliveryRegionRecord,
+  type DeliveryRegionStatus,
   DEFAULT_SHOP_SETTINGS,
   type DigitalMenuSettings,
   type DigitalMenuSettingsInput,
@@ -72,6 +98,8 @@ import {
   type WorkspaceAccess,
 } from './types/finance';
 import { DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG } from './utils/deliveryCustomers';
+import { DISPATCH_STATUS_LABELS } from './utils/deliveryDispatch';
+import { DEFAULT_DELIVERY_PRICING_SETTINGS } from './utils/deliveryRegions';
 import {
   formatCurrencyBRL,
   isLikelyDuplicateExpense,
@@ -102,8 +130,11 @@ import {
   unlockAlertAudio,
 } from './utils/soundAlert';
 import { DashboardView } from './components/DashboardView';
+import { DeliveryCouriersView } from './components/DeliveryCouriersView';
 import { DeliveryCustomersView } from './components/DeliveryCustomersView';
 import { DeliveryDashboardView } from './components/DeliveryDashboardView';
+import { DeliveryDispatchView } from './components/DeliveryDispatchView';
+import { DeliveryRegionsView } from './components/DeliveryRegionsView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { ExpensesView } from './components/ExpensesView';
 import { LoginScreen } from './components/LoginScreen';
@@ -254,6 +285,17 @@ export default function App() {
   const [deliveryCustomerAddresses, setDeliveryCustomerAddresses] = useState<
     DeliveryCustomerAddressRecord[]
   >([]);
+  const [deliveryCouriers, setDeliveryCouriers] = useState<DeliveryCourierRecord[]>([]);
+  const [deliveryDispatches, setDeliveryDispatches] = useState<DeliveryDispatchRecord[]>([]);
+  const [deliveryDispatchHistory, setDeliveryDispatchHistory] = useState<
+    DeliveryDispatchHistoryRecord[]
+  >([]);
+  const [deliveryRegions, setDeliveryRegions] = useState<DeliveryRegionRecord[]>([]);
+  const [deliveryPricingSettings, setDeliveryPricingSettings] =
+    useState<DeliveryPricingSettings>({
+      tenantId: '',
+      ...DEFAULT_DELIVERY_PRICING_SETTINGS,
+    });
   const [customerClassificationConfig, setCustomerClassificationConfig] =
     useState<DeliveryCustomerClassificationConfig>(
       DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
@@ -645,6 +687,14 @@ export default function App() {
       setOnlineOrders([]);
       setDeliveryCustomers([]);
       setDeliveryCustomerAddresses([]);
+      setDeliveryCouriers([]);
+      setDeliveryDispatches([]);
+      setDeliveryDispatchHistory([]);
+      setDeliveryRegions([]);
+      setDeliveryPricingSettings({
+        tenantId: '',
+        ...DEFAULT_DELIVERY_PRICING_SETTINGS,
+      });
       setCustomerClassificationConfig(DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG);
       setSettings({ ownerId: '', ...DEFAULT_SHOP_SETTINGS });
       setDigitalMenuSettings({
@@ -671,6 +721,14 @@ export default function App() {
       setOnlineOrders([]);
       setDeliveryCustomers([]);
       setDeliveryCustomerAddresses([]);
+      setDeliveryCouriers([]);
+      setDeliveryDispatches([]);
+      setDeliveryDispatchHistory([]);
+      setDeliveryRegions([]);
+      setDeliveryPricingSettings({
+        tenantId: dataContext.tenant.tenantId,
+        ...DEFAULT_DELIVERY_PRICING_SETTINGS,
+      });
       setCustomerClassificationConfig(DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG);
       setSettings({
         ownerId: dataContext.user.uid,
@@ -699,6 +757,11 @@ export default function App() {
       onOnlineOrders: setOnlineOrders,
       onDeliveryCustomers: setDeliveryCustomers,
       onDeliveryCustomerAddresses: setDeliveryCustomerAddresses,
+      onDeliveryCouriers: setDeliveryCouriers,
+      onDeliveryDispatches: setDeliveryDispatches,
+      onDeliveryDispatchHistory: setDeliveryDispatchHistory,
+      onDeliveryRegions: setDeliveryRegions,
+      onDeliveryPricingSettings: setDeliveryPricingSettings,
       onCustomerClassificationConfig: setCustomerClassificationConfig,
       onReady: () => {
         setDataLoading(false);
@@ -1181,6 +1244,203 @@ export default function App() {
     showToast('Critérios de classificação atualizados.');
   }
 
+  async function handleCreateDeliveryCourier(
+    input: DeliveryCourierInput,
+  ): Promise<string> {
+    if (!dataContext) return '';
+    const id = await createDeliveryCourier(dataContext, input);
+    showToast('Entregador cadastrado com sucesso.');
+    return id;
+  }
+
+  async function handleUpdateDeliveryCourier(
+    courierId: string,
+    input: DeliveryCourierInput,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await updateDeliveryCourier(dataContext, courierId, input);
+    showToast('Cadastro do entregador atualizado.');
+  }
+
+  async function handleToggleDeliveryCourierStatus(
+    courier: DeliveryCourierRecord,
+  ): Promise<void> {
+    if (!dataContext) return;
+    const nextStatus = courier.status === 'active' ? 'inactive' : 'active';
+    await updateDeliveryCourierStatus(dataContext, courier.id, nextStatus);
+    showToast(
+      nextStatus === 'active'
+        ? `${courier.name} ativado na equipe.`
+        : `${courier.name} desativado.`,
+    );
+  }
+
+  async function handleToggleDeliveryCourierAvailability(
+    courier: DeliveryCourierRecord,
+  ): Promise<void> {
+    if (!dataContext) return;
+    const nextAvailability =
+      courier.availabilityStatus === 'available' ? 'unavailable' : 'available';
+    await updateDeliveryCourierAvailability(
+      dataContext,
+      courier.id,
+      nextAvailability,
+    );
+    showToast(
+      nextAvailability === 'available'
+        ? `${courier.name} marcado como disponível.`
+        : `${courier.name} marcado como indisponível.`,
+    );
+  }
+
+  async function handleDeleteDeliveryCourier(
+    courier: DeliveryCourierRecord,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await deleteDeliveryCourier(dataContext, courier.id);
+    showToast('Cadastro do entregador removido.');
+  }
+
+  async function handleAssignDeliveryCourier(
+    orderId: string,
+    courierId: string,
+    notes: string,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await assignDeliveryCourier(dataContext, orderId, courierId, notes);
+    const assignedCourier = deliveryCouriers.find((c) => c.id === courierId);
+    const assignedOrder = onlineOrders.find((o) => o.id === orderId);
+    vibrateMobileDevice();
+    if (
+      pushEnabled &&
+      getBrowserNotificationPermission() === 'granted' &&
+      assignedCourier &&
+      assignedOrder
+    ) {
+      void sendMobileSystemNotification({
+        title: `Despacho · ${formatOrderNumber(assignedOrder.orderNumber)}`,
+        body: `Entrega enviada para ${assignedCourier.name}. Aguardando aceite.`,
+        tag: `mgw-dispatch-${orderId}`,
+        orderId,
+      });
+    }
+    showToast(
+      assignedCourier
+        ? `Entregador ${assignedCourier.name} atribuído! Entrega aguardando aceite.`
+        : 'Entregador atribuído! Entrega aguardando aceite.',
+    );
+  }
+
+  async function handleReassignDeliveryCourier(
+    dispatchId: string,
+    newCourierId: string,
+    reason: string,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await reassignDeliveryCourier(dataContext, dispatchId, newCourierId, reason);
+    const nextCourier = deliveryCouriers.find((c) => c.id === newCourierId);
+    showToast(
+      nextCourier
+        ? `Entrega reatribuída para ${nextCourier.name}.`
+        : 'Entrega reatribuída para o novo entregador.',
+    );
+  }
+
+  async function handleCancelDeliveryDispatch(
+    dispatchId: string,
+    reason: string,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await cancelDeliveryDispatch(dataContext, dispatchId, reason);
+    showToast('Envio cancelado e pedido retornado para a fila de despacho.');
+  }
+
+  async function handleRespondDeliveryDispatch(
+    dispatchId: string,
+    decision: 'accept' | 'reject',
+    reason: string,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await respondDeliveryDispatch(dataContext, dispatchId, decision, reason);
+    showToast(
+      decision === 'accept'
+        ? 'Aceite do entregador registrado.'
+        : 'Recusa registrada; pedido retornou à fila de despacho.',
+    );
+  }
+
+  async function handleAdvanceDeliveryDispatchStatus(
+    dispatchId: string,
+    nextStatus: DeliveryDispatchStatus,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await advanceDeliveryDispatchStatus(dataContext, dispatchId, nextStatus);
+    showToast(
+      `Status da entrega atualizado para "${DISPATCH_STATUS_LABELS[nextStatus]}".`,
+    );
+  }
+
+  async function handleCreateDeliveryRegion(
+    input: DeliveryRegionInput,
+  ): Promise<string> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    const regionId = await createDeliveryRegion(dataContext, input);
+    showToast(`Região "${input.name}" cadastrada com sucesso.`);
+    return regionId;
+  }
+
+  async function handleUpdateDeliveryRegion(
+    regionId: string,
+    input: DeliveryRegionInput,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await updateDeliveryRegion(dataContext, regionId, input);
+    showToast(`Região "${input.name}" atualizada.`);
+  }
+
+  async function handleToggleDeliveryRegionStatus(
+    region: DeliveryRegionRecord,
+    status: DeliveryRegionStatus,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await toggleDeliveryRegionStatus(dataContext, region.id, status);
+    showToast(
+      status === 'active'
+        ? `Região "${region.name}" ativada.`
+        : `Região "${region.name}" desativada.`,
+    );
+  }
+
+  async function handleToggleDeliveryRegionSuspension(
+    region: DeliveryRegionRecord,
+    suspended: boolean,
+    reason?: string,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await toggleDeliveryRegionSuspension(dataContext, region.id, suspended, reason);
+    showToast(
+      suspended
+        ? `Entregas na região "${region.name}" suspensas temporariamente.`
+        : `Entregas na região "${region.name}" retomadas.`,
+    );
+  }
+
+  async function handleDeleteDeliveryRegion(
+    region: DeliveryRegionRecord,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await deleteDeliveryRegion(dataContext, region.id);
+    showToast(`Região "${region.name}" excluída.`);
+  }
+
+  async function handleSaveDeliveryPricingSettings(
+    input: DeliveryPricingSettingsInput,
+  ): Promise<void> {
+    if (!dataContext) return;
+    await saveDeliveryPricingSettings(dataContext, input);
+    showToast('Regras gerais de entrega salvas com sucesso.');
+  }
+
   if (publicRoute.kind === 'menu') {
     return (
       <PublicMenuView
@@ -1217,9 +1477,12 @@ export default function App() {
   const callbackPending =
     typeof window !== 'undefined' &&
     hasAuthCallbackParams(window.location.search, window.location.hash);
+  const initialSearchRoute =
+    typeof window !== 'undefined'
+      ? resolveInitialRouteFromSearch(window.location.search)
+      : 'dashboard';
   const viewOrdersRequested =
-    typeof window !== 'undefined' &&
-    resolveInitialRouteFromSearch(window.location.search) === 'orders';
+    initialSearchRoute === 'orders' || initialSearchRoute === 'delivery_dispatch';
 
   if (publicRoute.kind === 'landing' && !demoActive && !callbackPending && !viewOrdersRequested) {
     if (!authReady) {
@@ -1376,7 +1639,10 @@ export default function App() {
   if (canReadSales) visibleRouteIds.push('orders');
   if (canAccessDelivery) {
     visibleRouteIds.push('delivery');
+    visibleRouteIds.push('delivery_dispatch');
     visibleRouteIds.push('delivery_customers');
+    visibleRouteIds.push('delivery_couriers');
+    visibleRouteIds.push('delivery_regions');
   }
   if (canReadSales || canCreateSales) visibleRouteIds.push('sales');
   if (canReadExpenses) visibleRouteIds.push('expenses');
@@ -1554,7 +1820,10 @@ export default function App() {
       effectiveRoute !== 'dashboard' &&
       effectiveRoute !== 'orders' &&
       effectiveRoute !== 'delivery' &&
+      effectiveRoute !== 'delivery_dispatch' &&
       effectiveRoute !== 'delivery_customers' &&
+      effectiveRoute !== 'delivery_couriers' &&
+      effectiveRoute !== 'delivery_regions' &&
       effectiveRoute !== 'sales' &&
       effectiveRoute !== 'expenses' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -1635,6 +1904,9 @@ export default function App() {
               }
               orders={onlineOrders}
               customers={deliveryCustomers}
+              couriers={deliveryCouriers}
+              dispatches={deliveryDispatches}
+              regions={deliveryRegions}
               digitalMenuSettings={digitalMenuSettings}
               isLoading={dataLoading}
               errorMessage={dataError}
@@ -1645,11 +1917,43 @@ export default function App() {
                 if (canReadSales) setRoute('orders');
               }}
               onOpenCustomers={() => setRoute('delivery_customers')}
+              onOpenCouriers={() => setRoute('delivery_couriers')}
+              onOpenDispatch={() => setRoute('delivery_dispatch')}
+              onOpenRegions={() => setRoute('delivery_regions')}
               onOpenDigitalMenuSettings={() => {
                 if (!canWriteSettings) return;
                 setSettingsInitialTab('digital_menu');
                 setRoute('settings');
               }}
+            />
+          )}
+
+          {effectiveRoute === 'delivery_dispatch' && canAccessDelivery && (
+            <DeliveryDispatchView
+              establishmentName={
+                digitalMenuSettings.storeName ||
+                settings.establishmentName ||
+                activeTenant.name
+              }
+              orders={onlineOrders}
+              couriers={deliveryCouriers}
+              dispatches={deliveryDispatches}
+              dispatchHistory={deliveryDispatchHistory}
+              digitalMenuSettings={digitalMenuSettings}
+              operatorEmail={user.email}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              canOpenOrders={canReadSales}
+              onRefresh={handleRefreshOrders}
+              onOpenOrders={() => {
+                if (canReadSales) setRoute('orders');
+              }}
+              onOpenCouriers={() => setRoute('delivery_couriers')}
+              onAssignCourier={handleAssignDeliveryCourier}
+              onReassignCourier={handleReassignDeliveryCourier}
+              onCancelDispatch={handleCancelDeliveryDispatch}
+              onRespondDispatch={handleRespondDeliveryDispatch}
+              onAdvanceDispatchStatus={handleAdvanceDeliveryDispatchStatus}
             />
           )}
 
@@ -1676,6 +1980,49 @@ export default function App() {
               onSaveClassificationConfig={handleSaveCustomerClassificationConfig}
               onMarkOrderViewed={handleMarkOnlineOrderViewed}
               onTransitionOrderStatus={handleTransitionOnlineOrderStatus}
+            />
+          )}
+
+          {effectiveRoute === 'delivery_couriers' && canAccessDelivery && (
+            <DeliveryCouriersView
+              establishmentName={
+                digitalMenuSettings.storeName ||
+                settings.establishmentName ||
+                activeTenant.name
+              }
+              couriers={deliveryCouriers}
+              dispatches={deliveryDispatches}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              onRefresh={handleRefreshOrders}
+              onCreateCourier={handleCreateDeliveryCourier}
+              onUpdateCourier={handleUpdateDeliveryCourier}
+              onToggleCourierStatus={handleToggleDeliveryCourierStatus}
+              onToggleCourierAvailability={handleToggleDeliveryCourierAvailability}
+              onDeleteCourier={handleDeleteDeliveryCourier}
+            />
+          )}
+
+          {effectiveRoute === 'delivery_regions' && canAccessDelivery && (
+            <DeliveryRegionsView
+              establishmentName={
+                digitalMenuSettings.storeName ||
+                settings.establishmentName ||
+                activeTenant.name
+              }
+              regions={deliveryRegions}
+              pricingSettings={deliveryPricingSettings}
+              orders={onlineOrders}
+              digitalMenuSettings={digitalMenuSettings}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              onRefresh={handleRefreshOrders}
+              onCreateRegion={handleCreateDeliveryRegion}
+              onUpdateRegion={handleUpdateDeliveryRegion}
+              onToggleRegionStatus={handleToggleDeliveryRegionStatus}
+              onToggleRegionSuspension={handleToggleDeliveryRegionSuspension}
+              onDeleteRegion={handleDeleteDeliveryRegion}
+              onSavePricingSettings={handleSaveDeliveryPricingSettings}
             />
           )}
 
@@ -1759,6 +2106,9 @@ export default function App() {
               onSeedCatalog={handleSeedCatalog}
               onPreviewPublicMenu={(slug) =>
                 navigatePublicPath(slug ? `/cardapio/${slug}` : '/cardapio')
+              }
+              onOpenDeliveryRegions={
+                canAccessDelivery ? () => setRoute('delivery_regions') : undefined
               }
             />
           )}

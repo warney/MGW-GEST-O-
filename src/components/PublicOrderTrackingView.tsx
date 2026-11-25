@@ -37,6 +37,7 @@ import type {
   PublicOrderTrackingRecord,
 } from '../types/finance';
 import { formatCurrencyBRL } from '../utils/finance';
+import { formatDeliveryFeeRuleLabel } from '../utils/deliveryRegions';
 import { getStoreMonogram } from '../utils/menuPresentation';
 import {
   buildWhatsappUrl,
@@ -895,13 +896,24 @@ export function PublicOrderTrackingView({
             <div className="flex items-center justify-between gap-2 text-[#D1D5DB]">
               <div className="flex items-center gap-2 min-w-0">
                 <Truck className="w-4 h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
-                <span>
-                  {order.fulfillmentType === 'delivery'
-                    ? 'Taxa de entrega'
-                    : 'Retirada no balcão'}
-                </span>
+                <div className="min-w-0">
+                  <span>
+                    {order.fulfillmentType === 'delivery'
+                      ? 'Taxa de entrega'
+                      : 'Retirada no balcão'}
+                  </span>
+                  {order.fulfillmentType === 'delivery' &&
+                    (order.deliveryFeeRule || order.deliveryFreeApplied) && (
+                      <span className="block text-[11px] text-[#9CA3AF] truncate">
+                        {formatDeliveryFeeRuleLabel(
+                          order.deliveryFeeRule,
+                          order.deliveryFreeApplied,
+                        )}
+                      </span>
+                    )}
+                </div>
               </div>
-              <span className="font-mono tabular-nums font-semibold text-white">
+              <span className="font-mono tabular-nums font-semibold text-white shrink-0">
                 {order.deliveryFee <= 0
                   ? 'Grátis'
                   : formatCurrencyBRL(order.deliveryFee)}
@@ -933,6 +945,20 @@ export function PublicOrderTrackingView({
                     <p className="font-semibold text-white leading-snug">
                       {order.deliveryAddress}
                     </p>
+                    {(order.deliveryNeighborhood ||
+                      order.deliveryCity ||
+                      order.deliveryRegionName) && (
+                      <p className="text-[#D1D5DB]">
+                        {[
+                          order.deliveryNeighborhood
+                            ? `Bairro ${order.deliveryNeighborhood}`
+                            : order.deliveryRegionName,
+                          order.deliveryCity,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    )}
                     {order.deliveryReference && (
                       <p className="text-[#A0A8B8]">
                         Referência / Complemento: {order.deliveryReference}

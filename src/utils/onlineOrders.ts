@@ -1,5 +1,6 @@
 import type {
   CreatePublicOrderPayload,
+  DeliveryCoverageResolution,
   DigitalMenuSettingsInput,
   OnlineOrderCartItem,
   OnlineOrderFulfillment,
@@ -300,6 +301,7 @@ export function computeCartSummary(
   combos: PublicCatalogCombo[],
   menuSettings: Pick<DigitalMenuSettingsInput, 'deliveryFee' | 'minimumOrderAmount'>,
   fulfillmentType: OnlineOrderFulfillment,
+  coverageResolution?: DeliveryCoverageResolution | null,
 ): ComputedCartSummary {
   const productMap = new Map(products.map((p) => [p.id, p]));
   const comboMap = new Map(combos.map((c) => [c.id, c]));
@@ -375,12 +377,19 @@ export function computeCartSummary(
     }
   }
 
+  const effectiveDeliveryFee = coverageResolution
+    ? coverageResolution.appliedDeliveryFee
+    : menuSettings.deliveryFee;
+  const effectiveMinOrder = coverageResolution
+    ? coverageResolution.minimumOrderAmount
+    : menuSettings.minimumOrderAmount;
+
   const deliveryFee =
     fulfillmentType === 'delivery' && lines.length > 0
-      ? roundCurrency(Math.max(0, menuSettings.deliveryFee))
+      ? roundCurrency(Math.max(0, effectiveDeliveryFee))
       : 0;
   const totalAmount = roundCurrency(subtotal + deliveryFee);
-  const minimumOrderAmount = roundCurrency(Math.max(0, menuSettings.minimumOrderAmount));
+  const minimumOrderAmount = roundCurrency(Math.max(0, effectiveMinOrder));
   const belowMinimum = minimumOrderAmount > 0 && subtotal < minimumOrderAmount;
   const missingForMinimum = belowMinimum
     ? roundCurrency(minimumOrderAmount - subtotal)
@@ -403,12 +412,25 @@ export function validateCheckoutPayload(
   payload: Omit<CreatePublicOrderPayload, 'items'>,
   cartSummary: ComputedCartSummary,
   menuSettings: DigitalMenuSettingsInput,
+  coverageResolution?: DeliveryCoverageResolution | null,
 ): { valid: boolean; error?: string } {
   if (!menuSettings.isActive) {
     return { valid: false, error: 'O cardápio digital está desativado no momento.' };
   }
   if (!menuSettings.isOpen) {
     return { valid: false, error: 'A lanchonete está fechada no momento para novos pedidos.' };
+  }
+  if (
+    payload.fulfillmentType === 'delivery' &&
+    coverageResolution &&
+    !coverageResolution.available
+  ) {
+    return {
+      valid: false,
+      error:
+        coverageResolution.message ||
+        'Não realizamos entregas para o endereço ou horário selecionado.',
+    };
   }
   if (cartSummary.missingItems.length > 0) {
     return {

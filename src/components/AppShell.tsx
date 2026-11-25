@@ -2,17 +2,20 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   BarChart3,
   Bell,
+  Bike,
   Building2,
   ChevronDown,
   ClipboardList,
   Globe,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Menu,
   Motorbike,
   Package,
   Plus,
   Receipt,
+  Send,
   Settings,
   ShoppingBag,
   Store,
@@ -257,6 +260,30 @@ export function AppShell({
         mobileLabel: 'Clientes',
         icon: Users,
       });
+      items.push({
+        id: 'delivery_couriers',
+        route: 'delivery_couriers',
+        section: 'delivery',
+        label: 'Entregadores',
+        mobileLabel: 'Motoboys',
+        icon: Bike,
+      });
+      items.push({
+        id: 'delivery_dispatch',
+        route: 'delivery_dispatch',
+        section: 'delivery',
+        label: 'Central de despacho',
+        mobileLabel: 'Despacho',
+        icon: Send,
+      });
+      items.push({
+        id: 'delivery_regions',
+        route: 'delivery_regions',
+        section: 'delivery',
+        label: 'Regiões e taxas',
+        mobileLabel: 'Regiões',
+        icon: MapPin,
+      });
     }
     if (canWriteCatalog) {
       items.push({
@@ -326,7 +353,10 @@ export function AppShell({
             item.id !== 'products' &&
             item.id !== 'digital_menu' &&
             item.id !== 'delivery' &&
-            item.id !== 'delivery_customers',
+            item.id !== 'delivery_customers' &&
+            item.id !== 'delivery_couriers' &&
+            item.id !== 'delivery_dispatch' &&
+            item.id !== 'delivery_regions',
         )
         .slice(0, 6),
     [sidebarItems],

@@ -12,6 +12,9 @@ export interface StoredCustomerProfile {
   fulfillmentType: OnlineOrderFulfillment;
   deliveryAddress: string;
   deliveryReference: string;
+  deliveryNeighborhood?: string;
+  deliveryCity?: string;
+  deliveryRegionId?: string;
   paymentMethod: OnlineOrderPaymentMethod;
 }
 
@@ -131,6 +134,15 @@ export function parseStoredCustomerProfile(
     if (typeof obj.deliveryReference === 'string') {
       result.deliveryReference = obj.deliveryReference.slice(0, 140);
     }
+    if (typeof obj.deliveryNeighborhood === 'string') {
+      result.deliveryNeighborhood = obj.deliveryNeighborhood.slice(0, 100);
+    }
+    if (typeof obj.deliveryCity === 'string') {
+      result.deliveryCity = obj.deliveryCity.slice(0, 100);
+    }
+    if (typeof obj.deliveryRegionId === 'string') {
+      result.deliveryRegionId = obj.deliveryRegionId.slice(0, 80);
+    }
     if (
       obj.paymentMethod === 'Pix' ||
       obj.paymentMethod === 'Dinheiro' ||
@@ -154,6 +166,9 @@ export function serializeStoredCustomerProfile(
     fulfillmentType: profile.fulfillmentType,
     deliveryAddress: profile.deliveryAddress.trim().slice(0, 200),
     deliveryReference: profile.deliveryReference.trim().slice(0, 140),
+    deliveryNeighborhood: (profile.deliveryNeighborhood || '').trim().slice(0, 100),
+    deliveryCity: (profile.deliveryCity || '').trim().slice(0, 100),
+    deliveryRegionId: (profile.deliveryRegionId || '').trim().slice(0, 80),
     paymentMethod: profile.paymentMethod,
   });
 }

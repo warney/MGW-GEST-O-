@@ -148,6 +148,9 @@ export type AppRoute =
   | 'orders'
   | 'delivery'
   | 'delivery_customers'
+  | 'delivery_couriers'
+  | 'delivery_dispatch'
+  | 'delivery_regions'
   | 'sales'
   | 'expenses'
   | 'reports'
@@ -218,9 +221,11 @@ export interface PublicCatalogCombo {
 
 export interface PublicDigitalMenuPayload {
   found: boolean;
-  store: DigitalMenuSettingsInput | null;
+  store: (DigitalMenuSettingsInput & { timezone?: string }) | null;
   products: PublicCatalogProduct[];
   combos: PublicCatalogCombo[];
+  deliveryPricing?: PublicDeliveryPricingSettings | null;
+  deliveryRegions?: PublicDeliveryRegion[];
 }
 
 export interface OnlineOrderCartItem {
@@ -238,6 +243,9 @@ export interface CreatePublicOrderPayload {
   fulfillmentType: OnlineOrderFulfillment;
   deliveryAddress: string;
   deliveryReference: string;
+  deliveryNeighborhood?: string;
+  deliveryCity?: string;
+  deliveryRegionId?: string | null;
   paymentMethod: OnlineOrderPaymentMethod;
   changeFor: number | null;
   customerNote: string;
@@ -254,6 +262,11 @@ export interface CreatePublicOrderResponse {
   subtotalAmount: number;
   deliveryFee: number;
   totalAmount: number;
+  deliveryRegionName?: string;
+  deliveryNeighborhood?: string;
+  deliveryCity?: string;
+  deliveryFeeRule?: DeliveryFeeRuleApplied;
+  deliveryFreeApplied?: boolean;
 }
 
 export interface OnlineOrderItemSnapshot {
@@ -293,6 +306,15 @@ export interface OnlineOrderRecord {
   customerPhone: string;
   deliveryAddress: string;
   deliveryReference: string;
+  deliveryRegionId?: string | null;
+  deliveryRegionName?: string;
+  deliveryNeighborhood?: string;
+  deliveryCity?: string;
+  deliveryBaseFee?: number;
+  deliveryFeeRule?: DeliveryFeeRuleApplied;
+  deliveryMinimumOrderApplied?: number;
+  deliveryFreeApplied?: boolean;
+  deliveryFreeThresholdApplied?: number;
   paymentMethod: OnlineOrderPaymentMethod;
   changeFor: number | null;
   customerNote: string;
@@ -324,6 +346,14 @@ export interface PublicOrderTrackingRecord {
   customerName: string;
   deliveryAddress: string;
   deliveryReference: string;
+  deliveryRegionName?: string;
+  deliveryNeighborhood?: string;
+  deliveryCity?: string;
+  deliveryBaseFee?: number;
+  deliveryFeeRule?: DeliveryFeeRuleApplied;
+  deliveryMinimumOrderApplied?: number;
+  deliveryFreeApplied?: boolean;
+  deliveryFreeThresholdApplied?: number;
   paymentMethod: OnlineOrderPaymentMethod;
   changeFor: number | null;
   customerNote: string;
@@ -667,4 +697,230 @@ export interface DeliveryCustomerWithMetrics {
   lastOrderAtMs: number | null;
   classification: DeliveryCustomerClassification;
 }
+
+// ==================== MGW DELIVERY — ENTREGADORES (MOTOBOYS) ====================
+
+export type DeliveryCourierStatus = 'active' | 'inactive';
+
+export type DeliveryCourierAvailability = 'available' | 'unavailable';
+
+export type DeliveryCourierType = 'own' | 'outsourced';
+
+export type CourierOperationalAvailability =
+  | 'available'
+  | 'occupied'
+  | 'unavailable';
+
+export interface DeliveryCourierRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  phone: string;
+  normalizedPhone: string;
+  whatsapp: string;
+  normalizedWhatsapp: string;
+  cpf: string;
+  email: string;
+  motorcycleBrand: string;
+  motorcycleModel: string;
+  motorcycleColor: string;
+  motorcyclePlate: string;
+  courierType: DeliveryCourierType;
+  status: DeliveryCourierStatus;
+  availabilityStatus: DeliveryCourierAvailability;
+  notes: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface DeliveryCourierInput {
+  name: string;
+  phone: string;
+  whatsapp?: string;
+  cpf?: string;
+  email?: string;
+  motorcycleBrand?: string;
+  motorcycleModel?: string;
+  motorcycleColor?: string;
+  motorcyclePlate?: string;
+  courierType?: DeliveryCourierType;
+  status?: DeliveryCourierStatus;
+  availabilityStatus?: DeliveryCourierAvailability;
+  notes?: string;
+}
+
+// ==================== MGW DELIVERY — CENTRAL DE DESPACHO ====================
+
+export type DeliveryDispatchStatus =
+  | 'awaiting_dispatch'
+  | 'courier_assigned'
+  | 'awaiting_acceptance'
+  | 'delivery_accepted'
+  | 'preparing'
+  | 'ready_for_dispatch'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'delivery_rejected'
+  | 'delivery_cancelled';
+
+export type DeliveryDispatchActorType = 'admin' | 'courier' | 'system';
+
+export interface DeliveryDispatchHistoryRecord {
+  id: string;
+  tenantId: string;
+  dispatchId: string;
+  orderId: string;
+  courierId: string | null;
+  courierName: string;
+  fromStatus: DeliveryDispatchStatus | null;
+  toStatus: DeliveryDispatchStatus;
+  actorUserId: string | null;
+  actorEmail: string;
+  actorType: DeliveryDispatchActorType;
+  reason: string;
+  createdAtMs: number;
+}
+
+export interface DeliveryDispatchRecord {
+  id: string;
+  tenantId: string;
+  orderId: string;
+  courierId: string;
+  dispatchStatus: DeliveryDispatchStatus;
+  courierNameSnapshot: string;
+  courierPhoneSnapshot: string;
+  courierTypeSnapshot: DeliveryCourierType;
+  assignedByUserId: string | null;
+  assignedByEmail: string;
+  assignedAtMs: number;
+  acceptedAtMs: number | null;
+  dispatchedAtMs: number | null;
+  deliveredAtMs: number | null;
+  rejectedAtMs: number | null;
+  cancelledAtMs: number | null;
+  rejectionReason: string;
+  cancellationReason: string;
+  notes: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+// ==================== MGW DELIVERY — REGIÕES E TAXAS DE ENTREGA ====================
+
+export type DeliveryRegionStatus = 'active' | 'inactive';
+
+export type DeliveryPricingMode = 'by_neighborhood' | 'by_region' | 'default_only';
+
+export type DeliveryFeeRuleApplied =
+  | 'neighborhood'
+  | 'region'
+  | 'default_fallback'
+  | 'store_default'
+  | 'pickup';
+
+export interface DeliveryRegionRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  city: string;
+  neighborhoods: string[];
+  description: string;
+  deliveryFee: number;
+  minimumOrderAmount: number;
+  estimatedTime: string;
+  status: DeliveryRegionStatus;
+  isTemporarilySuspended: boolean;
+  suspensionReason: string;
+  scheduleEnabled: boolean;
+  scheduleDays: number[]; // 0=Dom .. 6=Sáb
+  scheduleStart: string; // HH:MM
+  scheduleEnd: string; // HH:MM
+  notes: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface DeliveryRegionInput {
+  name: string;
+  city: string;
+  neighborhoods: string[];
+  description?: string;
+  deliveryFee: number;
+  minimumOrderAmount?: number;
+  estimatedTime?: string;
+  status?: DeliveryRegionStatus;
+  isTemporarilySuspended?: boolean;
+  suspensionReason?: string;
+  scheduleEnabled?: boolean;
+  scheduleDays?: number[];
+  scheduleStart?: string;
+  scheduleEnd?: string;
+  notes?: string;
+}
+
+export interface PublicDeliveryRegion {
+  id: string;
+  name: string;
+  city: string;
+  neighborhoods: string[];
+  description: string;
+  deliveryFee: number;
+  minimumOrderAmount: number;
+  estimatedTime: string;
+  status: DeliveryRegionStatus;
+  isTemporarilySuspended: boolean;
+  suspensionReason: string;
+  scheduleEnabled: boolean;
+  scheduleDays: number[];
+  scheduleStart: string;
+  scheduleEnd: string;
+}
+
+export interface DeliveryPricingSettings {
+  tenantId: string;
+  pricingMode: DeliveryPricingMode;
+  defaultFeeEnabled: boolean;
+  defaultDeliveryFee: number;
+  defaultMinimumOrderAmount: number;
+  defaultEstimatedTime: string;
+  freeDeliveryEnabled: boolean;
+  freeDeliveryMinAmount: number;
+  updatedAtMs?: number;
+}
+
+export type DeliveryPricingSettingsInput = Omit<
+  DeliveryPricingSettings,
+  'tenantId' | 'updatedAtMs'
+>;
+
+export type PublicDeliveryPricingSettings = DeliveryPricingSettingsInput;
+
+export interface DeliveryCoverageResolution {
+  available: boolean;
+  reasonCode:
+    | 'pickup'
+    | 'matched_region'
+    | 'default_fallback'
+    | 'store_default'
+    | 'missing_neighborhood'
+    | 'region_inactive'
+    | 'region_suspended'
+    | 'outside_schedule'
+    | 'outside_coverage';
+  message: string;
+  matchedRegion: PublicDeliveryRegion | null;
+  matchedNeighborhood: string;
+  matchedCity: string;
+  baseDeliveryFee: number;
+  appliedDeliveryFee: number;
+  minimumOrderAmount: number;
+  estimatedTime: string;
+  feeRule: DeliveryFeeRuleApplied;
+  freeDeliveryApplied: boolean;
+  freeDeliveryThreshold: number;
+  missingForFreeDelivery: number;
+}
+
+
+
 

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowUpRight,
   Check,
   Copy,
   ExternalLink,
   Globe,
   Loader2,
+  MapPin,
   Save,
   Store,
 } from 'lucide-react';
@@ -28,6 +30,7 @@ interface DigitalMenuSettingsPanelProps {
   activeCombosCount: number;
   onSave: (input: DigitalMenuSettingsInput) => Promise<void>;
   onPreviewPublicMenu?: (slug: string) => void;
+  onOpenDeliveryRegions?: () => void;
 }
 
 export function DigitalMenuSettingsPanel({
@@ -37,6 +40,7 @@ export function DigitalMenuSettingsPanel({
   activeCombosCount,
   onSave,
   onPreviewPublicMenu,
+  onOpenDeliveryRegions,
 }: DigitalMenuSettingsPanelProps) {
   const effectiveWorkspaceId = workspaceId || settings.tenantId || 'mgw_lanches';
   const [isActive, setIsActive] = useState(settings.isActive);
@@ -565,7 +569,7 @@ export function DigitalMenuSettingsPanel({
               htmlFor="dm-delivery-fee"
               className="block text-xs font-medium text-[#4B5563] mb-1.5"
             >
-              Taxa de entrega (R$)
+              Taxa base / fallback de entrega (R$)
             </label>
             <input
               id="dm-delivery-fee"
@@ -579,8 +583,8 @@ export function DigitalMenuSettingsPanel({
             />
             <p className="text-[11px] text-[#6B7280] mt-1 font-mono tabular-nums">
               {Number(deliveryFee || 0) <= 0
-                ? 'Entrega grátis'
-                : `Cobrado apenas em pedidos para Entrega (${formatCurrencyBRL(Number(deliveryFee) || 0)})`}
+                ? 'Entrega base grátis'
+                : `Valor base quando não houver regra específica por bairro (${formatCurrencyBRL(Number(deliveryFee) || 0)})`}
             </p>
           </div>
 
@@ -589,7 +593,7 @@ export function DigitalMenuSettingsPanel({
               htmlFor="dm-min-order"
               className="block text-xs font-medium text-[#4B5563] mb-1.5"
             >
-              Pedido mínimo (R$)
+              Pedido mínimo base (R$)
             </label>
             <input
               id="dm-min-order"
@@ -602,9 +606,32 @@ export function DigitalMenuSettingsPanel({
               className="w-full min-h-[44px] px-3.5 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB] focus:border-[#EAB308] focus:outline-none text-sm text-[#111827] font-mono tabular-nums"
             />
             <p className="text-[11px] text-[#6B7280] mt-1">
-              0 para não exigir valor mínimo em itens.
+              0 para não exigir valor mínimo base em itens.
             </p>
           </div>
+        </div>
+
+        <div className="rounded-xl bg-[#FFFBEB] border border-[#FDE68A] p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <MapPin className="w-4 h-4 text-[#B45309] shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="text-xs text-[#92400E] leading-relaxed">
+              <strong className="font-semibold text-[#172033]">
+                Taxas por região, bairros e entrega grátis:
+              </strong>{' '}
+              os campos acima funcionam como valores base / fallback. Quando houver regiões, bairros ou regra de entrega grátis configurados em{' '}
+              <strong>Regiões e taxas (MGW Delivery)</strong>, eles prevalecem automaticamente no Cardápio Digital.
+            </div>
+          </div>
+          {onOpenDeliveryRegions && (
+            <button
+              type="button"
+              onClick={onOpenDeliveryRegions}
+              className="min-h-[38px] px-3.5 rounded-xl bg-white border border-[#FDE68A] hover:bg-[#FEF3C7] text-xs font-semibold text-[#92400E] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-center"
+            >
+              <span>Gerenciar regiões e taxas</span>
+              <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          )}
         </div>
 
         {/* Fulfillment Options */}

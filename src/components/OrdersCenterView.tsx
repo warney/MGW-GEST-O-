@@ -1188,6 +1188,13 @@ export function OrdersCenterView({
                             {' · '}
                             {order.paymentMethod}
                           </p>
+                          {order.fulfillmentType === 'delivery' &&
+                            (order.deliveryNeighborhood || order.deliveryRegionName) && (
+                              <p className="text-[11px] text-[#8A6200] font-medium truncate">
+                                Bairro: {order.deliveryNeighborhood || order.deliveryRegionName}
+                                {order.deliveryCity ? ` · ${order.deliveryCity}` : ''}
+                              </p>
+                            )}
                         </td>
 
                         {/* Itens */}
@@ -1437,6 +1444,13 @@ export function OrdersCenterView({
                           ? 'Entrega'
                           : 'Retirada'}
                       </span>
+                      {order.fulfillmentType === 'delivery' &&
+                        (order.deliveryNeighborhood || order.deliveryRegionName) && (
+                          <span className="block text-[11px] font-medium text-[#8A6200] truncate mt-0.5">
+                            Bairro: {order.deliveryNeighborhood || order.deliveryRegionName}
+                            {order.deliveryCity ? ` · ${order.deliveryCity}` : ''}
+                          </span>
+                        )}
                     </div>
                     <span className="text-sm font-extrabold text-[#172033] font-mono tabular-nums shrink-0">
                       {formatCurrencyBRL(order.totalAmount)}
