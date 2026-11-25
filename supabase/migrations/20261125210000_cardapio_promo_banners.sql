@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.digital_menu_promo_banners (
   ),
   CONSTRAINT digital_menu_promo_banners_image_path_check CHECK (
     image_path = ''
-    OR image_path ~ ('^tenants/' || tenant_id::text || '/branding/promotions/[A-Za-z0-9_.-]{3,160}$')
+    OR image_path ~ ('^tenants/' || tenant_id::text || '/branding/banner/[A-Za-z0-9_.-]{3,160}$')
   ),
   CONSTRAINT digital_menu_promo_banners_tenant_sort_unique UNIQUE (tenant_id, sort_order)
 );
