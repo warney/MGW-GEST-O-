@@ -342,3 +342,181 @@
     border-radius: 14px;
   }
 }
+
+
+/* Product modules, trust, pricing and final conversion sections */
+.mgw-institutional #sistema {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 100% 0%,rgba(245,183,49,.08),transparent 28%),
+    #f7f8fa !important;
+}
+.mgw-institutional #sistema > div > div:first-child h2 {
+  max-width: 720px;
+  font-size: clamp(2rem,3.25vw,2.9rem) !important;
+}
+.mgw-institutional #sistema [role="tablist"] {
+  padding: .4rem;
+  border: 1px solid #e7eaf0;
+  border-radius: 16px;
+  background: rgba(255,255,255,.72);
+}
+.mgw-institutional #sistema [role="tab"] {
+  min-height: 44px;
+  border-radius: 11px;
+  transition: background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.mgw-institutional #sistema [role="tab"][aria-selected="true"] {
+  box-shadow: 0 5px 15px rgba(166,119,22,.13);
+}
+.mgw-institutional #sistema [role="tabpanel"],
+.mgw-institutional #sistema > div > div:nth-child(2) {
+  border-color: #e5e9f0 !important;
+  border-radius: 24px !important;
+  box-shadow: 0 18px 48px rgba(16,24,40,.055);
+}
+.mgw-institutional #sistema figure {
+  box-shadow: none !important;
+}
+.mgw-institutional #seguranca {
+  background: linear-gradient(180deg,#fff 0%,#f8f9fb 100%) !important;
+}
+.mgw-institutional #seguranca > div > div:first-child h2 {
+  font-size: clamp(2rem,3.2vw,2.8rem) !important;
+}
+.mgw-institutional #seguranca > div > div:last-child > div {
+  border-radius: 18px !important;
+  padding: 1.4rem !important;
+  box-shadow: 0 8px 24px rgba(16,24,40,.035);
+  transition: transform .2s ease,border-color .2s ease,box-shadow .2s ease;
+}
+.mgw-institutional #seguranca > div > div:last-child > div:hover {
+  transform: translateY(-3px);
+  border-color: #ead39c !important;
+  box-shadow: 0 14px 30px rgba(16,24,40,.06);
+}
+.mgw-institutional #preco {
+  background:
+    radial-gradient(ellipse at 50% 100%,rgba(245,183,49,.09),transparent 40%),
+    #fff !important;
+}
+.mgw-institutional #preco > div > div:first-child h2 {
+  font-size: clamp(2rem,3.4vw,3rem) !important;
+}
+.mgw-institutional #preco > div > div:nth-child(2) {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #ead39c !important;
+  border-radius: 26px !important;
+  box-shadow: 0 24px 64px rgba(16,24,40,.075) !important;
+}
+.mgw-institutional #preco > div > div:nth-child(2)::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: #f5b731;
+}
+.mgw-institutional #preco > div > div:nth-child(2) > div:first-child > p:first-child {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #fff7e5;
+  padding: .45rem .75rem;
+}
+.mgw-institutional #preco > div > div:nth-child(2) > div:first-child > div:nth-child(2) span:first-child {
+  color: #8b6100 !important;
+  letter-spacing: -.06em;
+}
+.mgw-institutional #preco > div > div:nth-child(2) li {
+  padding: .2rem 0;
+}
+.mgw-institutional #preco button:first-of-type {
+  min-height: 52px;
+}
+.mgw-institutional #duvidas {
+  background: #f7f8fa !important;
+}
+.mgw-institutional #duvidas > div > div:first-child h2 {
+  font-size: clamp(1.9rem,3vw,2.6rem) !important;
+}
+.mgw-institutional #duvidas button {
+  min-height: 60px;
+}
+.mgw-institutional #comece {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 0%,rgba(245,183,49,.16),transparent 55%),
+    linear-gradient(180deg,#fff 0%,#fffaf0 100%) !important;
+}
+.mgw-institutional #comece > div {
+  position: relative;
+  z-index: 1;
+  max-width: 880px;
+  padding-top: clamp(1rem,3vw,2.5rem);
+  padding-bottom: clamp(1rem,3vw,2.5rem);
+}
+.mgw-institutional #comece h2 {
+  max-width: 760px;
+  margin-inline: auto;
+  font-size: clamp(2.2rem,4.2vw,3.65rem) !important;
+  line-height: 1.06 !important;
+}
+.mgw-institutional #comece > div > p:nth-of-type(2) {
+  display: inline-flex;
+  padding: .7rem 1rem;
+  border: 1px solid #ead9ad;
+  border-radius: 999px;
+  background: rgba(255,255,255,.78);
+}
+.mgw-institutional #comece button:first-of-type {
+  min-height: 54px;
+  padding-inline: 2rem;
+  box-shadow: 0 10px 24px rgba(214,157,28,.22);
+}
+.mgw-institutional #comece button:first-of-type:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(214,157,28,.28);
+}
+.mgw-institutional footer {
+  padding-top: 3.5rem !important;
+  padding-bottom: 3.5rem !important;
+}
+.mgw-institutional footer a,.mgw-institutional footer button {
+  transition: color .18s ease;
+}
+@media(max-width:767px) {
+  .mgw-institutional #sistema [role="tablist"] {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding: .45rem;
+  }
+  .mgw-institutional #sistema [role="tab"] {
+    flex: 0 0 auto;
+  }
+  .mgw-institutional #sistema > div > div:nth-child(2) {
+    padding: 1.1rem !important;
+    border-radius: 20px !important;
+  }
+  .mgw-institutional #preco > div > div:nth-child(2) {
+    padding: 1.25rem !important;
+    border-radius: 22px !important;
+  }
+  .mgw-institutional #comece > div {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+  .mgw-institutional #comece > div > p:nth-of-type(2) {
+    border-radius: 14px;
+    justify-content: center;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .mgw-institutional #sistema [role="tab"],
+  .mgw-institutional #seguranca > div > div:last-child > div,
+  .mgw-institutional #comece button:first-of-type {
+    transition: none !important;
+  }
+}
