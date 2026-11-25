@@ -35,6 +35,7 @@ import {
   X,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
+import { PublicMenuPromoCarousel } from './DigitalMenuPromoBanners';
 import {
   createPublicOnlineOrder,
   fetchPublicDigitalMenu,
@@ -1964,6 +1965,14 @@ export function PublicMenuView({
                 </button>
               )}
             </div>
+
+            <PublicMenuPromoCarousel
+              slug={store.slug}
+              products={products}
+              combos={combos}
+              onSelectProduct={(product) => openItemInspector({ kind: 'product', product })}
+              onSelectCombo={(combo) => openItemInspector({ kind: 'combo', combo })}
+            />
 
             <div
               role="tablist"
