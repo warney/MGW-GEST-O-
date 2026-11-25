@@ -49,7 +49,8 @@ export function computeDeliveryReportMetrics(
   const finished = orders.filter(o => o.status === 'completed');
   const cancelled = orders.filter(o => isCancelled(o.status));
   const active = orders.filter(o => !['completed', 'cancelled', 'rejected'].includes(o.status));
-  const revenue = orders.reduce((sum, o) => sum + Math.max(0, Number(o.totalAmount) || 0), 0);
+  const validOrders = orders.filter(o => !isCancelled(o.status));
+  const revenue = validOrders.reduce((sum, o) => sum + Math.max(0, Number(o.totalAmount) || 0), 0);
   const deliveryFees = orders.reduce((sum, o) => sum + Math.max(0, Number(o.deliveryFee) || 0), 0);
   const deliveryTimes = dispatches
     .filter(d => orderById.has(d.orderId) && d.dispatchStatus === 'delivered' && d.dispatchedAtMs && d.deliveredAtMs && d.deliveredAtMs >= d.dispatchedAtMs)
@@ -124,7 +125,7 @@ export function computeDeliveryReportMetrics(
 
   return {
     orders, totalOrders:orders.length, completed:finished.length, cancelled:cancelled.length, active:active.length,
-    revenue, deliveryFees, averageTicket:orders.length ? revenue/orders.length : 0,
+    revenue, deliveryFees, averageTicket:validOrders.length ? revenue/validOrders.length : 0,
     completionRate:orders.length ? finished.length/orders.length*100 : 0,
     cancellationRate:orders.length ? cancelled.length/orders.length*100 : 0,
     averageDeliveryMinutes,
