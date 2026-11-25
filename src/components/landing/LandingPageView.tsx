@@ -938,7 +938,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 4 — REGISTRO DE VENDAS EM MENOS DE 30 SEGUNDOS */}
-        <section className="py-14 sm:py-20 border-b border-[#E5E7EB]">
+        <section id="vendas" className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-10">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
               <div className="max-w-2xl space-y-3">
