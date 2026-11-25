@@ -6,7 +6,7 @@ returns jsonb
 language plpgsql
 stable
 security definer
-set search_path = pg_catalog, public, auth
+set search_path = pg_catalog
 as $function$
 declare
   v_partner public.mgw_partners%rowtype;
@@ -49,7 +49,7 @@ returns jsonb
 language plpgsql
 stable
 security definer
-set search_path = pg_catalog, public, auth
+set search_path = pg_catalog
 as $function$
 declare
   v_result jsonb;
