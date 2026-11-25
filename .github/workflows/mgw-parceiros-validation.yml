@@ -1,6 +1,9 @@
 name: MGW Parceiros validation
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - feature/mgw-parceiros-etapa-2
