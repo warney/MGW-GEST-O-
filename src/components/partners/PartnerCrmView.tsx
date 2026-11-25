@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { CalendarClock, ExternalLink, FolderOpen, Plus, RefreshCw, Trash2, Users } from 'lucide-react';
+import { CalendarClock, Copy, ExternalLink, FolderOpen, Plus, RefreshCw, Trash2, Users } from 'lucide-react';
 import { getSupabaseClient } from '../../lib/supabase';
 
 type LeadStage = 'new' | 'contacted' | 'demo_scheduled' | 'demo_completed' | 'awaiting_decision' | 'converted' | 'not_converted';
@@ -15,7 +15,7 @@ const STAGES: Array<{value:LeadStage;label:string}> = [
 ];
 const field='w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100';
 
-export function PartnerCrmView(){
+export function PartnerCrmView({referralCode}:{referralCode:string}){
   const [partnerId,setPartnerId]=useState('');
   const [leads,setLeads]=useState<Lead[]>([]);
   const [campaigns,setCampaigns]=useState<Campaign[]>([]);
@@ -116,7 +116,7 @@ export function PartnerCrmView(){
       </form>
       <div className="space-y-5">
         <section className="rounded-2xl border bg-white p-5"><div className="mb-3 flex items-center gap-2"><CalendarClock className="h-5 w-5 text-amber-700"/><h3 className="font-bold">Campanhas ativas</h3></div>
-          {campaigns.length?campaigns.map(c=><article key={c.id} className="border-t py-3 first:border-0"><p className="font-semibold">{c.name}</p><p className="mt-1 text-xs text-slate-500">{c.objective||c.instructions||'Campanha de divulgação MGW'}</p><p className="mt-1 text-[11px] text-slate-400">Acessos: {((metrics.campaigns as Array<{id:string;clicks:number}>|undefined)||[]).find(x=>x.id===c.id)?.clicks||0} · Início: {moneyDate(c.starts_at)}</p></article>):<p className="text-sm text-slate-500">Nenhuma campanha ativa no momento.</p>}
+          {campaigns.length?campaigns.map(c=><article key={c.id} className="border-t py-3 first:border-0"><div className="flex items-start justify-between gap-2"><div><p className="font-semibold">{c.name}</p><p className="mt-1 text-xs text-slate-500">{c.objective||c.instructions||'Campanha de divulgação MGW'}</p><p className="mt-1 text-[11px] text-slate-400">Acessos: {((metrics.campaigns as Array<{id:string;clicks:number}>|undefined)||[]).find(x=>x.id===c.id)?.clicks||0} · Início: {moneyDate(c.starts_at)}</p></div><button type="button" onClick={()=>{const url=new URL('/cadastro',window.location.origin);url.searchParams.set('ref',referralCode);url.searchParams.set('campanha',c.slug);void navigator.clipboard.writeText(url.toString()).then(()=>setNotice('Link da campanha copiado.')).catch(()=>setError('Não foi possível copiar o link.'));}} className="inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-2 text-[11px] font-bold text-slate-700"><Copy className="h-3.5 w-3.5"/>Copiar link</button></div></article>):<p className="text-sm text-slate-500">Nenhuma campanha ativa no momento.</p>}
         </section>
         <section className="rounded-2xl border bg-white p-5"><div className="mb-3 flex items-center gap-2"><FolderOpen className="h-5 w-5 text-amber-700"/><h3 className="font-bold">Materiais de divulgação</h3></div>
           {materials.length?materials.map(m=><article key={m.id} className="flex items-start justify-between gap-3 border-t py-3 first:border-0"><div><p className="text-sm font-semibold">{m.title}</p><p className="mt-1 text-xs text-slate-500">{m.description||m.category}</p></div><a href={m.resource_url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-amber-700">Abrir <ExternalLink className="h-3.5 w-3.5"/></a></article>):<p className="text-sm text-slate-500">Os materiais serão disponibilizados pelo MGW.</p>}
