@@ -98,7 +98,10 @@ set search_path=pg_catalog,public
 as $$
 declare v_ref public.mgw_partner_referrals%rowtype; v_percent numeric(5,2); v_commission_id uuid;
 begin
-  if new.status<>'approved' or new.amount_cents<=0 then return new; end if;
+  if new.status<>'approved' or new.amount_cents<=0
+    or new.provider<>'mercadopago' or new.subscription_id is null then
+    return new;
+  end if;
   select * into v_ref from public.mgw_partner_referrals
   where tenant_id=new.tenant_id and status='registered' for update;
   if not found then return new; end if;
