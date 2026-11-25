@@ -46,6 +46,7 @@ test('parsePublicUrlRoute maps landing, auth, legal, admin, menu, and tracking r
 
 test('isAuthShellRoute identifies routes connected to Supabase auth session', () => {
   assert.equal(isAuthShellRoute({ kind: 'landing' }), true);
+  assert.equal(isAuthShellRoute({ kind: 'institutional', page: 'gestao' }), true);
   assert.equal(isAuthShellRoute({ kind: 'login' }), true);
   assert.equal(isAuthShellRoute({ kind: 'register' }), true);
   assert.equal(isAuthShellRoute({ kind: 'admin' }), true);
