@@ -410,7 +410,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F7F9] text-[#111827] overflow-x-hidden">
+    <div className="mgw-institutional min-h-screen bg-[#F6F7F9] text-[#111827] overflow-x-hidden">
       {/* Sticky Navigation Header (Clean 3-Zone Contract) */}
       <header className="sticky top-0 z-40 border-b border-[#E5E7EB] bg-white/95 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4 sm:gap-8">
