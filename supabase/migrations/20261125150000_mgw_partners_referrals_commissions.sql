@@ -32,6 +32,11 @@ create table if not exists public.mgw_partner_commissions (
   status text not null default 'pending'
     check (status in ('pending','available','processing','paid','cancelled','failed')),
   payout_reference text,
+  payout_id text,
+  payout_transaction_id text,
+  payout_status text,
+  payout_last_error text,
+  payout_attempted_at timestamptz,
   paid_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -125,6 +130,61 @@ create trigger trg_mgw_partner_commission_on_status_update
 after update of status on public.platform_payments
 for each row when (new.status='approved' and old.status is distinct from new.status)
 execute function public.create_mgw_partner_commission();
+
+create or replace function public.admin_claim_mgw_partner_commission(p_commission_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public, auth
+as $
+declare
+  v_admin public.platform_admins%rowtype;
+  v_commission public.mgw_partner_commissions%rowtype;
+  v_profile public.mgw_partner_payout_profiles%rowtype;
+  v_partner public.mgw_partners%rowtype;
+begin
+  v_admin := public.assert_platform_admin(array['super_admin'], true);
+  select * into v_commission from public.mgw_partner_commissions
+    where id=p_commission_id for update;
+  if not found then raise exception 'Comissao nao encontrada.'; end if;
+  if v_commission.status not in ('available','failed','processing') then
+    raise exception 'Comissao nao esta disponivel para repasse.';
+  end if;
+  if v_commission.payout_id is not null then
+    raise exception 'Este repasse ja foi enviado ao Mercado Pago.';
+  end if;
+  if not exists(select 1 from public.mgw_partner_program_settings where id=1 and payout_enabled=true) then
+    raise exception 'Repasse automatico ainda nao foi habilitado pelo Superadmin.';
+  end if;
+  select * into v_partner from public.mgw_partners where id=v_commission.partner_id and status='active';
+  if not found then raise exception 'Parceiro nao esta ativo.'; end if;
+  select * into v_profile from public.mgw_partner_payout_profiles where partner_id=v_commission.partner_id;
+  if not found then raise exception 'Parceiro ainda nao cadastrou uma chave Pix.'; end if;
+
+  update public.mgw_partner_commissions
+    set status='processing', payout_reference=coalesce(payout_reference,gen_random_uuid()::text),
+        payout_attempted_at=now(), payout_last_error=null, updated_at=now()
+    where id=p_commission_id returning * into v_commission;
+
+  perform public.write_platform_audit_log(
+    v_admin,'mgw_partner_payout_requested','mgw_partner_commission',p_commission_id::text,
+    to_jsonb(v_commission),jsonb_build_object('status','processing','payout_reference',v_commission.payout_reference),
+    'Solicitacao de repasse Pix individual','{}'::jsonb
+  );
+
+  return jsonb_build_object(
+    'commission_id',v_commission.id,
+    'payout_reference',v_commission.payout_reference,
+    'amount_cents',v_commission.amount_cents,
+    'pix_key_ciphertext',v_profile.pix_key_ciphertext,
+    'pix_key_type',v_profile.pix_key_type,
+    'partner_name',v_profile.holder_name
+  );
+end;
+$;
+
+revoke all on function public.admin_claim_mgw_partner_commission(uuid) from public,anon,authenticated;
+grant execute on function public.admin_claim_mgw_partner_commission(uuid) to authenticated,service_role;
 
 create or replace function public.admin_list_mgw_partners()
 returns jsonb
