@@ -19,6 +19,7 @@ declare
   v_campaign_id uuid;
   v_match_count integer;
   v_lead_id uuid;
+  v_match_ids uuid[];
 begin
   select lower(btrim(u.email)),regexp_replace(coalesce(u.phone,u.raw_user_meta_data->>'phone',''),'[^0-9]','','g'),
     nullif(lower(btrim(u.raw_user_meta_data->>'partner_campaign_slug')),'')
@@ -37,7 +38,7 @@ begin
   end if;
 
   if v_email is not null then
-    select count(*),min(l.id) into v_match_count,v_lead_id
+    select count(*),array_agg(l.id) into v_match_count,v_match_ids
     from public.mgw_partner_leads l
     where l.partner_id=new.partner_id and lower(btrim(l.email))=v_email
       and l.converted_referral_id is null and l.stage not in ('converted','not_converted');
@@ -51,7 +52,8 @@ begin
       and l.converted_referral_id is null and l.stage not in ('converted','not_converted');
   end if;
 
-  if coalesce(v_match_count,0)=1 and v_lead_id is not null then
+  if coalesce(v_match_count,0)=1 and coalesce(array_length(v_match_ids,1),0)=1 then
+    v_lead_id := v_match_ids[1];
     update public.mgw_partner_leads
     set converted_referral_id=new.id,
       campaign_id=coalesce(campaign_id,v_campaign_id),
