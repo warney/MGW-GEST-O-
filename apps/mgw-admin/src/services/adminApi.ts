@@ -545,3 +545,13 @@ export async function createAdminMgwPartnerMaterial(input:{title:string;descript
 export async function setAdminMgwPartnerMaterialActive(id:string,active:boolean):Promise<MgwPartnerMaterialRecord> {
   return callRpc('admin_set_mgw_partner_material_active',{p_material_id:id,p_active:active});
 }
+
+export interface MgwPartnerCrmOverview {
+  partners:number; clicks:number; clicks_30d:number; leads:number; open_leads:number;
+  converted_leads:number; campaigns_active:number; materials_active:number;
+  by_partner:Array<{partner_id:string;partner_name:string;email:string;clicks:number;leads:number;converted_leads:number;referrals:number;converted_referrals:number}>;
+  by_campaign:Array<{campaign_id:string;name:string;status:string;clicks:number;leads:number}>;
+}
+export async function fetchMgwPartnerCrmOverview():Promise<MgwPartnerCrmOverview> {
+  return callRpc('admin_get_partner_crm_overview');
+}
