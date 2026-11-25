@@ -1930,6 +1930,7 @@ export default function App() {
               onOpenCouriers={() => setRoute('delivery_couriers')}
               onOpenDispatch={() => setRoute('delivery_dispatch')}
               onOpenRegions={() => setRoute('delivery_regions')}
+              onOpenReports={() => setRoute('delivery_reports')}
               onOpenDigitalMenuSettings={() => {
                 if (!canWriteSettings) return;
                 setSettingsInitialTab('digital_menu');
