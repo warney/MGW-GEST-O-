@@ -299,3 +299,46 @@
     transition: none !important;
   }
 }
+
+
+/* Sales workflow — product-led editorial layout */
+.mgw-institutional #vendas {
+  background:
+    radial-gradient(ellipse at 8% 78%,rgba(245,183,49,.075),transparent 30%),
+    #f7f8fa !important;
+}
+.mgw-institutional #vendas > div > div:first-child h2 {
+  max-width: 680px;
+  font-size: clamp(1.95rem,3.25vw,2.85rem) !important;
+}
+.mgw-institutional #vendas > div > div:first-child > div:last-child {
+  border: 1px solid #ead9ad;
+  border-radius: 999px;
+  padding: .65rem .9rem;
+  background: #fffaf0;
+}
+.mgw-institutional #vendas button[aria-pressed="true"] {
+  border-color: #e8b43d !important;
+  background: #fff !important;
+  box-shadow: 0 8px 24px rgba(16,24,40,.055);
+}
+.mgw-institutional #vendas button[aria-pressed="false"] {
+  background: rgba(255,255,255,.72) !important;
+}
+.mgw-institutional #vendas button[aria-pressed="false"]:hover {
+  background: #fff !important;
+  border-color: #e8d29b !important;
+}
+.mgw-institutional #vendas .lg\\:col-span-7 > div:last-child {
+  border: 1px solid #e7eaf0;
+  border-radius: 14px;
+  background: rgba(255,255,255,.8);
+  padding: .8rem 1rem;
+}
+@media(max-width:767px) {
+  .mgw-institutional #vendas > div { gap: 1.5rem; }
+  .mgw-institutional #vendas > div > div:first-child > div:last-child {
+    align-self: flex-start;
+    border-radius: 14px;
+  }
+}
