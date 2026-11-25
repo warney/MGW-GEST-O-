@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   Store,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { ROLE_LABELS_PT } from '../services/rbacPolicy';
