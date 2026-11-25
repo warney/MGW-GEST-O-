@@ -4,7 +4,7 @@ import { getSupabaseClient } from '../../lib/supabase';
 
 type LeadStage = 'new' | 'contacted' | 'demo_scheduled' | 'demo_completed' | 'awaiting_decision' | 'converted' | 'not_converted';
 type Lead = { id:string; contact_name:string; establishment_name:string; phone:string; email:string; segment:string; city:string; notes:string; next_follow_up_at:string|null; stage:LeadStage; campaign_id:string|null; created_at:string };
-type Campaign = { id:string; slug:string; name:string; objective:string; instructions:string; starts_at:string|null; ends_at:string|null };
+type Campaign = { id:string; slug:string; name:string; objective:string; target_segment:string; instructions:string; starts_at:string|null; ends_at:string|null };
 type Material = { id:string; title:string; description:string; category:string; resource_url:string; resource_type:string };
 
 const STAGES: Array<{value:LeadStage;label:string}> = [
@@ -46,7 +46,7 @@ export function PartnerCrmView({referralCode}:{referralCode:string}){
       const id=(partnerData as {id:string}).id;setPartnerId(id);
       const [leadResult,campaignResult,materialResult,metricResult]=await Promise.all([
         supabase.from('mgw_partner_leads').select('*').eq('partner_id',id).order('updated_at',{ascending:false}),
-        supabase.from('mgw_partner_campaigns').select('id,slug,name,objective,instructions,starts_at,ends_at').eq('status','active').order('created_at',{ascending:false}),
+        supabase.from('mgw_partner_campaigns').select('id,slug,name,objective,target_segment,instructions,starts_at,ends_at').eq('status','active').order('created_at',{ascending:false}),
         supabase.from('mgw_partner_materials').select('id,title,description,category,resource_url,resource_type').eq('active',true).order('sort_order'),
         supabase.rpc('partner_get_crm_dashboard'),
       ]);
@@ -116,7 +116,7 @@ export function PartnerCrmView({referralCode}:{referralCode:string}){
       </form>
       <div className="space-y-5">
         <section className="rounded-2xl border bg-white p-5"><div className="mb-3 flex items-center gap-2"><CalendarClock className="h-5 w-5 text-amber-700"/><h3 className="font-bold">Campanhas ativas</h3></div>
-          {campaigns.length?campaigns.map(c=><article key={c.id} className="border-t py-3 first:border-0"><div className="flex items-start justify-between gap-2"><div><p className="font-semibold">{c.name}</p><p className="mt-1 text-xs text-slate-500">{c.objective||c.instructions||'Campanha de divulgação MGW'}</p><p className="mt-1 text-[11px] text-slate-400">Acessos: {((metrics.campaigns as Array<{id:string;clicks:number}>|undefined)||[]).find(x=>x.id===c.id)?.clicks||0} · Início: {moneyDate(c.starts_at)}</p></div><button type="button" onClick={()=>{const url=new URL('/cadastro',window.location.origin);url.searchParams.set('ref',referralCode);url.searchParams.set('campanha',c.slug);void navigator.clipboard.writeText(url.toString()).then(()=>setNotice('Link da campanha copiado.')).catch(()=>setError('Não foi possível copiar o link.'));}} className="inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-2 text-[11px] font-bold text-slate-700"><Copy className="h-3.5 w-3.5"/>Copiar link</button></div></article>):<p className="text-sm text-slate-500">Nenhuma campanha ativa no momento.</p>}
+          {campaigns.length?campaigns.map(c=><article key={c.id} className="border-t py-3 first:border-0"><div className="flex items-start justify-between gap-2"><div><p className="font-semibold">{c.name}</p><p className="mt-1 text-xs text-slate-500">{c.objective||c.instructions||'Campanha de divulgação MGW'} · Público: {c.target_segment==='all'?'todos os segmentos':c.target_segment}</p><p className="mt-1 text-[11px] text-slate-400">Acessos: {((metrics.campaigns as Array<{id:string;clicks:number}>|undefined)||[]).find(x=>x.id===c.id)?.clicks||0} · Início: {moneyDate(c.starts_at)}</p></div><button type="button" onClick={()=>{const url=new URL('/cadastro',window.location.origin);url.searchParams.set('ref',referralCode);url.searchParams.set('campanha',c.slug);void navigator.clipboard.writeText(url.toString()).then(()=>setNotice('Link da campanha copiado.')).catch(()=>setError('Não foi possível copiar o link.'));}} className="inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-2 text-[11px] font-bold text-slate-700"><Copy className="h-3.5 w-3.5"/>Copiar link</button></div></article>):<p className="text-sm text-slate-500">Nenhuma campanha ativa no momento.</p>}
         </section>
         <section className="rounded-2xl border bg-white p-5"><div className="mb-3 flex items-center gap-2"><FolderOpen className="h-5 w-5 text-amber-700"/><h3 className="font-bold">Materiais de divulgação</h3></div>
           {materials.length?materials.map(m=><article key={m.id} className="flex items-start justify-between gap-3 border-t py-3 first:border-0"><div><p className="text-sm font-semibold">{m.title}</p><p className="mt-1 text-xs text-slate-500">{m.description||m.category}</p></div><a href={m.resource_url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-amber-700">Abrir <ExternalLink className="h-3.5 w-3.5"/></a></article>):<p className="text-sm text-slate-500">Os materiais serão disponibilizados pelo MGW.</p>}
