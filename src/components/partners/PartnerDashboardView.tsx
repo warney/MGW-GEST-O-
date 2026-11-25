@@ -95,6 +95,7 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
             <p className="mt-1 text-2xl font-extrabold">{data ? money(data.pending_cents+data.paid_cents) : '—'}</p>
             <p className="mt-1 text-xs text-[#98A2B3]">{data ? `${money(data.pending_cents)} pendentes · ${money(data.paid_cents)} pagos` : 'Carregando...'}</p>
           </article>
+        </section>
         {loadError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{loadError} <button onClick={()=>void reloadDashboard()} className="underline font-bold">Tentar novamente</button></p>}
         <section className="mt-6 grid gap-4 lg:grid-cols-2">
           <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
@@ -118,7 +119,6 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
         <section className="mt-6 rounded-2xl border border-[#E5E7EB] bg-white p-5"><h2 className="font-bold">Histórico de comissões</h2>
           {(data?.commissions??[]).map(item=><div key={item.id} className="flex justify-between gap-3 border-b py-3 text-sm"><span>{new Date(item.created_at).toLocaleDateString('pt-BR')}</span><b>{money(item.amount_cents)}</b><span>{item.status==='paid'?'Pago':item.status==='available'?'Disponível':item.status==='processing'?'Em processamento':'Pendente'}</span></div>)}
           {data && !data.commissions.length&&<p className="mt-3 text-sm text-slate-500">Nenhuma comissão registrada ainda.</p>}
-        </section>
         </section>
       </div>
     </main>

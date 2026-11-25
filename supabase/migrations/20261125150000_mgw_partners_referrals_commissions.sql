@@ -183,7 +183,7 @@ begin
   select * into v_before from public.mgw_partners where id=p_partner_id for update;
   if not found then raise exception 'Parceiro nao encontrado.'; end if;
   update public.mgw_partners set status=p_status,updated_at=now() where id=p_partner_id returning * into v_after;
-  perform public.write_platform_audit_log(v_admin,'mgw_partner_status_updated','mgw_partner',p_partner_id::text,to_jsonb(v_before),to_jsonb(v_after),v_reason);
+  perform public.write_platform_audit_log(v_admin,'mgw_partner_status_updated','mgw_partner',p_partner_id::text,to_jsonb(v_before),to_jsonb(v_after),v_reason,'{}'::jsonb);
   return jsonb_build_object('id',v_after.id,'status',v_after.status);
 end;
 $$;
@@ -203,7 +203,7 @@ begin
   end if;
   select * into v_before from public.mgw_partner_program_settings where id=1 for update;
   update public.mgw_partner_program_settings set commission_percent=p_commission_percent,updated_by=v_admin.user_id,updated_at=now() where id=1 returning * into v_after;
-  perform public.write_platform_audit_log(v_admin,'mgw_partner_program_settings_updated','mgw_partner_program','1',to_jsonb(v_before),to_jsonb(v_after),v_reason);
+  perform public.write_platform_audit_log(v_admin,'mgw_partner_program_settings_updated','mgw_partner_program','1',to_jsonb(v_before),to_jsonb(v_after),v_reason,'{}'::jsonb);
   return to_jsonb(v_after);
 end;
 $$;
@@ -212,12 +212,12 @@ create or replace function public.admin_get_mgw_partner_settings()
 returns jsonb
 language plpgsql stable security definer
 set search_path = pg_catalog, public, auth
-as $
+as $$
 begin
   perform public.assert_platform_admin(array['super_admin','finance'],false);
   return (select to_jsonb(s) from public.mgw_partner_program_settings s where id=1);
 end;
-$;
+$$;
 revoke all on function public.admin_get_mgw_partner_settings() from public,anon,authenticated;
 grant execute on function public.admin_get_mgw_partner_settings() to authenticated,service_role;
 
