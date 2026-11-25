@@ -27,7 +27,7 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
   const [pixNotice,setPixNotice]=useState<string|null>(null);
   const money=(cents:number)=>(cents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   async function reloadDashboard(){
-    try { const result=await fetchPartnerDashboardData(); setData(result); setLoadError(null); if(result.payout_profile){setPixKey(result.payout_profile.pix_key);setPixKeyType(result.payout_profile.pix_key_type as typeof pixKeyType);setHolderName(result.payout_profile.holder_name);} }
+    try { const result=await fetchPartnerDashboardData(); setData(result); setLoadError(null); if(result.payout_profile){setPixKey('');setPixKeyType(result.payout_profile.pix_key_type as typeof pixKeyType);setHolderName(result.payout_profile.holder_name);} }
     catch(error){setLoadError(error instanceof Error?error.message:'Não foi possível carregar os dados.');}
   }
   useEffect(()=>{void reloadDashboard();},[]);
@@ -106,11 +106,11 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
           </article>
           <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
             <div className="flex items-center gap-2"><CreditCard className="h-5 w-5"/><h2 className="font-bold">Dados para recebimento Pix</h2></div>
-            <p className="mt-1 text-xs text-slate-500">Cadastre sua chave para receber comissões quando os pagamentos forem habilitados.</p>
+            <p className="mt-1 text-xs text-slate-500">{data?.payout_profile?.has_pix_key ? 'Sua chave Pix está cadastrada e protegida por criptografia. Informe uma nova chave somente se desejar substituí-la.' : 'Cadastre sua chave Pix. Ela será criptografada antes de ser armazenada.'}</p>
             <form onSubmit={event=>void handleSavePix(event)} className="mt-4 space-y-3">
               <label className="block text-xs font-semibold">Titular<input value={holderName} onChange={e=>setHolderName(e.target.value)} required maxLength={120} className="mt-1 w-full rounded-lg border p-3 text-sm"/></label>
               <label className="block text-xs font-semibold">Tipo de chave<select value={pixKeyType} onChange={e=>setPixKeyType(e.target.value as typeof pixKeyType)} className="mt-1 w-full rounded-lg border p-3 text-sm"><option value="cpf">CPF</option><option value="cnpj">CNPJ</option><option value="email">E-mail</option><option value="phone">Telefone</option><option value="random">Aleatória</option></select></label>
-              <label className="block text-xs font-semibold">Chave Pix<input value={pixKey} onChange={e=>setPixKey(e.target.value)} required maxLength={160} className="mt-1 w-full rounded-lg border p-3 text-sm"/></label>
+              <label className="block text-xs font-semibold">Chave Pix<input value={pixKey} onChange={e=>setPixKey(e.target.value)} required maxLength={160} placeholder={data?.payout_profile?.has_pix_key ? 'Digite somente para substituir sua chave' : 'Sua chave Pix'} className="mt-1 w-full rounded-lg border p-3 text-sm"/></label>
               <button disabled={savingPix} className="w-full rounded-lg bg-[#172033] p-3 text-sm font-bold text-white disabled:opacity-50">{savingPix?'Salvando...':'Salvar dados Pix'}</button>
               {pixNotice&&<p role="status" className="text-xs text-slate-600">{pixNotice}</p>}
             </form>
