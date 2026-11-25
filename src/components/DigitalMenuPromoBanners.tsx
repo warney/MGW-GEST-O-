@@ -34,7 +34,6 @@ const INTERVALS = [5, 7, 10, 15];
 
 export function PublicMenuPromoCarousel({
   slug,
-  slug,
   products,
   combos,
   onSelectProduct,
@@ -202,7 +201,7 @@ export function DigitalMenuPromoManager({ workspaceId }: { workspaceId: string }
   const targets = (kind: PromoAction) => kind === 'product' ? products : combos;
   return <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:p-5 space-y-4">
     <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-[#111827]">Banners promocionais</h3><p className="text-xs text-[#6B7280] mt-1">Até 3 imagens horizontais entre a busca e as categorias do cardápio público.</p></div><span className="text-[10px] font-semibold rounded-full bg-[#FEF3C7] text-[#92400E] px-2.5 py-1">Até 3</span></div>
-    <div className="max-w-xs space-y-1"><label className="text-xs font-semibold text-[#374151]">Troca automática</label><select value={interval} onChange={async (e) => { const value = Number(e.target.value); setInterval(value); for (const banner of banners) await patch(banner, { display_interval_seconds: value }); }} className="w-full min-h-[40px] rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827]">{INTERVALS.map((value) => <option key={value} value={value}>{value} segundos</option>)}</select></div>
+    <div className="max-w-xs space-y-1"><label className="text-xs font-semibold text-[#374151]">Troca automática</label><select value={interval} onChange={async (e) => { const value = Number(e.target.value); setInterval(value); setBusy(0); setMessage(''); const { error } = await supabase.from('digital_menu_promo_banners').update({ display_interval_seconds: value, updated_at: new Date().toISOString() }).eq('tenant_id', workspaceId); if (error) setMessage(error.message); else { await refresh(); setMessage('Intervalo atualizado.'); } setBusy(null); }} className="w-full min-h-[40px] rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827]">{INTERVALS.map((value) => <option key={value} value={value}>{value} segundos</option>)}</select></div>
     {loading ? <div className="py-6 text-center text-xs text-[#6B7280]"><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Carregando banners...</div> : <div className="grid grid-cols-1 gap-4">
       {[1,2,3].map((slot) => {
         const banner = banners.find((item) => item.sort_order === slot);
