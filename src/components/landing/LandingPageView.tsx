@@ -786,14 +786,28 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 Cardápio Digital integrado
               </p>
               <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#111827]">
-                Seu cliente escolhe, personaliza e faz o pedido pelo celular.
+                Uma vitrine digital que transforma visitas em pedidos.
               </h2>
               <p className="text-sm sm:text-base text-[#6B7280] leading-relaxed">
-                Compartilhe o link da sua loja no WhatsApp ou no Instagram. O
-                cliente navega sem baixar nenhum aplicativo, escolhe entrega ou
-                retirada, define pagamento em Pix, Dinheiro ou Cartão na entrega
-                e acompanha o status em tempo real.
+                Seu negócio ganha um espaço próprio na internet: com fotos,
+                categorias, produtos, combos e adicionais. O cliente monta o
+                pedido pelo celular e você recebe tudo organizado na Central de Pedidos.
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl">
+              <div className="flex items-center gap-3 rounded-xl border border-[#E7EAF0] bg-white px-4 py-3">
+                <span className="w-9 h-9 rounded-lg bg-[#FFF5D9] text-[#946500] flex items-center justify-center"><Smartphone className="w-4 h-4" /></span>
+                <span className="text-xs sm:text-sm font-semibold text-[#344054]">Acesso pelo link, sem instalar app</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl border border-[#E7EAF0] bg-white px-4 py-3">
+                <span className="w-9 h-9 rounded-lg bg-[#FFF5D9] text-[#946500] flex items-center justify-center"><ShoppingBag className="w-4 h-4" /></span>
+                <span className="text-xs sm:text-sm font-semibold text-[#344054]">Produtos, combos e adicionais</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl border border-[#E7EAF0] bg-white px-4 py-3">
+                <span className="w-9 h-9 rounded-lg bg-[#FFF5D9] text-[#946500] flex items-center justify-center"><ClipboardList className="w-4 h-4" /></span>
+                <span className="text-xs sm:text-sm font-semibold text-[#344054]">Pedidos organizados no painel</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -904,6 +918,21 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   {currentMenuStep.caption}
                 </p>
               </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[#E8D8AC] bg-[#FFFCF4] px-5 py-5 sm:px-6">
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-[#252B36]">Uma experiência simples para quem compra. Mais organização para quem vende.</p>
+                <p className="text-xs sm:text-sm text-[#667085]">Conheça o conjunto completo de ferramentas da MGW.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => scrollToSection('preco')}
+                className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#E9AA25] text-[#171717] text-sm font-bold inline-flex items-center justify-center gap-2 cursor-pointer shrink-0"
+              >
+                Conhecer o MGW
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </section>
