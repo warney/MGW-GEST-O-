@@ -11,7 +11,6 @@ interface Props { role:PlatformRole; mfaVerified:boolean; onRequestMfa:()=>void;
 export function PartnersView({role,mfaVerified,onRequestMfa,refreshTrigger}:Props){
   const [partners,setPartners]=useState<MgwPartnerAdminRecord[]>([]);
   const [settings,setSettings]=useState<MgwPartnerProgramSettings|null>(null);
-  const [price,setPrice]=useState('49.90');
   const [percent,setPercent]=useState('15');
   const [reason,setReason]=useState('');
   const [busy,setBusy]=useState(false);
@@ -21,7 +20,7 @@ export function PartnersView({role,mfaVerified,onRequestMfa,refreshTrigger}:Prop
   const canEdit=role==='super_admin';
   async function load(){
     setBusy(true);setError('');
-    try{const [p,s]=await Promise.all([fetchMgwPartners(),fetchMgwPartnerSettings()]);setPartners(p);setSettings(s);setPrice((s.subscription_amount_cents/100).toFixed(2));setPercent(String(s.commission_percent));}
+    try{const [p,s]=await Promise.all([fetchMgwPartners(),fetchMgwPartnerSettings()]);setPartners(p);setSettings(s);setPercent(String(s.commission_percent));}
     catch(e){setError(e instanceof Error?e.message:'Falha ao carregar parceiros.');}
     finally{setBusy(false);}
   }
@@ -30,7 +29,7 @@ export function PartnersView({role,mfaVerified,onRequestMfa,refreshTrigger}:Prop
     if(!canEdit)return;
     if(!mfaVerified){onRequestMfa();return;}
     setBusy(true);setError('');setMessage('');
-    try{const s=await updateMgwPartnerProgram({subscriptionAmountCents:Math.round(Number(price.replace(',','.'))*100),commissionPercent:Number(percent.replace(',','.')),reason});setSettings(s);setReason('');setMessage('Configurações atualizadas. As novas regras valem para conversões futuras.');}
+    try{const s=await updateMgwPartnerProgram({commissionPercent:Number(percent.replace(',','.')),reason});setSettings(s);setReason('');setMessage('Configurações atualizadas. As novas regras valem para conversões futuras.');}
     catch(e){setError(e instanceof Error?e.message:'Falha ao salvar.');}
     finally{setBusy(false);}
   }
@@ -55,11 +54,8 @@ export function PartnersView({role,mfaVerified,onRequestMfa,refreshTrigger}:Prop
       <div className="rounded-xl border bg-white p-5"><ShieldCheck className="h-5 w-5 text-emerald-700"/><p className="mt-3 text-xs text-slate-500">Comissões a pagar</p><strong className="text-2xl">{formatCurrencyCents(partners.reduce((n,p)=>n+p.pending_cents,0))}</strong></div>
     </section>
     <section className="rounded-xl border bg-white p-5">
-      <h2 className="font-semibold">Regras comerciais</h2><p className="mt-1 text-xs text-slate-500">A comissão é gerada uma única vez, no primeiro pagamento aprovado do cliente indicado. Alterações não recalculam comissões existentes.</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs font-semibold">Preço mensal de referência (R$)<input value={price} onChange={e=>setPrice(e.target.value)} disabled={!canEdit} className="mt-1 w-full rounded-lg border p-3 text-sm"/></label>
-        <label className="text-xs font-semibold">Comissão (%)<input value={percent} onChange={e=>setPercent(e.target.value)} disabled={!canEdit} className="mt-1 w-full rounded-lg border p-3 text-sm"/></label>
-      </div>
+      <h2 className="font-semibold">Regras comerciais</h2><p className="mt-1 text-xs text-slate-500">A comissão é gerada uma única vez, no primeiro pagamento aprovado do cliente indicado. O preço da assinatura continua sendo administrado em Planos & Assinaturas. Alterações não recalculam comissões existentes.</p>
+      <div className="mt-4 max-w-sm"><label className="text-xs font-semibold">Comissão por conversão (%)<input value={percent} onChange={e=>setPercent(e.target.value)} disabled={!canEdit} className="mt-1 w-full rounded-lg border p-3 text-sm"/></label></div>
       {canEdit&&<><label className="mt-3 block text-xs font-semibold">Motivo da alteração<input value={reason} onChange={e=>setReason(e.target.value)} className="mt-1 w-full rounded-lg border p-3 text-sm" placeholder="Descreva o motivo (obrigatório)"/></label><button onClick={()=>void saveSettings()} disabled={busy||reason.trim().length<3} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"><Save className="h-4 w-4"/>Salvar regras</button></>}
       {!canEdit&&<p className="mt-3 text-xs text-slate-500">Somente Superadmin pode alterar regras comerciais.</p>}
       <p className="mt-2 text-xs text-slate-400">Payout automático: {settings?.payout_enabled?'habilitado':'aguardando credenciais e homologação da API Payouts'}</p>
