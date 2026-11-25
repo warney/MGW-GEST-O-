@@ -107,9 +107,20 @@ export interface DataSubscriptionsCallbacks {
   onError: (err: Error) => void;
 }
 
+export interface PartnerAuthProfile {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  referralCode: string;
+  status: 'active' | 'suspended' | 'blocked';
+  createdAt: string;
+}
+
 export interface AuthResolutionState {
   user: AuthSessionUser | null;
   tenants: TenantContext[];
+  partner?: PartnerAuthProfile | null;
   errorMessage: string | null;
   legacyWorkspace?: WorkspaceAccess;
   passwordRecovery?: boolean;
@@ -172,8 +183,52 @@ async function resolveSupabaseAuthenticatedContext(
 
   const supabase = getSupabaseClient();
 
-  // Vincula automaticamente pre-cadastros pendentes (ex.: contas fundadoras) somente
-  // quando auth.users.email_confirmed_at IS NOT NULL no PostgreSQL.
+  // Primeiro identifica contas MGW Parceiros. Elas são independentes de tenants
+  // e não devem executar rotinas de associação de estabelecimentos.
+  const { data: partnerRow, error: partnerError } = await supabase
+    .from('mgw_partners')
+    .select('id, user_id, email, full_name, referral_code, status, created_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (partnerError) {
+    return {
+      user: null,
+      tenants: [],
+      errorMessage: `Não foi possível validar o perfil de parceiro: ${partnerError.message}`,
+    };
+  }
+
+  if (partnerRow) {
+    if (partnerRow.status !== 'active') {
+      await supabase.auth.signOut();
+      return {
+        user: null,
+        tenants: [],
+        errorMessage: partnerRow.status === 'suspended'
+          ? 'Sua conta de parceiro está suspensa. Entre em contato com o suporte MGW.'
+          : 'Sua conta de parceiro está bloqueada. Entre em contato com o suporte MGW.',
+      };
+    }
+
+    return {
+      user: { uid: userId, email, emailVerified },
+      tenants: [],
+      partner: {
+        id: String(partnerRow.id),
+        userId: String(partnerRow.user_id),
+        email: String(partnerRow.email),
+        fullName: String(partnerRow.full_name),
+        referralCode: String(partnerRow.referral_code),
+        status: partnerRow.status,
+        createdAt: String(partnerRow.created_at),
+      },
+      errorMessage: null,
+    };
+  }
+
+  // Vincula automaticamente pré-cadastros pendentes (ex.: contas fundadoras)
+  // somente para usuários que realmente pertencem ao fluxo de estabelecimentos.
   const { error: claimError } = await supabase.rpc('claim_pending_memberships');
   if (claimError) {
     return {
@@ -416,6 +471,9 @@ export async function registerWithEmailPassword(
       data: {
         full_name: cleanName,
         shop_name: cleanStoreName,
+        ...(typeof window !== 'undefined' && /^[A-Z0-9]{8,16}$/i.test(new URLSearchParams(window.location.search).get('ref') || '')
+          ? { referral_code: (new URLSearchParams(window.location.search).get('ref') || '').trim().toUpperCase() }
+          : {}),
       },
       emailRedirectTo: window.location.origin,
     },
@@ -430,6 +488,65 @@ export async function registerWithEmailPassword(
     // O trigger do banco cria o tenant e o vínculo atomicamente ao inserir auth.users.
     return;
   }
+}
+
+export async function registerPartnerWithEmailPassword(
+  name: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  const cleanName = name.trim().slice(0, 120);
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (cleanName.length < 2 || !cleanEmail || !cleanEmail.includes('@')) {
+    throw new Error('Informe seu nome completo e um e-mail válido.');
+  }
+  if (password.length < 8) {
+    throw new Error('A senha precisa ter pelo menos 8 caracteres.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: {
+        full_name: cleanName,
+        account_type: 'mgw_partner',
+      },
+      emailRedirectTo: window.location.origin + '/parceiros/painel',
+    },
+  });
+
+  if (error) {
+    throw new Error(mapSupabaseAuthErrorMessage(error));
+  }
+  if (!data.user) {
+    throw new Error('Não foi possível concluir seu cadastro. Tente novamente.');
+  }
+}
+
+export interface PartnerDashboardData {
+  referral_count: number; converted_count: number; pending_cents: number; paid_cents: number; commission_percent: number;
+  referrals: Array<{id:string;status:string;created_at:string;converted_at:string|null}>;
+  commissions: Array<{id:string;amount_cents:number;base_amount_cents:number;commission_percent:number;status:string;created_at:string;paid_at:string|null;payment_reference:string|null;payment_method:string|null;reversal_required:boolean}>;
+  payout_profile: {has_pix_key:boolean;pix_key_type:string;holder_name:string}|null;
+}
+export async function fetchPartnerDashboardData(): Promise<PartnerDashboardData> {
+  const {data,error}=await getSupabaseClient().rpc('partner_get_dashboard');
+  if(error) throw new Error(error.message);
+  return data as PartnerDashboardData;
+}
+export async function savePartnerPayoutProfile(input: {
+  pixKey: string;
+  pixKeyType: 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
+  holderName: string;
+}): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.functions.invoke('partner-payout-profile', {
+    body: { pixKey: input.pixKey.trim(), pixKeyType: input.pixKeyType, holderName: input.holderName.trim() },
+  });
+  if (error || data?.saved !== true) throw new Error(error?.message || data?.error || 'Não foi possível salvar os dados Pix.');
 }
 
 export async function updateAccountPassword(password: string): Promise<void> {

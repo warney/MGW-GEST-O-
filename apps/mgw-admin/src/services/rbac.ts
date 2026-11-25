@@ -63,6 +63,12 @@ export const MODULE_RULES: ModuleAccessRule[] = [
     allowedRoles: ['super_admin'],
   },
   {
+    id: 'partners',
+    label: 'MGW Parceiros',
+    description: 'Parceiros, indicações e comissões',
+    allowedRoles: ['super_admin', 'finance'],
+  },
+  {
     id: 'audit',
     label: 'Auditoria & Relatórios',
     description: 'Trilha imutável de ações e exportações',

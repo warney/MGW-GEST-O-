@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.mp-webhook]
 verify_jwt = false
+
+[functions.partner-payout-profile]
+verify_jwt = false
+
+[functions.admin-partner-pix]
+verify_jwt = false

@@ -28,6 +28,8 @@ import {
   requestPasswordReset,
   updateAccountPassword,
   registerWithEmailPassword,
+  registerPartnerWithEmailPassword,
+  type PartnerAuthProfile,
   saveCustomerClassificationConfig,
   saveDeliveryCustomerAddress,
   saveDigitalMenuSettings,
@@ -105,6 +107,8 @@ import { DeliveryDashboardView } from './components/DeliveryDashboardView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { ExpensesView } from './components/ExpensesView';
 import { LoginScreen } from './components/LoginScreen';
+import { PartnerAccessScreen } from './components/partners/PartnerAccessScreen';
+import { PartnerDashboardView } from './components/partners/PartnerDashboardView';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { OrdersCenterView } from './components/OrdersCenterView';
 import { PublicMenuView } from './components/PublicMenuView';
@@ -218,6 +222,7 @@ export default function App() {
   }
 
   const [user, setUser] = useState<AuthSessionUser | null>(null);
+  const [partner, setPartner] = useState<PartnerAuthProfile | null>(null);
   const [tenants, setTenants] = useState<TenantContext[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
   const activeTenant = useMemo<TenantContext | null>(
@@ -588,6 +593,7 @@ export default function App() {
     if (!isShellRoute) return;
     const unsub = subscribeAuthSession((state) => {
       setUser(state.user);
+      setPartner(state.partner ?? null);
       setTenants(state.tenants);
       setLegacyWorkspace(state.legacyWorkspace);
       setAuthError(state.errorMessage);
@@ -898,6 +904,21 @@ export default function App() {
   async function handleRegister(name: string, storeName: string, email: string, password: string) {
     setAuthError(null);
     await registerWithEmailPassword(name, storeName, email, password);
+  }
+
+  async function handlePartnerRegister(name: string, email: string, password: string) {
+    setAuthError(null);
+    await registerPartnerWithEmailPassword(name, email, password);
+  }
+
+  async function handlePartnerLogin(email: string, password: string) {
+    setAuthError(null);
+    setIsSigningIn(true);
+    try {
+      await loginWithEmailPassword(email, password);
+    } finally {
+      setIsSigningIn(false);
+    }
   }
 
   async function handlePasswordReset(email: string) {
@@ -1248,6 +1269,36 @@ export default function App() {
       <PasswordRecoveryScreen
         onSave={handleUpdatePassword}
         errorMessage={authError}
+      />
+    );
+  }
+
+  const isPartnerRoute =
+    publicRoute.kind === 'partnerLogin' ||
+    publicRoute.kind === 'partnerRegister' ||
+    publicRoute.kind === 'partnerPortal';
+
+  if (isPartnerRoute && partner && user) {
+    return (
+      <PartnerDashboardView
+        partner={partner}
+        onLogout={() => void handleLogout()}
+      />
+    );
+  }
+
+  if (isPartnerRoute) {
+    return (
+      <PartnerAccessScreen
+        mode={publicRoute.kind === 'partnerRegister' ? 'register' : 'login'}
+        busy={isSigningIn}
+        errorMessage={authError || (user && !partner
+          ? 'Esta conta não está cadastrada como parceiro. Use o e-mail de uma conta MGW Parceiros.'
+          : null)}
+        onLogin={handlePartnerLogin}
+        onRegister={handlePartnerRegister}
+        onForgotPassword={handlePasswordReset}
+        onNavigate={navigatePublicPath}
       />
     );
   }

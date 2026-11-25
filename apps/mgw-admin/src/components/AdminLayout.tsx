@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   LayoutDashboard,
   LifeBuoy,
+  Handshake,
   LogOut,
   Menu,
   RefreshCw,
@@ -44,6 +45,7 @@ const MODULE_ICONS: Record<AdminModuleId, typeof LayoutDashboard> = {
   settings: Settings,
   admins: Shield,
   audit: FileSpreadsheet,
+  partners: Handshake,
 };
 
 export function AdminLayout({

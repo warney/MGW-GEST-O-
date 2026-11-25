@@ -11,6 +11,10 @@ test('parsePublicUrlRoute maps landing, auth, legal, admin, menu, and tracking r
   assert.deepEqual(parsePublicUrlRoute('/login'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/login/'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/cadastro'), { kind: 'register' });
+  assert.deepEqual(parsePublicUrlRoute('/parceiros'), { kind: 'partnerLogin' });
+  assert.deepEqual(parsePublicUrlRoute('/parceiros/login'), { kind: 'partnerLogin' });
+  assert.deepEqual(parsePublicUrlRoute('/parceiros/cadastro'), { kind: 'partnerRegister' });
+  assert.deepEqual(parsePublicUrlRoute('/parceiros/painel'), { kind: 'partnerPortal' });
   assert.deepEqual(parsePublicUrlRoute('/termos'), { kind: 'terms' });
   assert.deepEqual(parsePublicUrlRoute('/termos-de-uso'), { kind: 'terms' });
   assert.deepEqual(parsePublicUrlRoute('/privacidade'), { kind: 'privacy' });
@@ -41,6 +45,9 @@ test('isAuthShellRoute identifies routes connected to Supabase auth session', ()
   assert.equal(isAuthShellRoute({ kind: 'login' }), true);
   assert.equal(isAuthShellRoute({ kind: 'register' }), true);
   assert.equal(isAuthShellRoute({ kind: 'admin' }), true);
+  assert.equal(isAuthShellRoute({ kind: 'partnerLogin' }), true);
+  assert.equal(isAuthShellRoute({ kind: 'partnerRegister' }), true);
+  assert.equal(isAuthShellRoute({ kind: 'partnerPortal' }), true);
   assert.equal(isAuthShellRoute({ kind: 'terms' }), false);
   assert.equal(isAuthShellRoute({ kind: 'privacy' }), false);
   assert.equal(isAuthShellRoute({ kind: 'menu', slug: 'loja' }), false);

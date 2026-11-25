@@ -21,6 +21,7 @@ import { MonitoringView } from './views/MonitoringView';
 import { PlansSubscriptionsView } from './views/PlansSubscriptionsView';
 import { SettingsView } from './views/SettingsView';
 import { SupportView } from './views/SupportView';
+import { PartnersView } from './views/PartnersView';
 
 export function App() {
   const [booting, setBooting] = useState(true);
@@ -222,7 +223,7 @@ export function App() {
           />
         )}
 
-        {activeModule === 'audit' && <AuditReportsView refreshTrigger={refreshTrigger} />}
+        {activeModule === 'audit' && <AuditReportsView refreshTrigger={refreshTrigger} />}\n        {activeModule === 'partners' && canAccessModule(profile.role, 'partners') && <PartnersView role={profile.role} mfaVerified={profile.mfaVerified} onRequestMfa={() => setMfaModalOpen(true)} refreshTrigger={refreshTrigger} />}
       </AdminLayout>
 
       <MfaGateModal
