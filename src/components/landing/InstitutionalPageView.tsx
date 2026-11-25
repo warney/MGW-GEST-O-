@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Check, ClipboardList, LayoutDashboard, ShoppingBag, Smartphone, Sparkles } from 'lucide-react';
+import { ArrowRight, Check, ClipboardList, LayoutDashboard, ShoppingBag, Sparkles } from 'lucide-react';
 
 type InstitutionalPageKind = 'gestao' | 'cardapio' | 'recursos' | 'planos';
 
@@ -89,6 +89,12 @@ export function InstitutionalPageView({ kind, onNavigate }: InstitutionalPageVie
             <button onClick={() => onNavigate('/cardapio-digital')} type="button" className="hover:text-[#946500]">Cardápio Digital</button>
             <button onClick={() => onNavigate('/recursos')} type="button" className="hover:text-[#946500]">Recursos</button>
             <button onClick={() => onNavigate('/planos')} type="button" className="hover:text-[#946500]">Planos</button>
+          </nav>
+          <nav aria-label="Navegação institucional móvel" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-[#EEF0F4] py-3 text-xs font-semibold text-[#475467] md:hidden">
+            <button onClick={() => onNavigate('/mgw-gestao')} type="button">MGW Gestão</button>
+            <button onClick={() => onNavigate('/cardapio-digital')} type="button">Cardápio Digital</button>
+            <button onClick={() => onNavigate('/recursos')} type="button">Recursos</button>
+            <button onClick={() => onNavigate('/planos')} type="button">Planos</button>
           </nav>
           <button type="button" onClick={() => onNavigate('/cadastro')} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#F5B731] px-4 text-sm font-bold text-[#171717] shadow-sm hover:bg-[#E9AA25]">
             Testar grátis <ArrowRight className="h-4 w-4" />
