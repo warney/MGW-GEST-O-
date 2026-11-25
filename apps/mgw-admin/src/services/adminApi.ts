@@ -510,3 +510,38 @@ export async function revealMgwPartnerPix(partnerId:string):Promise<MgwPartnerPi
   if(!data?.pix_key) throw new Error(data?.error||'Chave Pix indisponivel.');
   return data as MgwPartnerPixDetails;
 }
+
+export interface MgwPartnerCampaignRecord {
+  id:string; slug:string; name:string; objective:string; target_segment:string; instructions:string;
+  status:string; starts_at:string|null; ends_at:string|null; created_at:string;
+}
+export interface MgwPartnerMaterialRecord {
+  id:string; title:string; description:string; category:string; resource_url:string;
+  resource_type:string; active:boolean; created_at:string;
+}
+export interface MgwPartnerLeadAdminRecord {
+  id:string; partner_id:string; contact_name:string; establishment_name:string; phone:string;
+  email:string; segment:string; city:string; stage:string; created_at:string;
+  partner_name:string; partner_email:string;
+}
+export async function fetchAdminMgwPartnerCampaigns():Promise<MgwPartnerCampaignRecord[]> {
+  return callRpc('admin_list_mgw_partner_campaigns');
+}
+export async function fetchAdminMgwPartnerMaterials():Promise<MgwPartnerMaterialRecord[]> {
+  return callRpc('admin_list_mgw_partner_materials');
+}
+export async function fetchAdminMgwPartnerLeads(limit=300):Promise<MgwPartnerLeadAdminRecord[]> {
+  return callRpc('admin_list_mgw_partner_leads',{p_limit:limit});
+}
+export async function createAdminMgwPartnerCampaign(input:{slug:string;name:string;objective:string;targetSegment:string;instructions:string;startsAt:string|null;endsAt:string|null}):Promise<MgwPartnerCampaignRecord> {
+  return callRpc('admin_create_mgw_partner_campaign',{p_slug:input.slug,p_name:input.name,p_objective:input.objective,p_target_segment:input.targetSegment,p_instructions:input.instructions,p_starts_at:input.startsAt,p_ends_at:input.endsAt});
+}
+export async function setAdminMgwPartnerCampaignStatus(id:string,status:'active'|'ended'|'archived'):Promise<MgwPartnerCampaignRecord> {
+  return callRpc('admin_set_mgw_partner_campaign_status',{p_campaign_id:id,p_status:status});
+}
+export async function createAdminMgwPartnerMaterial(input:{title:string;description:string;category:string;resourceUrl:string;resourceType:string;campaignId:string|null}):Promise<MgwPartnerMaterialRecord> {
+  return callRpc('admin_create_mgw_partner_material',{p_title:input.title,p_description:input.description,p_category:input.category,p_resource_url:input.resourceUrl,p_resource_type:input.resourceType,p_campaign_id:input.campaignId});
+}
+export async function setAdminMgwPartnerMaterialActive(id:string,active:boolean):Promise<MgwPartnerMaterialRecord> {
+  return callRpc('admin_set_mgw_partner_material_active',{p_material_id:id,p_active:active});
+}
