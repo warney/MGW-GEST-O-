@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   Store,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { ROLE_LABELS_PT } from '../services/rbacPolicy';
@@ -283,6 +284,14 @@ export function AppShell({
         label: 'Regiões e taxas',
         mobileLabel: 'Regiões',
         icon: MapPin,
+      });
+      items.push({
+        id: 'delivery_finance',
+        route: 'delivery_finance',
+        section: 'delivery',
+        label: 'Financeiro',
+        mobileLabel: 'Financeiro',
+        icon: Wallet,
       });
     }
     if (canWriteCatalog) {
