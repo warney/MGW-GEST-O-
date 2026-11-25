@@ -471,6 +471,9 @@ export async function registerWithEmailPassword(
       data: {
         full_name: cleanName,
         shop_name: cleanStoreName,
+        ...(typeof window !== 'undefined' && /^[A-Z0-9]{8,16}$/i.test(new URLSearchParams(window.location.search).get('ref') || '')
+          ? { referral_code: (new URLSearchParams(window.location.search).get('ref') || '').trim().toUpperCase() }
+          : {}),
       },
       emailRedirectTo: window.location.origin,
     },
