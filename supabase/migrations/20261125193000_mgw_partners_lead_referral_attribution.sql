@@ -45,7 +45,7 @@ begin
   end if;
 
   if coalesce(v_match_count,0)<>1 and length(coalesce(v_phone,''))>=10 then
-    select count(*),min(l.id) into v_match_count,v_lead_id
+    select count(*),array_agg(l.id) into v_match_count,v_match_ids
     from public.mgw_partner_leads l
     where l.partner_id=new.partner_id
       and regexp_replace(coalesce(l.phone,''),'[^0-9]','','g')=v_phone
