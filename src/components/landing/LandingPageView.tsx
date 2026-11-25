@@ -1391,6 +1391,20 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
             </button>
             <button
               type="button"
+              onClick={() => onNavigate('/parceiros/cadastro')}
+              className="hover:text-[#A87500] cursor-pointer transition-colors"
+            >
+              Seja parceiro MGW
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('/parceiros/login')}
+              className="hover:text-[#A87500] cursor-pointer transition-colors"
+            >
+              Área do parceiro
+            </button>
+            <button
+              type="button"
               onClick={() => onNavigate('/termos')}
               className="hover:text-[#A87500] cursor-pointer transition-colors"
             >
