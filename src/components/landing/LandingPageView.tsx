@@ -1167,7 +1167,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 6 — SEGURANÇA E CONTROLE */}
-        <section className="py-14 sm:py-20 border-b border-[#E5E7EB]">
+        <section id="seguranca" className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-5 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
@@ -1354,7 +1354,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 9 — CHAMADA FINAL */}
-        <section className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white">
+        <section id="comece" className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB] bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-6">
             <h2 className="font-display text-2xl sm:text-4xl font-extrabold tracking-tight text-[#111827]">
               Chegou a hora de simplificar a gestão da sua lanchonete.
