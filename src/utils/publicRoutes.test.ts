@@ -8,6 +8,10 @@ import {
 
 test('parsePublicUrlRoute maps landing, auth, legal, admin, menu, and tracking routes', () => {
   assert.deepEqual(parsePublicUrlRoute('/'), { kind: 'landing' });
+  assert.deepEqual(parsePublicUrlRoute('/mgw-gestao'), { kind: 'institutional', page: 'gestao' });
+  assert.deepEqual(parsePublicUrlRoute('/cardapio-digital'), { kind: 'institutional', page: 'cardapio' });
+  assert.deepEqual(parsePublicUrlRoute('/recursos'), { kind: 'institutional', page: 'recursos' });
+  assert.deepEqual(parsePublicUrlRoute('/planos'), { kind: 'institutional', page: 'planos' });
   assert.deepEqual(parsePublicUrlRoute('/login'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/login/'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/cadastro'), { kind: 'register' });
