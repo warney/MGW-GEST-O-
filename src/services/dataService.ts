@@ -504,6 +504,9 @@ export async function registerWithEmailPassword(
         ...(typeof window !== 'undefined' && /^[A-Z0-9]{8,16}$/i.test(new URLSearchParams(window.location.search).get('ref') || '')
           ? { referral_code: (new URLSearchParams(window.location.search).get('ref') || '').trim().toUpperCase() }
           : {}),
+        ...(typeof window !== 'undefined' && /^[a-z0-9][a-z0-9-]{2,79}$/i.test(new URLSearchParams(window.location.search).get('campanha') || '')
+          ? { partner_campaign_slug: (new URLSearchParams(window.location.search).get('campanha') || '').trim().toLowerCase() }
+          : {}),
       },
       emailRedirectTo: window.location.origin,
     },
