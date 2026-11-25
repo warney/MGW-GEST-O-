@@ -6,6 +6,7 @@ import {
   type MgwPartnerAdminRecord, type MgwPartnerCommissionRecord,
 } from '../services/adminApi';
 import type { PlatformRole } from '../types/admin';
+import { PartnerProgramManagementView } from './PartnerProgramManagementView';
 import { formatDateBr } from '../services/rbac';
 
 interface Props { role:PlatformRole; mfaVerified:boolean; onRequestMfa:()=>void; refreshTrigger:number; }
@@ -106,6 +107,7 @@ export function PartnersView({role,mfaVerified,onRequestMfa,refreshTrigger}:Prop
       <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3"><div className="flex items-center gap-2 text-sm font-semibold text-amber-900"><CalendarDays className="h-4 w-4"/>Pagamentos semanais: toda sexta-feira</div><p className="mt-1 text-xs text-amber-800">Toda sexta-feira o Superadmin confere a fila, faz cada Pix no banco e registra a transferencia individual. Valores nao pagos continuam disponiveis para a proxima semana.</p></div>
       <p className="mt-2 text-xs text-slate-400">Repasses automaticos Mercado Pago desativados. A ativacao futura exigira uma etapa separada.</p>
     </section>
+    {canEdit&&<PartnerProgramManagementView />}
     {canView&&<section className="rounded-xl border bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Fila de pagamentos</h2><p className="mt-1 text-xs text-slate-500">Cada linha e uma comissao individual; nao ha consolidacao automatica.</p></div><select value={commissionFilter} onChange={e=>setCommissionFilter(e.target.value as typeof commissionFilter)} className="rounded-lg border p-2 text-sm"><option value="available">A pagar</option><option value="paid">Pagas</option><option value="all">Todas</option></select></div>
       <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 p-3"><span className="text-sm text-slate-600">Total disponivel para pagamento</span><b>{money(pendingTotal)}</b></div>
