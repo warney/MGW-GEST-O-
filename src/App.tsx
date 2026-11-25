@@ -156,6 +156,7 @@ import { SubscriptionBlockedScreen } from './components/SubscriptionBlockedScree
 import { AppShell } from './components/AppShell';
 
 import { LandingPageView } from './components/landing/LandingPageView';
+import { InstitutionalPageView } from './components/landing/InstitutionalPageView';
 import { LegalDocumentView } from './components/landing/LegalDocumentView';
 import { isDemoSandboxActive } from './services/demoSandbox';
 import { getSupabaseClient } from './lib/supabase';
@@ -831,6 +832,18 @@ export default function App() {
       document.title = 'Política de Privacidade — MGW Gestão';
       return;
     }
+    if (publicRoute.kind === 'institutional') {
+      const titles = {
+        gestao: 'MGW Gestão — Controle da sua operação',
+        cardapio: 'Cardápio Digital MGW — Sua loja na internet',
+        recursos: 'Recursos MGW — Gestão e pedidos integrados',
+        planos: 'Planos MGW — Experimente grátis',
+        parceiros: 'Programa de Parceiros MGW — Cresça com a gente',
+        contato: 'Contato — MGW Tecnologia',
+      } as const;
+      document.title = titles[publicRoute.page];
+      return;
+    }
     if (publicRoute.kind === 'menu' || publicRoute.kind === 'tracking') {
       return;
     }
@@ -1458,6 +1471,15 @@ export default function App() {
     if (!dataContext) return;
     await saveDeliveryPricingSettings(dataContext, input);
     showToast('Regras gerais de entrega salvas com sucesso.');
+  }
+
+  if (publicRoute.kind === 'institutional') {
+    return (
+      <InstitutionalPageView
+        kind={publicRoute.page}
+        onNavigate={navigatePublicPath}
+      />
+    );
   }
 
   if (publicRoute.kind === 'menu') {

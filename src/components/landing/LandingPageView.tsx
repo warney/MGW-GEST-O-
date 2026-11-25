@@ -410,7 +410,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F7F9] text-[#111827] overflow-x-hidden">
+    <div className="mgw-institutional min-h-screen bg-[#F6F7F9] text-[#111827] overflow-x-hidden">
       {/* Sticky Navigation Header (Clean 3-Zone Contract) */}
       <header className="sticky top-0 z-40 border-b border-[#E5E7EB] bg-white/95 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4 sm:gap-8">
@@ -434,6 +434,10 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
             aria-label="Navegação principal"
             className="hidden md:flex items-center gap-7 text-sm font-medium text-[#4B5563]"
           >
+            <button type="button" onClick={() => onNavigate('/mgw-gestao')} className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0">MGW Gestão</button>
+            <button type="button" onClick={() => onNavigate('/cardapio-digital')} className="hover:text-[#A87500] transition-colors cursor-pointer whitespace-nowrap shrink-0">Cardápio Digital</button>
+            <button type="button" onClick={() => onNavigate('/mgw-gestao')} className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#A87500] cursor-pointer">Conhecer MGW Gestão</button>
+            <button type="button" onClick={() => onNavigate('/cardapio-digital')} className="w-full min-h-[44px] px-3 rounded-xl text-left text-sm font-medium text-[#4B5563] hover:bg-[#F3F4F6] hover:text-[#A87500] cursor-pointer">Conhecer Cardápio Digital</button>
             <button
               type="button"
               onClick={() => scrollToSection('sistema')}
@@ -564,28 +568,21 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
               </p>
 
               <h1 className="font-display text-3xl sm:text-4xl lg:text-[46px] font-extrabold tracking-[-0.025em] leading-[1.12] text-[#111827]">
-                Você cuida da sua lanchonete. O MGW cuida da gestão.
+                Gestão inteligente para transformar a rotina do seu negócio.
               </h1>
 
               <p className="text-base sm:text-lg text-[#6B7280] leading-relaxed max-w-xl">
-                Controle vendas no balcão, pedidos pelo celular, cardápio digital,
-                produtos, combos, despesas e resultados do mês em um único painel
-                simples para o dia a dia.
+                Organize vendas, acompanhe resultados e receba pedidos online. Com o MGW Gestão e o Cardápio Digital, sua operação fica conectada em uma experiência simples para você e prática para seus clientes.
               </p>
 
-              <p className="text-sm sm:text-base font-semibold text-[#111827] flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <span className="text-[#A87500] font-mono tabular-nums font-bold whitespace-nowrap">
-                  R$ 49,90 por mês
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="inline-flex items-center rounded-full border border-[#F5B731]/45 bg-[#FFF8E8] px-3 py-1.5 text-xs font-bold text-[#805800]">
+                  3 dias grátis para experimentar
                 </span>
-                <span className="text-[#6B7280]" aria-hidden="true">
-                  ·
+                <span className="text-xs sm:text-sm font-medium text-[#667085]">
+                  Sem cartão de crédito · Depois R$ 49,90/mês
                 </span>
-                <span className="whitespace-nowrap">3 dias grátis</span>
-                <span className="text-[#6B7280]" aria-hidden="true">
-                  ·
-                </span>
-                <span className="whitespace-nowrap">Sem cartão de crédito</span>
-              </p>
+              </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
                 <button
@@ -602,8 +599,23 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                   onClick={() => scrollToSection('sistema')}
                   className="min-h-[48px] px-5 rounded-xl border border-[#E5E7EB] hover:border-[#F5B731]/60 bg-white text-[#111827] text-sm sm:text-base font-semibold inline-flex items-center justify-center cursor-pointer transition-colors whitespace-nowrap shrink-0"
                 >
-                  Conhecer o sistema
+                  Ver como funciona
                 </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 max-w-xl">
+                <div className="flex items-center gap-2 text-xs font-medium text-[#475467]">
+                  <span className="w-6 h-6 rounded-full bg-[#F5B731]/15 flex items-center justify-center text-[#946500]"><Check className="w-3.5 h-3.5" /></span>
+                  Gestão em um só lugar
+                </div>
+                <div className="flex items-center gap-2 text-xs font-medium text-[#475467]">
+                  <span className="w-6 h-6 rounded-full bg-[#F5B731]/15 flex items-center justify-center text-[#946500]"><Check className="w-3.5 h-3.5" /></span>
+                  Pedidos online
+                </div>
+                <div className="flex items-center gap-2 text-xs font-medium text-[#475467]">
+                  <span className="w-6 h-6 rounded-full bg-[#F5B731]/15 flex items-center justify-center text-[#946500]"><Check className="w-3.5 h-3.5" /></span>
+                  Cardápio próprio
+                </div>
               </div>
 
               <div className="text-xs sm:text-sm text-[#6B7280] flex flex-wrap items-center gap-2">
@@ -778,14 +790,28 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 Cardápio Digital integrado
               </p>
               <h2 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#111827]">
-                Seu cliente escolhe, personaliza e faz o pedido pelo celular.
+                Uma vitrine digital que transforma visitas em pedidos.
               </h2>
               <p className="text-sm sm:text-base text-[#6B7280] leading-relaxed">
-                Compartilhe o link da sua loja no WhatsApp ou no Instagram. O
-                cliente navega sem baixar nenhum aplicativo, escolhe entrega ou
-                retirada, define pagamento em Pix, Dinheiro ou Cartão na entrega
-                e acompanha o status em tempo real.
+                Seu negócio ganha um espaço próprio na internet: com fotos,
+                categorias, produtos, combos e adicionais. O cliente monta o
+                pedido pelo celular e você recebe tudo organizado na Central de Pedidos.
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-4xl">
+              <div className="flex items-center gap-3 rounded-xl border border-[#E7EAF0] bg-white px-4 py-3">
+                <span className="w-9 h-9 rounded-lg bg-[#FFF5D9] text-[#946500] flex items-center justify-center"><Smartphone className="w-4 h-4" /></span>
+                <span className="text-xs sm:text-sm font-semibold text-[#344054]">Acesso pelo link, sem instalar app</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl border border-[#E7EAF0] bg-white px-4 py-3">
+                <span className="w-9 h-9 rounded-lg bg-[#FFF5D9] text-[#946500] flex items-center justify-center"><ShoppingBag className="w-4 h-4" /></span>
+                <span className="text-xs sm:text-sm font-semibold text-[#344054]">Produtos, combos e adicionais</span>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl border border-[#E7EAF0] bg-white px-4 py-3">
+                <span className="w-9 h-9 rounded-lg bg-[#FFF5D9] text-[#946500] flex items-center justify-center"><ClipboardList className="w-4 h-4" /></span>
+                <span className="text-xs sm:text-sm font-semibold text-[#344054]">Pedidos organizados no painel</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -897,11 +923,26 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
                 </p>
               </div>
             </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[#E8D8AC] bg-[#FFFCF4] px-5 py-5 sm:px-6">
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-[#252B36]">Uma experiência simples para quem compra. Mais organização para quem vende.</p>
+                <p className="text-xs sm:text-sm text-[#667085]">Conheça o conjunto completo de ferramentas da MGW.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => scrollToSection('preco')}
+                className="min-h-[44px] px-5 rounded-xl bg-[#F5B731] hover:bg-[#E9AA25] text-[#171717] text-sm font-bold inline-flex items-center justify-center gap-2 cursor-pointer shrink-0"
+              >
+                Conhecer o MGW
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </section>
 
         {/* SEÇÃO 4 — REGISTRO DE VENDAS EM MENOS DE 30 SEGUNDOS */}
-        <section className="py-14 sm:py-20 border-b border-[#E5E7EB]">
+        <section id="vendas" className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-10">
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
               <div className="max-w-2xl space-y-3">
@@ -1130,7 +1171,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 6 — SEGURANÇA E CONTROLE */}
-        <section className="py-14 sm:py-20 border-b border-[#E5E7EB]">
+        <section id="seguranca" className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-5 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A87500]">
@@ -1317,7 +1358,7 @@ export function LandingPageView({ onNavigate }: LandingPageViewProps) {
         </section>
 
         {/* SEÇÃO 9 — CHAMADA FINAL */}
-        <section className="py-14 sm:py-20 border-b border-[#E5E7EB] bg-white">
+        <section id="comece" className="scroll-mt-20 py-14 sm:py-20 border-b border-[#E5E7EB] bg-white">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-6">
             <h2 className="font-display text-2xl sm:text-4xl font-extrabold tracking-tight text-[#111827]">
               Chegou a hora de simplificar a gestão da sua lanchonete.

@@ -8,6 +8,12 @@ import {
 
 test('parsePublicUrlRoute maps landing, auth, legal, admin, menu, and tracking routes', () => {
   assert.deepEqual(parsePublicUrlRoute('/'), { kind: 'landing' });
+  assert.deepEqual(parsePublicUrlRoute('/mgw-gestao'), { kind: 'institutional', page: 'gestao' });
+  assert.deepEqual(parsePublicUrlRoute('/cardapio-digital'), { kind: 'institutional', page: 'cardapio' });
+  assert.deepEqual(parsePublicUrlRoute('/recursos'), { kind: 'institutional', page: 'recursos' });
+  assert.deepEqual(parsePublicUrlRoute('/planos'), { kind: 'institutional', page: 'planos' });
+  assert.deepEqual(parsePublicUrlRoute('/parceiros'), { kind: 'institutional', page: 'parceiros' });
+  assert.deepEqual(parsePublicUrlRoute('/contato'), { kind: 'institutional', page: 'contato' });
   assert.deepEqual(parsePublicUrlRoute('/login'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/login/'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/cadastro'), { kind: 'register' });
@@ -42,6 +48,7 @@ test('parsePublicUrlRoute maps landing, auth, legal, admin, menu, and tracking r
 
 test('isAuthShellRoute identifies routes connected to Supabase auth session', () => {
   assert.equal(isAuthShellRoute({ kind: 'landing' }), true);
+  assert.equal(isAuthShellRoute({ kind: 'institutional', page: 'gestao' }), true);
   assert.equal(isAuthShellRoute({ kind: 'login' }), true);
   assert.equal(isAuthShellRoute({ kind: 'register' }), true);
   assert.equal(isAuthShellRoute({ kind: 'admin' }), true);

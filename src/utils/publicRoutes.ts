@@ -4,6 +4,7 @@ export type PublicUrlRoute =
   | { kind: 'register' }
   | { kind: 'terms' }
   | { kind: 'privacy' }
+  | { kind: 'institutional'; page: 'gestao' | 'cardapio' | 'recursos' | 'planos' | 'parceiros' | 'contato' }
   | { kind: 'admin' }
   | { kind: 'partnerLogin' }
   | { kind: 'partnerRegister' }
@@ -20,6 +21,12 @@ export function parsePublicUrlRoute(
   if (normalized === '/') {
     return { kind: 'landing' };
   }
+  if (normalized === '/mgw-gestao') return { kind: 'institutional', page: 'gestao' };
+  if (normalized === '/cardapio-digital') return { kind: 'institutional', page: 'cardapio' };
+  if (normalized === '/recursos') return { kind: 'institutional', page: 'recursos' };
+  if (normalized === '/planos') return { kind: 'institutional', page: 'planos' };
+  if (normalized === '/parceiros') return { kind: 'institutional', page: 'parceiros' };
+  if (normalized === '/contato') return { kind: 'institutional', page: 'contato' };
   if (normalized === '/login' || normalized === '/entrar') {
     return { kind: 'login' };
   }
@@ -67,6 +74,7 @@ export function parsePublicUrlRoute(
 export function isAuthShellRoute(route: PublicUrlRoute): boolean {
   return (
     route.kind === 'landing' ||
+    route.kind === 'institutional' ||
     route.kind === 'login' ||
     route.kind === 'register' ||
     route.kind === 'admin' ||
