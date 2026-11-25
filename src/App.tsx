@@ -136,6 +136,7 @@ import { DeliveryDashboardView } from './components/DeliveryDashboardView';
 import { DeliveryDispatchView } from './components/DeliveryDispatchView';
 import { DeliveryRegionsView } from './components/DeliveryRegionsView';
 import { DeliveryFinanceView } from './components/DeliveryFinanceView';
+import { DeliveryReportsView } from './components/DeliveryReportsView';
 import { ExpenseModal } from './components/ExpenseModal';
 import { ExpensesView } from './components/ExpensesView';
 import { LoginScreen } from './components/LoginScreen';
@@ -1645,6 +1646,7 @@ export default function App() {
     visibleRouteIds.push('delivery_couriers');
     visibleRouteIds.push('delivery_regions');
     visibleRouteIds.push('delivery_finance');
+    visibleRouteIds.push('delivery_reports');
   }
   if (canReadSales || canCreateSales) visibleRouteIds.push('sales');
   if (canReadExpenses) visibleRouteIds.push('expenses');
@@ -1826,6 +1828,7 @@ export default function App() {
       effectiveRoute !== 'delivery_customers' &&
       effectiveRoute !== 'delivery_couriers' &&
       effectiveRoute !== 'delivery_regions' &&
+      effectiveRoute !== 'delivery_reports' &&
       effectiveRoute !== 'sales' &&
       effectiveRoute !== 'expenses' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -1927,6 +1930,7 @@ export default function App() {
               onOpenCouriers={() => setRoute('delivery_couriers')}
               onOpenDispatch={() => setRoute('delivery_dispatch')}
               onOpenRegions={() => setRoute('delivery_regions')}
+              onOpenReports={() => setRoute('delivery_reports')}
               onOpenDigitalMenuSettings={() => {
                 if (!canWriteSettings) return;
                 setSettingsInitialTab('digital_menu');
@@ -2030,6 +2034,20 @@ export default function App() {
               onToggleRegionSuspension={handleToggleDeliveryRegionSuspension}
               onDeleteRegion={handleDeleteDeliveryRegion}
               onSavePricingSettings={handleSaveDeliveryPricingSettings}
+            />
+          )}
+
+          {effectiveRoute === 'delivery_reports' && canAccessDelivery && (
+            <DeliveryReportsView
+              establishmentName={digitalMenuSettings.storeName || settings.establishmentName || activeTenant.name}
+              orders={onlineOrders}
+              dispatches={deliveryDispatches}
+              customers={deliveryCustomers}
+              couriers={deliveryCouriers}
+              regions={deliveryRegions}
+              isLoading={dataLoading}
+              errorMessage={dataError}
+              onRefresh={handleRefreshOrders}
             />
           )}
 

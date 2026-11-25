@@ -58,7 +58,7 @@ export const DELIVERY_QUICK_ACCESS_MODULES: readonly DeliveryQuickAccessModule[]
   {
     id: 'reports',
     title: 'Relatórios',
-    description: 'Indicadores de volume, tempo e regiões de entrega.',
+    description: 'Desempenho, regiões, entregadores e inteligência de clientes.',
   },
 ];
 

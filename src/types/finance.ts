@@ -152,6 +152,7 @@ export type AppRoute =
   | 'delivery_dispatch'
   | 'delivery_regions'
   | 'delivery_finance'
+  | 'delivery_reports'
   | 'sales'
   | 'expenses'
   | 'reports'
