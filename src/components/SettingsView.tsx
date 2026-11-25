@@ -10,10 +10,15 @@ import type {
   ShopSettings,
 } from '../types/finance';
 import { DigitalMenuSettingsPanel } from './DigitalMenuSettingsPanel';
+import { SettingsAccountCenter } from './SettingsAccountCenter';
+import type { TenantContext } from '../types/finance';
 import { ProductsCombosManager } from './ProductsCombosManager';
 
 interface SettingsViewProps {
   workspaceId: string;
+  tenant: TenantContext;
+  onSubscribe: (tenantId: string) => Promise<void>;
+  onSubscribePix: (tenantId: string) => Promise<{ paymentId: string; amountCents: number; qrCode: string; qrCodeBase64: string; ticketUrl: string; expiresAt: string | null }>;
   settings: ShopSettings;
   products: ProductRecord[];
   combos: ComboRecord[];
@@ -47,6 +52,9 @@ const BRAZIL_TIMEZONES = [
 
 export function SettingsView({
   workspaceId,
+  tenant,
+  onSubscribe,
+  onSubscribePix,
   settings,
   products,
   combos,
@@ -247,7 +255,9 @@ export function SettingsView({
           onPreviewPublicMenu={onPreviewPublicMenu}
         />
       ) : activeTab === 'shop' && canManageShopSettings ? (
-        <div className="max-w-2xl space-y-4">
+        <div className="space-y-5">
+        <SettingsAccountCenter tenant={tenant} accountEmail={accountEmail} onLogout={onLogout} onSubscribe={onSubscribe} onSubscribePix={onSubscribePix} />
+        <div className="max-w-4xl space-y-4">
         <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-[#111827]">
@@ -269,7 +279,7 @@ export function SettingsView({
             {isSigningOut ? 'Saindo...' : 'Sair da conta'}
           </button>
         </section>
-        <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 space-y-5">
+        <section id="establishment-details" className="scroll-mt-24 bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 space-y-5">
           <div className="border-b border-[#E5E7EB] pb-4">
             <h2 className="text-lg font-bold text-[#111827]">
               Configurações da Lanchonete
