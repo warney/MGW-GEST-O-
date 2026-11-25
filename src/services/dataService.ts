@@ -183,17 +183,8 @@ async function resolveSupabaseAuthenticatedContext(
 
   const supabase = getSupabaseClient();
 
-  // Vincula automaticamente pre-cadastros pendentes (ex.: contas fundadoras) somente
-  // quando auth.users.email_confirmed_at IS NOT NULL no PostgreSQL.
-  const { error: claimError } = await supabase.rpc('claim_pending_memberships');
-  if (claimError) {
-    return {
-      user: null,
-      tenants: [],
-      errorMessage: `Falha ao validar vínculo de estabelecimento: ${claimError.message}`,
-    };
-  }
-
+  // Primeiro identifica contas MGW Parceiros. Elas são independentes de tenants
+  // e não devem executar rotinas de associação de estabelecimentos.
   const { data: partnerRow, error: partnerError } = await supabase
     .from('mgw_partners')
     .select('id, user_id, email, full_name, referral_code, status, created_at')
@@ -233,6 +224,17 @@ async function resolveSupabaseAuthenticatedContext(
         createdAt: String(partnerRow.created_at),
       },
       errorMessage: null,
+    };
+  }
+
+  // Vincula automaticamente pré-cadastros pendentes (ex.: contas fundadoras)
+  // somente para usuários que realmente pertencem ao fluxo de estabelecimentos.
+  const { error: claimError } = await supabase.rpc('claim_pending_memberships');
+  if (claimError) {
+    return {
+      user: null,
+      tenants: [],
+      errorMessage: `Falha ao validar vínculo de estabelecimento: ${claimError.message}`,
     };
   }
 
