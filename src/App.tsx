@@ -155,7 +155,7 @@ import { StoreOnboardingScreen } from './components/StoreOnboardingScreen';
 import { SubscriptionBlockedScreen } from './components/SubscriptionBlockedScreen';
 import { AppShell } from './components/AppShell';
 
-import { LandingPageView } from './components/landing/LandingPageView';
+import { InstitutionalHomePageView } from './components/landing/InstitutionalHomePageView';
 import { InstitutionalPageView } from './components/landing/InstitutionalPageView';
 import { LegalDocumentView } from './components/landing/LegalDocumentView';
 import { isDemoSandboxActive } from './services/demoSandbox';
@@ -864,7 +864,7 @@ export default function App() {
       document.title = 'Criar conta e testar grátis — MGW Gestão';
     } else if (publicRoute.kind === 'landing') {
       document.title =
-        'MGW Gestão — Sistema para Lanchonetes e Cardápio Digital';
+        'MGW — Tecnologia para negócios food | Gestão e Cardápio Digital';
     }
   }, [publicRoute.kind, dataContext, unviewedOrdersCount]);
 
@@ -1556,7 +1556,7 @@ export default function App() {
       );
     }
     if (!user || !user.emailVerified || !activeTenant) {
-      return <LandingPageView onNavigate={navigatePublicPath} />;
+      return <InstitutionalHomePageView onNavigate={navigatePublicPath} />;
     }
   }
 
