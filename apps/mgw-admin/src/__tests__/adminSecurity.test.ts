@@ -28,7 +28,7 @@ const WORKSPACE_ROOT = path.resolve(import.meta.dirname, '../../../..');
 
 const MIGRATION_4_1_PATH = path.join(
   WORKSPACE_ROOT,
-  'supabase/migrations/20261122000001_etapa4_1_platform_admin_security_and_audit.sql',
+  'supabase/migrations/20261122171122_etapa4_1_platform_admin_security_and_audit.sql',
 );
 const BOOTSTRAP_SEED_PATH = path.join(
   WORKSPACE_ROOT,
