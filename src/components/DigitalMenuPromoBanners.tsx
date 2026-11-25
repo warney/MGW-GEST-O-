@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ImagePlus, Loader2, Save, Trash2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { ImagePlus, Loader2, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getSupabaseClient } from '../lib/supabase';
 import { deleteTenantMenuImage, uploadTenantMenuImage } from '../services/storageService';
 import type { PublicCatalogCombo, PublicCatalogProduct } from '../types/finance';
@@ -34,10 +34,15 @@ const INTERVALS = [5, 7, 10, 15];
 
 export function PublicMenuPromoCarousel({
   slug,
+  slug,
+  products,
+  combos,
   onSelectProduct,
   onSelectCombo,
 }: {
   slug: string;
+  products: PublicCatalogProduct[];
+  combos: PublicCatalogCombo[];
   onSelectProduct: (product: PublicCatalogProduct) => void;
   onSelectCombo: (combo: PublicCatalogCombo) => void;
 }) {
@@ -77,10 +82,11 @@ export function PublicMenuPromoCarousel({
   const activate = () => {
     if (!current.targetId) return;
     if (current.clickAction === 'product') {
-      // Product/combo lookup is performed against the already loaded public catalog by the parent.
-      window.dispatchEvent(new CustomEvent('mgw-promo-target', { detail: { kind: 'product', id: current.targetId } }));
+      const product = products.find((item) => item.id === current.targetId);
+      if (product) onSelectProduct(product);
     } else if (current.clickAction === 'combo') {
-      window.dispatchEvent(new CustomEvent('mgw-promo-target', { detail: { kind: 'combo', id: current.targetId } }));
+      const combo = combos.find((item) => item.id === current.targetId);
+      if (combo) onSelectCombo(combo);
     }
   };
   return (
@@ -105,24 +111,24 @@ export function PublicMenuPromoCarousel({
   );
 }
 
-export function DigitalMenuPromoManager({
-  workspaceId,
-  products,
-  combos,
-}: {
-  workspaceId: string;
-  products: PublicCatalogProduct[];
-  combos: PublicCatalogCombo[];
-}) {
+export function DigitalMenuPromoManager({ workspaceId }: { workspaceId: string }) {
   const [banners, setBanners] = useState<PromoBanner[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [interval, setInterval] = useState(5);
   const [message, setMessage] = useState('');
+  const [products, setProducts] = useState<Array<{id:string;name:string}>>([]);
+  const [combos, setCombos] = useState<Array<{id:string;name:string}>>([]);
   const supabase = useMemo(() => getSupabaseClient(), []);
 
   const refresh = async () => {
     setLoading(true);
+    const [productResult, comboResult] = await Promise.all([
+      supabase.from('products').select('id,name').eq('tenant_id', workspaceId).eq('active', true).order('name'),
+      supabase.from('combos').select('id,name').eq('tenant_id', workspaceId).eq('active', true).order('name'),
+    ]);
+    setProducts((productResult.data || []) as Array<{id:string;name:string}>);
+    setCombos((comboResult.data || []) as Array<{id:string;name:string}>);
     const { data, error } = await supabase.from('digital_menu_promo_banners').select('*').eq('tenant_id', workspaceId).order('sort_order');
     if (error) setMessage(error.message);
     else {
@@ -167,6 +173,15 @@ export function DigitalMenuPromoManager({
   };
 
   const patch = async (banner: PromoBanner, changes: Partial<PromoBanner>) => {
+    if (changes.click_action && changes.click_action !== 'none') {
+      setBanners((prev) => prev.map((item) => item.id === banner.id ? { ...item, ...changes, target_id: null } : item));
+      setMessage('Agora selecione o produto ou combo para salvar o destino.');
+      return;
+    }
+    if (banner.click_action !== 'none' && Object.prototype.hasOwnProperty.call(changes, 'target_id') && !changes.target_id) {
+      setMessage('Selecione um produto ou combo válido.');
+      return;
+    }
     setBusy(banner.sort_order); setMessage('');
     try { await save({ ...banner, ...changes }); await refresh(); setMessage('Configuração salva.'); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Não foi possível salvar.'); }
@@ -184,7 +199,7 @@ export function DigitalMenuPromoManager({
     finally { setBusy(null); }
   };
 
-  const targets = (kind: PromoAction) => kind === 'product' ? products.map((p) => ({ id: p.id, name: p.name })) : combos.map((c) => ({ id: c.id, name: c.name }));
+  const targets = (kind: PromoAction) => kind === 'product' ? products : combos;
   return <section className="rounded-2xl border border-[#E5E7EB] bg-white p-4 sm:p-5 space-y-4">
     <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-[#111827]">Banners promocionais</h3><p className="text-xs text-[#6B7280] mt-1">Até 3 imagens horizontais entre a busca e as categorias do cardápio público.</p></div><span className="text-[10px] font-semibold rounded-full bg-[#FEF3C7] text-[#92400E] px-2.5 py-1">Até 3</span></div>
     <div className="max-w-xs space-y-1"><label className="text-xs font-semibold text-[#374151]">Troca automática</label><select value={interval} onChange={async (e) => { const value = Number(e.target.value); setInterval(value); for (const banner of banners) await patch(banner, { display_interval_seconds: value }); }} className="w-full min-h-[40px] rounded-xl border border-[#E5E7EB] bg-white px-3 text-sm text-[#111827]">{INTERVALS.map((value) => <option key={value} value={value}>{value} segundos</option>)}</select></div>
