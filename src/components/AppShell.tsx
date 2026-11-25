@@ -21,6 +21,7 @@ import {
   Store,
   Users,
   Wallet,
+  FileBarChart,
   X,
 } from 'lucide-react';
 import { ROLE_LABELS_PT } from '../services/rbacPolicy';
@@ -293,6 +294,14 @@ export function AppShell({
         mobileLabel: 'Financeiro',
         icon: Wallet,
       });
+      items.push({
+        id: 'delivery_reports',
+        route: 'delivery_reports',
+        section: 'delivery',
+        label: 'Relatórios e inteligência',
+        mobileLabel: 'Relatórios',
+        icon: FileBarChart,
+      });
     }
     if (canWriteCatalog) {
       items.push({
@@ -365,7 +374,8 @@ export function AppShell({
             item.id !== 'delivery_customers' &&
             item.id !== 'delivery_couriers' &&
             item.id !== 'delivery_dispatch' &&
-            item.id !== 'delivery_regions',
+            item.id !== 'delivery_regions' &&
+            item.id !== 'delivery_reports',
         )
         .slice(0, 6),
     [sidebarItems],
