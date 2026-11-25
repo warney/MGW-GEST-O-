@@ -5,6 +5,9 @@ export type PublicUrlRoute =
   | { kind: 'terms' }
   | { kind: 'privacy' }
   | { kind: 'admin' }
+  | { kind: 'partnerLogin' }
+  | { kind: 'partnerRegister' }
+  | { kind: 'partnerPortal' }
   | { kind: 'menu'; slug?: string }
   | { kind: 'tracking'; token: string };
 
@@ -22,6 +25,15 @@ export function parsePublicUrlRoute(
   }
   if (normalized === '/cadastro' || normalized === '/criar-conta') {
     return { kind: 'register' };
+  }
+  if (normalized === '/parceiros' || normalized === '/parceiros/login') {
+    return { kind: 'partnerLogin' };
+  }
+  if (normalized === '/parceiros/cadastro' || normalized === '/parceiros/inscricao') {
+    return { kind: 'partnerRegister' };
+  }
+  if (normalized === '/parceiros/painel') {
+    return { kind: 'partnerPortal' };
   }
   if (normalized === '/termos' || normalized === '/termos-de-uso') {
     return { kind: 'terms' };
@@ -57,7 +69,10 @@ export function isAuthShellRoute(route: PublicUrlRoute): boolean {
     route.kind === 'landing' ||
     route.kind === 'login' ||
     route.kind === 'register' ||
-    route.kind === 'admin'
+    route.kind === 'admin' ||
+    route.kind === 'partnerLogin' ||
+    route.kind === 'partnerRegister' ||
+    route.kind === 'partnerPortal'
   );
 }
 
