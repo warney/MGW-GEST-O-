@@ -134,7 +134,7 @@ execute function public.create_mgw_partner_commission();
 create or replace function public.handle_mgw_partner_source_payment_reversal()
 returns trigger language plpgsql security definer
 set search_path=pg_catalog,public
-as $
+as $$
 begin
   if old.status='approved' and new.status in ('refunded','cancelled','rejected') then
     update public.mgw_partner_commissions
@@ -155,7 +155,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 drop trigger if exists trg_mgw_partner_commission_source_reversal on public.platform_payments;
 create trigger trg_mgw_partner_commission_source_reversal
 after update of status on public.platform_payments
