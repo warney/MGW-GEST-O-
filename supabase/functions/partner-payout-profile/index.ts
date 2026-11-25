@@ -12,6 +12,11 @@ function fromBase64(value: string): Uint8Array {
   const binary = atob(value);
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  return copy.buffer;
+}
 function toBase64(value: Uint8Array): string {
   let binary = "";
   for (const byte of value) binary += String.fromCharCode(byte);
@@ -20,9 +25,9 @@ function toBase64(value: Uint8Array): string {
 async function encryptPixKey(value: string, secret: string): Promise<string> {
   const raw = fromBase64(secret);
   if (raw.length !== 32) throw new Error("MGW_PARTNER_PIX_ENCRYPTION_KEY must be a base64-encoded 32-byte key.");
-  const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
+  const key = await crypto.subtle.importKey("raw", toArrayBuffer(raw), "AES-GCM", false, ["encrypt"]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(value));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv: toArrayBuffer(iv) }, key, toArrayBuffer(new TextEncoder().encode(value)));
   return `v1.${toBase64(iv)}.${toBase64(new Uint8Array(encrypted))}`;
 }
 Deno.serve(async (req: Request) => {

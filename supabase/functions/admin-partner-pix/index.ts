@@ -2,12 +2,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info","Access-Control-Allow-Methods":"POST, OPTIONS"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store, max-age=0","Pragma":"no-cache"}});
 function fromBase64(value:string):Uint8Array{const binary=atob(value);return Uint8Array.from(binary,c=>c.charCodeAt(0));}
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  return copy.buffer;
+}
 function decodeClaims(jwt:string):Record<string,unknown>{const part=jwt.split(".")[1];if(!part)throw new Error("JWT invalido");const p=part.replace(/-/g,"+").replace(/_/g,"/");return JSON.parse(atob(p.padEnd(Math.ceil(p.length/4)*4,"=")));}
 async function decryptPixKey(value:string,secret:string):Promise<string>{
  const raw=fromBase64(secret);if(raw.length!==32)throw new Error("Chave criptografica invalida");
  const [version,ivPart,cipherPart]=value.split(".");if(version!=="v1"||!ivPart||!cipherPart)throw new Error("Ciphertext invalido");
- const key=await crypto.subtle.importKey("raw",raw,"AES-GCM",false,["decrypt"]);
- const clear=await crypto.subtle.decrypt({name:"AES-GCM",iv:fromBase64(ivPart)},key,fromBase64(cipherPart));
+ const key=await crypto.subtle.importKey("raw",toArrayBuffer(raw),"AES-GCM",false,["decrypt"]);
+ const clear=await crypto.subtle.decrypt({name:"AES-GCM",iv:toArrayBuffer(fromBase64(ivPart))},key,toArrayBuffer(fromBase64(cipherPart)));
  return new TextDecoder().decode(clear);
 }
 Deno.serve(async(req:Request)=>{

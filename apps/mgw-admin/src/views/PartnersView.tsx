@@ -3,7 +3,7 @@ import { AlertCircle, CalendarDays, CheckCircle2, Handshake, KeyRound, RefreshCw
 import {
   fetchMgwPartners, fetchMgwPartnerSettings, updateMgwPartnerProgram, updateMgwPartnerStatus,
   fetchMgwPartnerCommissions, markMgwPartnerCommissionPaid, revealMgwPartnerPix,
-  type MgwPartnerAdminRecord, type MgwPartnerProgramSettings, type MgwPartnerCommissionRecord,
+  type MgwPartnerAdminRecord, type MgwPartnerCommissionRecord,
 } from '../services/adminApi';
 import type { PlatformRole } from '../types/admin';
 import { formatDateBr } from '../services/rbac';
@@ -12,7 +12,6 @@ interface Props { role:PlatformRole; mfaVerified:boolean; onRequestMfa:()=>void;
 export function PartnersView({role,mfaVerified,onRequestMfa,refreshTrigger}:Props){
   const [partners,setPartners]=useState<MgwPartnerAdminRecord[]>([]);
   const [commissions,setCommissions]=useState<MgwPartnerCommissionRecord[]>([]);
-  const [settings,setSettings]=useState<MgwPartnerProgramSettings|null>(null);
   const [percent,setPercent]=useState('15');
   const [reason,setReason]=useState('');
   const [busy,setBusy]=useState(false);
@@ -37,7 +36,7 @@ export function PartnersView({role,mfaVerified,onRequestMfa,refreshTrigger}:Prop
         fetchMgwPartners(),fetchMgwPartnerSettings(),
         canView?fetchMgwPartnerCommissions(commissionFilter):Promise.resolve([]),
       ]);
-      setPartners(p);setSettings(s);setPercent(String(s.commission_percent));setCommissions(c);
+      setPartners(p);setPercent(String(s.commission_percent));setCommissions(c);
     }catch(e){setError(e instanceof Error?e.message:'Falha ao carregar o programa de parceiros.');}
     finally{setBusy(false);}
   }
