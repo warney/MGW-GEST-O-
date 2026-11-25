@@ -1685,9 +1685,6 @@ export default function App() {
           {effectiveRoute === 'settings' && canAccessSettingsRoute && (
             <SettingsView
               workspaceId={dataContext?.tenant.tenantId || activeTenant.tenantId}
-              tenant={activeTenant}
-              onSubscribe={handleSubscribe}
-              onSubscribePix={handleSubscribePix}
               settings={settings}
               products={products}
               combos={combos}

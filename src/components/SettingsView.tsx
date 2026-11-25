@@ -258,27 +258,6 @@ export function SettingsView({
         <div className="space-y-5">
         <SettingsAccountCenter tenant={tenant} accountEmail={accountEmail} onLogout={onLogout} onSubscribe={onSubscribe} onSubscribePix={onSubscribePix} />
         <div className="max-w-4xl space-y-4">
-        <section className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold text-[#111827]">
-              <span className="w-8 h-8 rounded-lg bg-[#EAB308]/10 text-[#EAB308] flex items-center justify-center">
-                <LogOut className="w-4 h-4" />
-              </span>
-              Conta e acesso
-            </div>
-            <p className="text-xs text-[#6B7280] mt-2 break-all">{accountEmail}</p>
-            <p className="text-[11px] text-[#6B7280] mt-1">Encerre sua sessão neste dispositivo com segurança.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleLogoutClick()}
-            disabled={isSigningOut}
-            className="min-h-[42px] px-4 rounded-xl border border-[#EF4444]/35 text-[#FCA5A5] hover:bg-[#EF4444]/10 disabled:opacity-60 text-xs font-semibold inline-flex items-center justify-center gap-2 shrink-0"
-          >
-            <LogOut className="w-4 h-4" />
-            {isSigningOut ? 'Saindo...' : 'Sair da conta'}
-          </button>
-        </section>
         <section id="establishment-details" className="scroll-mt-24 bg-[#FFFFFF] border border-[#E5E7EB] rounded-2xl p-5 sm:p-6 space-y-5">
           <div className="border-b border-[#E5E7EB] pb-4">
             <h2 className="text-lg font-bold text-[#111827]">
@@ -476,6 +455,7 @@ export function SettingsView({
             </div>
           </form>
         </section>
+        </div>
         </div>
       ) : (
         <ProductsCombosManager
