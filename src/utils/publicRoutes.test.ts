@@ -12,6 +12,8 @@ test('parsePublicUrlRoute maps landing, auth, legal, admin, menu, and tracking r
   assert.deepEqual(parsePublicUrlRoute('/cardapio-digital'), { kind: 'institutional', page: 'cardapio' });
   assert.deepEqual(parsePublicUrlRoute('/recursos'), { kind: 'institutional', page: 'recursos' });
   assert.deepEqual(parsePublicUrlRoute('/planos'), { kind: 'institutional', page: 'planos' });
+  assert.deepEqual(parsePublicUrlRoute('/parceiros'), { kind: 'institutional', page: 'parceiros' });
+  assert.deepEqual(parsePublicUrlRoute('/contato'), { kind: 'institutional', page: 'contato' });
   assert.deepEqual(parsePublicUrlRoute('/login'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/login/'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/cadastro'), { kind: 'register' });
