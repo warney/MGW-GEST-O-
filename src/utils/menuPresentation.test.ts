@@ -93,6 +93,9 @@ test('customer profile serialization validates fields and tolerates malformed st
     fulfillmentType: 'delivery',
     deliveryAddress: 'Av. Brasil, 100',
     deliveryReference: 'Portão azul',
+    deliveryNeighborhood: '',
+    deliveryCity: '',
+    deliveryRegionId: '',
     paymentMethod: 'Pix',
   });
 
@@ -103,6 +106,9 @@ test('customer profile serialization validates fields and tolerates malformed st
     fulfillmentType: 'delivery',
     deliveryAddress: 'Av. Brasil, 100',
     deliveryReference: 'Portão azul',
+    deliveryNeighborhood: '',
+    deliveryCity: '',
+    deliveryRegionId: '',
     paymentMethod: 'Pix',
   });
 
