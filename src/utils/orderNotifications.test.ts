@@ -249,6 +249,9 @@ test('OrdersCenterView renders Push notification controls, iOS PWA hint, denied 
 
   const grantedHtml = renderToStaticMarkup(
     createElement(OrdersCenterView, {
+      couriers: [],
+      dispatches: [],
+      onAssignCourier: async () => {},
       orders: [makeOrder(5, 'Cliente Teste', 42)],
       digitalMenuSettings: settings,
       soundEnabled: true,
@@ -273,6 +276,9 @@ test('OrdersCenterView renders Push notification controls, iOS PWA hint, denied 
 
   const deniedHtml = renderToStaticMarkup(
     createElement(OrdersCenterView, {
+      couriers: [],
+      dispatches: [],
+      onAssignCourier: async () => {},
       orders: [],
       digitalMenuSettings: settings,
       soundEnabled: false,
