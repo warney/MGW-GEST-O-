@@ -107,9 +107,20 @@ export interface DataSubscriptionsCallbacks {
   onError: (err: Error) => void;
 }
 
+export interface PartnerAuthProfile {
+  id: string;
+  userId: string;
+  email: string;
+  fullName: string;
+  referralCode: string;
+  status: 'active' | 'suspended' | 'blocked';
+  createdAt: string;
+}
+
 export interface AuthResolutionState {
   user: AuthSessionUser | null;
   tenants: TenantContext[];
+  partner?: PartnerAuthProfile | null;
   errorMessage: string | null;
   legacyWorkspace?: WorkspaceAccess;
   passwordRecovery?: boolean;
@@ -180,6 +191,48 @@ async function resolveSupabaseAuthenticatedContext(
       user: null,
       tenants: [],
       errorMessage: `Falha ao validar vínculo de estabelecimento: ${claimError.message}`,
+    };
+  }
+
+  const { data: partnerRow, error: partnerError } = await supabase
+    .from('mgw_partners')
+    .select('id, user_id, email, full_name, referral_code, status, created_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (partnerError) {
+    return {
+      user: null,
+      tenants: [],
+      errorMessage: `Não foi possível validar o perfil de parceiro: ${partnerError.message}`,
+    };
+  }
+
+  if (partnerRow) {
+    if (partnerRow.status !== 'active') {
+      await supabase.auth.signOut();
+      return {
+        user: null,
+        tenants: [],
+        errorMessage: partnerRow.status === 'suspended'
+          ? 'Sua conta de parceiro está suspensa. Entre em contato com o suporte MGW.'
+          : 'Sua conta de parceiro está bloqueada. Entre em contato com o suporte MGW.',
+      };
+    }
+
+    return {
+      user: { uid: userId, email, emailVerified },
+      tenants: [],
+      partner: {
+        id: String(partnerRow.id),
+        userId: String(partnerRow.user_id),
+        email: String(partnerRow.email),
+        fullName: String(partnerRow.full_name),
+        referralCode: String(partnerRow.referral_code),
+        status: partnerRow.status,
+        createdAt: String(partnerRow.created_at),
+      },
+      errorMessage: null,
     };
   }
 
@@ -429,6 +482,42 @@ export async function registerWithEmailPassword(
   if (data.session) {
     // O trigger do banco cria o tenant e o vínculo atomicamente ao inserir auth.users.
     return;
+  }
+}
+
+export async function registerPartnerWithEmailPassword(
+  name: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  const cleanName = name.trim().slice(0, 120);
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (cleanName.length < 2 || !cleanEmail || !cleanEmail.includes('@')) {
+    throw new Error('Informe seu nome completo e um e-mail válido.');
+  }
+  if (password.length < 8) {
+    throw new Error('A senha precisa ter pelo menos 8 caracteres.');
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: {
+        full_name: cleanName,
+        account_type: 'mgw_partner',
+      },
+      emailRedirectTo: window.location.origin + '/parceiros/painel',
+    },
+  });
+
+  if (error) {
+    throw new Error(mapSupabaseAuthErrorMessage(error));
+  }
+  if (!data.user) {
+    throw new Error('Não foi possível concluir seu cadastro. Tente novamente.');
   }
 }
 
