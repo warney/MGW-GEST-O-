@@ -26,7 +26,6 @@ export interface DeliveryReportMetrics {
 
 const DAY = 24 * 60 * 60 * 1000;
 const isCancelled = (status: string) => status === 'cancelled' || status === 'rejected';
-const isFinishedDispatch = (status: string) => status === 'delivered' || status === 'delivery_rejected' || status === 'delivery_cancelled';
 
 export function getDeliveryReportStart(period: DeliveryReportPeriod, now = Date.now()): number {
   if (period === 'all') return 0;
@@ -103,24 +102,28 @@ export function computeDeliveryReportMetrics(
   const regionRows = [...regionMap.values()].map(r=>({...r, averageTicket:r.orders ? r.revenue/r.orders : 0})).sort((a,b)=>b.orders-a.orders);
 
   const buckets = new Map<string, { label: string; orders: number; revenue: number }>();
-  const days = period === '7d' ? 7 : period === '90d' ? 14 : 30;
-  const bucketSize = period === '7d' ? DAY : period === '90d' ? 7*DAY : DAY;
-  for (let i=days-1;i>=0;i--) {
-    const date = new Date(now - i*bucketSize);
-    const key = period === '90d'
-      ? `${date.getFullYear()}-${date.getMonth()}-${Math.floor(date.getDate()/7)}`
-      : `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    const label = period === '90d' ? date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) : date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
-    if (!buckets.has(key)) buckets.set(key,{label,orders:0,revenue:0});
+  const bucketSize = period === '90d' ? 7 * DAY : period === 'all' ? 30 * DAY : DAY;
+  const bucketCount = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 13 : 12;
+  const chartStart = period === 'all'
+    ? new Date(now - (bucketCount - 1) * 30 * DAY).setDate(1)
+    : now - (bucketCount - 1) * bucketSize;
+  for (let i = 0; i < bucketCount; i++) {
+    const date = new Date(chartStart + i * bucketSize);
+    const key = period === 'all'
+      ? `${date.getFullYear()}-${date.getMonth()}`
+      : String(i);
+    const label = date.toLocaleDateString('pt-BR', period === 'all' ? { month: 'short', year: '2-digit' } : { day: '2-digit', month: '2-digit' });
+    buckets.set(key, { label, orders: 0, revenue: 0 });
   }
   for (const order of orders) {
-    const date = new Date(order.createdAtMs);
-    const bucketDate = new Date(Math.floor(date.getTime()/bucketSize)*bucketSize);
-    const key = period === '90d'
-      ? `${bucketDate.getFullYear()}-${bucketDate.getMonth()}-${Math.floor(bucketDate.getDate()/7)}`
-      : `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    const row = buckets.get(key);
-    if (row) { row.orders += 1; if (!isCancelled(order.status)) row.revenue += Math.max(0,Number(order.totalAmount)||0); }
+    const offset = period === 'all'
+      ? `${new Date(order.createdAtMs).getFullYear()}-${new Date(order.createdAtMs).getMonth()}`
+      : String(Math.floor((order.createdAtMs - chartStart) / bucketSize));
+    const row = buckets.get(offset);
+    if (row) {
+      row.orders += 1;
+      if (!isCancelled(order.status)) row.revenue += Math.max(0, Number(order.totalAmount) || 0);
+    }
   }
 
   return {
