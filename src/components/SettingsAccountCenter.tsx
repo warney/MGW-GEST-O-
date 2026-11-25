@@ -171,10 +171,10 @@ export function SettingsAccountCenter({ tenant, accountEmail, onLogout, onSubscr
     : 'border-white/15 bg-white/10 text-white/80';
 
   return (
-    <div className="max-w-5xl space-y-5">
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#172033] via-[#1B2740] to-[#171D35] p-5 text-white shadow-[0_8px_24px_rgba(23,32,51,0.13)] sm:p-6">
+    <div className="max-w-5xl space-y-4">
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#172033] via-[#1B2740] to-[#171D35] p-4 text-white shadow-[0_8px_24px_rgba(23,32,51,0.13)] sm:p-5">
         <div className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[#F5B900]/10 blur-3xl" />
-        <div className="relative space-y-5">
+        <div className="relative space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F5B900] text-[#172033]"><Store className="h-6 w-6" /></span>
@@ -182,10 +182,10 @@ export function SettingsAccountCenter({ tenant, accountEmail, onLogout, onSubscr
             </div>
             <span className={'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ' + toneClass}><CheckCircle2 className="h-4 w-4" />{statusInfo.label}</span>
           </div>
-          <div className="grid grid-cols-1 gap-4 border-t border-white/15 pt-4 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
-            <div><p className="text-xs text-white/65">Plano atual</p><p className="mt-1 text-base font-bold">{planName}</p><p className="mt-0.5 text-2xl font-bold">{exempt ? 'Isento' : status === 'trialing' ? 'Grátis' : money(amount, subscription?.currency || 'BRL')}{!exempt && status !== 'trialing' && <span className="ml-1 text-xs font-medium text-white/70">/ mês</span>}</p></div>
-            <div className="flex items-center gap-3 border-t border-white/15 pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"><CalendarDays className="h-7 w-7 shrink-0 text-[#F5B900]" /><div><p className="text-xs text-white/65">{status === 'trialing' ? 'Fim do período de teste' : 'Próxima renovação / vencimento'}</p><p className="mt-1 text-lg font-bold">{loading ? 'Carregando...' : dateLabel(endDate)}</p><p className="mt-0.5 text-xs text-[#FFD75E]">{daysLeft === null ? 'Data não definida' : daysLeft > 0 ? 'Faltam ' + daysLeft + ' dias' : 'Período encerrado'}</p></div></div>
-            <div className="hidden h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-emerald-300 sm:flex"><ShieldCheck className="h-10 w-10" /></div>
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_auto] items-center gap-2 border-t border-white/15 pt-3 sm:gap-4">
+            <div className="min-w-0"><p className="text-[10px] text-white/65 sm:text-xs">Plano atual</p><p className="mt-1 truncate text-xs font-bold sm:text-base">{planName}</p><p className="mt-0.5 text-lg font-bold sm:text-2xl">{exempt ? 'Isento' : status === 'trialing' ? 'Grátis' : money(amount, subscription?.currency || 'BRL')}{!exempt && status !== 'trialing' && <span className="ml-1 text-xs font-medium text-white/70">/ mês</span>}</p></div>
+            <div className="flex min-w-0 items-center gap-2 border-l border-white/15 pl-2 sm:gap-3 sm:pl-5"><CalendarDays className="h-5 w-5 shrink-0 text-[#F5B900] sm:h-7 sm:w-7" /><div><p className="text-[9px] leading-tight text-white/65 sm:text-xs">{status === 'trialing' ? 'Fim do período de teste' : 'Próxima renovação'}</p><p className="mt-1 text-xs font-bold sm:text-lg">{loading ? 'Carregando...' : dateLabel(endDate)}</p><p className="mt-0.5 text-[10px] text-[#FFD75E] sm:text-xs">{daysLeft === null ? 'Data não definida' : daysLeft > 0 ? 'Faltam ' + daysLeft + ' dias' : 'Período encerrado'}</p></div></div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-emerald-300 sm:h-16 sm:w-16 sm:rounded-2xl"><ShieldCheck className="h-6 w-6 sm:h-10 sm:w-10" /></div>
           </div>
         </div>
       </section>
@@ -198,7 +198,7 @@ export function SettingsAccountCenter({ tenant, accountEmail, onLogout, onSubscr
 
       <section className="space-y-3">
         <h3 className="text-lg font-bold text-[#172033]">Ações rápidas</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
           {[
             { id: 'billing-plan', icon: CreditCard, title: 'Meu Plano', description: 'Ver detalhes da assinatura' },
             { id: 'billing-payments', icon: FileText, title: 'Pagamentos', description: 'Histórico de cobranças' },
@@ -206,10 +206,10 @@ export function SettingsAccountCenter({ tenant, accountEmail, onLogout, onSubscr
             { id: 'account-access', icon: ShieldCheck, title: 'Conta e acesso', description: 'E-mail e segurança da sessão' },
           ].map((item) => {
             const Icon = item.icon;
-            return <button key={item.id} type="button" onClick={() => jumpTo(item.id)} className="group flex min-h-[76px] items-center gap-3 rounded-2xl border border-[#E8EAF0] bg-white px-4 py-3 text-left shadow-[0_1px_2px_rgba(23,32,51,0.03)] transition hover:-translate-y-0.5 hover:border-[#F5D56B]">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFFBEB] text-[#E0AC00]"><Icon className="h-5 w-5" /></span>
-              <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-[#172033]">{item.title}</span><span className="mt-0.5 block text-xs text-[#778094]">{item.description}</span></span>
-              <ChevronRight className="h-5 w-5 text-[#778094]" />
+            return <button key={item.id} type="button" onClick={() => jumpTo(item.id)} className="group flex min-h-[72px] items-center gap-2 rounded-xl border border-[#E8EAF0] bg-white px-2.5 py-2.5 text-left shadow-[0_1px_2px_rgba(23,32,51,0.03)] transition hover:-translate-y-0.5 hover:border-[#F5D56B] sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#FFFBEB] text-[#E0AC00] sm:h-10 sm:w-10 sm:rounded-xl"><Icon className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1"><span className="block text-[11px] font-bold leading-tight text-[#172033] sm:text-sm">{item.title}</span><span className="mt-0.5 block text-[9px] leading-tight text-[#778094] sm:text-xs">{item.description}</span></span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#778094] sm:h-5 sm:w-5" />
             </button>;
           })}
         </div>
@@ -220,10 +220,10 @@ export function SettingsAccountCenter({ tenant, accountEmail, onLogout, onSubscr
           <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFFBEB] text-[#D9A600]"><Crown className="h-5 w-5" /></span><h3 className="text-base font-bold text-[#172033]">Detalhes da Assinatura</h3></div>
           {canManage && <button type="button" onClick={() => { if (attention || status === 'trialing') setShowPaymentOptions((value) => !value); else jumpTo('billing-payments'); }} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#F5B900] px-4 text-xs font-bold text-[#172033] hover:bg-[#FFC928]"><RefreshCw className="h-4 w-4" />{attention || status === 'trialing' ? 'Renovar / ativar agora' : 'Ver pagamentos'}</button>}
         </div>
-        <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-3">
-          <div className="flex items-start gap-2.5"><CalendarDays className="mt-0.5 h-5 w-5 text-[#E0AC00]" /><div><p className="text-xs text-[#778094]">Início do plano</p><p className="mt-1 text-sm font-semibold text-[#172033]">{loading ? 'Carregando...' : dateLabel(startDate)}</p></div></div>
-          <div className="flex items-start gap-2.5"><CalendarDays className="mt-0.5 h-5 w-5 text-[#E0AC00]" /><div><p className="text-xs text-[#778094]">Validade atual</p><p className="mt-1 text-sm font-semibold text-[#172033]">{dateLabel(endDate)}</p></div></div>
-          <div className="flex items-start gap-2.5"><CreditCard className="mt-0.5 h-5 w-5 text-[#E0AC00]" /><div><p className="text-xs text-[#778094]">Forma de pagamento</p><p className="mt-1 text-sm font-semibold text-[#172033]">{method}</p></div></div>
+        <div className="grid grid-cols-3 gap-2 py-3 sm:gap-4 sm:py-4">
+          <div className="flex min-w-0 items-start gap-1.5 sm:gap-2.5"><CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-[#E0AC00] sm:h-5 sm:w-5" /><div><p className="text-[9px] leading-tight text-[#778094] sm:text-xs">Início do plano</p><p className="mt-1 text-[11px] font-semibold text-[#172033] sm:text-sm">{loading ? 'Carregando...' : dateLabel(startDate)}</p></div></div>
+          <div className="flex items-start gap-2.5"><CalendarDays className="mt-0.5 h-5 w-5 text-[#E0AC00]" /><div><p className="text-[9px] leading-tight text-[#778094] sm:text-xs">Validade atual</p><p className="mt-1 text-[11px] font-semibold text-[#172033] sm:text-sm">{dateLabel(endDate)}</p></div></div>
+          <div className="flex items-start gap-2.5"><CreditCard className="mt-0.5 h-5 w-5 text-[#E0AC00]" /><div><p className="text-[9px] leading-tight text-[#778094] sm:text-xs">Forma de pagamento</p><p className="mt-1 text-[11px] font-semibold leading-tight text-[#172033] sm:text-sm">{method}</p></div></div>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-[#E8EAF0] pt-3"><Info className="h-4 w-4 text-[#172033]" /><span className="text-xs text-[#4B5563]">Status da assinatura</span><span className={'rounded-full px-2.5 py-1 text-[11px] font-bold ' + (statusInfo.tone === 'success' ? 'bg-[#ECFDF5] text-[#16845B]' : statusInfo.tone === 'warning' ? 'bg-[#FFFBEB] text-[#A16207]' : statusInfo.tone === 'danger' ? 'bg-[#FEF2F2] text-[#C24145]' : 'bg-[#F3F4F6] text-[#6B7280]')}>{statusInfo.label}</span>
           <p className="w-full text-xs leading-relaxed text-[#778094]">{exempt ? 'Sua conta possui isenção administrativa e não exige renovação paga.' : subscription?.mp_preapproval_id ? 'Sua cobrança por cartão está configurada para renovação recorrente.' : status === 'trialing' ? 'Ao terminar o teste, escolha Pix ou cartão para continuar usando o MGW Gestão.' : status === 'authorized' || status === 'active' ? 'No Pix, a renovação é manual. Você deverá realizar o próximo pagamento antes do vencimento.' : 'Regularize sua assinatura para restabelecer o acesso ao MGW Gestão.'}</p>
@@ -240,13 +240,20 @@ export function SettingsAccountCenter({ tenant, accountEmail, onLogout, onSubscr
         {loading ? <div className="space-y-3 p-5"><div className="h-4 animate-pulse rounded bg-[#F3F4F6]" /><div className="h-4 animate-pulse rounded bg-[#F3F4F6]" /></div>
           : tenant.role !== 'owner' ? <p className="p-5 text-xs text-[#778094]">O histórico financeiro da assinatura fica disponível somente para o proprietário.</p>
           : payments.length === 0 ? <p className="p-5 text-xs text-[#778094]">Nenhum pagamento registrado até o momento.</p>
-          : <div className="divide-y divide-[#E8EAF0]">{(showAll ? payments : payments.slice(0, 5)).map((payment) => { const info = paymentStatus(payment.status); return <div key={payment.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[125px_minmax(0,1fr)_auto_auto] sm:px-5"><div className="text-xs text-[#778094]"><p className="font-medium text-[#4B5563]">{dateTimeLabel(payment.paid_at || payment.created_at)}</p><p>{payment.payment_method || 'Cobrança'}</p></div><div className="min-w-0"><p className="truncate text-xs font-semibold text-[#172033]">Mensalidade MGW Gestão</p><p className="mt-0.5 text-[11px] text-[#778094]">{payment.due_at ? 'Vencimento ' + dateLabel(payment.due_at) : 'Cobrança da assinatura'}</p></div><span className={'col-start-2 row-start-1 justify-self-end rounded-full px-2 py-1 text-[10px] font-semibold sm:col-auto sm:row-auto ' + info.className}>{info.label}</span><p className="col-span-2 text-right text-sm font-bold tabular-nums text-[#172033] sm:col-span-1">{money(payment.amount_cents, payment.currency)}</p></div>; })}</div>}
+          : <div className="divide-y divide-[#E8EAF0]">{(showAll ? payments : payments.slice(0, 5)).map((payment) => { const info = paymentStatus(payment.status); return <div key={payment.id} className="grid grid-cols-[58px_minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-3 sm:grid-cols-[125px_minmax(0,1fr)_auto_auto] sm:gap-3 sm:px-5"><div className="text-xs text-[#778094]"><p className="font-medium leading-tight text-[#4B5563]">{dateTimeLabel(payment.paid_at || payment.created_at)}</p><p className="text-[9px]">{payment.payment_method || 'Cobrança'}</p></div><div className="min-w-0"><p className="truncate text-[10px] font-semibold text-[#172033] sm:text-xs">Mensalidade MGW Gestão</p><p className="mt-0.5 truncate text-[9px] text-[#778094] sm:text-[11px]">{payment.due_at ? 'Vencimento ' + dateLabel(payment.due_at) : 'Cobrança da assinatura'}</p></div><span className={'rounded-full px-1.5 py-1 text-[9px] font-semibold sm:px-2 sm:text-[10px] ' + info.className}>{info.label}</span><p className="text-right text-[10px] font-bold tabular-nums text-[#172033] sm:text-sm">{money(payment.amount_cents, payment.currency)}</p></div>; })}</div>}
       </section>
 
       <section id="account-access" className="scroll-mt-24 flex flex-col gap-3 rounded-2xl border border-[#E8EAF0] bg-white p-4 shadow-[0_1px_2px_rgba(23,32,51,0.03)] sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FFFBEB] text-[#D9A600]"><ShieldCheck className="h-5 w-5" /></span><div className="min-w-0"><p className="text-sm font-bold text-[#172033]">Conta e acesso</p><p className="mt-0.5 break-all text-xs text-[#778094]">{accountEmail}</p></div></div>
         <button type="button" onClick={() => void logout()} disabled={logoutLoading} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#E8EAF0] px-4 text-xs font-semibold text-[#4B5563] hover:border-[#E35D62] hover:text-[#C24145] disabled:opacity-60"><LogOut className="h-4 w-4" />{logoutLoading ? 'Saindo...' : 'Sair da conta'}</button>
       </section>
+
+      <button type="button" onClick={() => jumpTo('establishment-details')} className="flex w-full items-center gap-3 rounded-2xl border border-[#E8EAF0] bg-white p-4 text-left shadow-[0_1px_2px_rgba(23,32,51,0.03)] transition hover:border-[#F5D56B] sm:p-5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#FFFBEB] text-[#D9A600]"><Store className="h-5 w-5" /></span>
+        <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-[#172033]">Sobre o seu estabelecimento</span><span className="mt-0.5 block text-xs text-[#778094]">Dados comerciais e operacionais</span></span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-[#778094]" />
+      </button>
+
     </div>
   );
 }
