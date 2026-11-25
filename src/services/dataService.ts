@@ -526,6 +526,22 @@ export async function registerPartnerWithEmailPassword(
   }
 }
 
+export interface PartnerDashboardData {
+  referral_count: number; converted_count: number; pending_cents: number; paid_cents: number; commission_percent: number;
+  referrals: Array<{id:string;status:string;created_at:string;converted_at:string|null}>;
+  commissions: Array<{id:string;amount_cents:number;status:string;created_at:string;paid_at:string|null}>;
+  payout_profile: {pix_key:string;pix_key_type:string;holder_name:string}|null;
+}
+export async function fetchPartnerDashboardData(): Promise<PartnerDashboardData> {
+  const {data,error}=await getSupabaseClient().rpc('partner_get_dashboard');
+  if(error) throw new Error(error.message);
+  return data as PartnerDashboardData;
+}
+export async function savePartnerPayoutProfile(input:{pixKey:string;pixKeyType:'cpf'|'cnpj'|'email'|'phone'|'random';holderName:string}):Promise<void>{
+  const {error}=await getSupabaseClient().rpc('partner_update_payout_profile',{p_pix_key:input.pixKey.trim(),p_pix_key_type:input.pixKeyType,p_holder_name:input.holderName.trim()});
+  if(error) throw new Error(error.message);
+}
+
 export async function updateAccountPassword(password: string): Promise<void> {
     if (password.length < 8) {
     throw new Error('A nova senha precisa ter pelo menos 8 caracteres.');
