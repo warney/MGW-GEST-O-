@@ -12,7 +12,7 @@ insert into public.mgw_partner_program_settings (id) values (1) on conflict (id)
 
 create table if not exists public.mgw_partner_payout_profiles (
   partner_id uuid primary key references public.mgw_partners(id) on delete cascade,
-  pix_key text not null,
+  pix_key_ciphertext text not null,
   pix_key_type text not null check (pix_key_type in ('cpf','cnpj','email','phone','random')),
   holder_name text not null,
   updated_at timestamptz not null default now(),
@@ -79,31 +79,9 @@ begin
       select jsonb_agg(jsonb_build_object('id',c.id,'amount_cents',c.amount_cents,'status',c.status,'created_at',c.created_at,'paid_at',c.paid_at) order by c.created_at desc)
       from (select * from public.mgw_partner_commissions where partner_id=v_partner.id order by created_at desc limit 50) c
     ), '[]'::jsonb),
-    'payout_profile', (select jsonb_build_object('pix_key',p.pix_key,'pix_key_type',p.pix_key_type,'holder_name',p.holder_name) from public.mgw_partner_payout_profiles p where p.partner_id=v_partner.id)
+    'payout_profile', (select jsonb_build_object('has_pix_key',true,'pix_key_type',p.pix_key_type,'holder_name',p.holder_name) from public.mgw_partner_payout_profiles p where p.partner_id=v_partner.id)
   ) into v_result;
   return v_result;
-end;
-$$;
-
-create or replace function public.partner_update_payout_profile(
-  p_pix_key text, p_pix_key_type text, p_holder_name text
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = pg_catalog, public, auth
-as $$
-declare v_partner public.mgw_partners%rowtype; v_key text := btrim(coalesce(p_pix_key,'')); v_holder text := btrim(coalesce(p_holder_name,''));
-begin
-  select * into v_partner from public.mgw_partners where user_id=auth.uid() and status='active';
-  if not found then raise exception 'Conta de parceiro ativa nao encontrada.'; end if;
-  if char_length(v_key) not between 3 and 160 or p_pix_key_type not in ('cpf','cnpj','email','phone','random') or char_length(v_holder) not between 2 and 120 then
-    raise exception 'Dados de recebimento Pix invalidos.';
-  end if;
-  insert into public.mgw_partner_payout_profiles(partner_id,pix_key,pix_key_type,holder_name)
-  values(v_partner.id,v_key,p_pix_key_type,v_holder)
-  on conflict(partner_id) do update set pix_key=excluded.pix_key,pix_key_type=excluded.pix_key_type,holder_name=excluded.holder_name,updated_at=now();
-  return jsonb_build_object('saved',true);
 end;
 $$;
 
@@ -223,8 +201,6 @@ grant execute on function public.admin_get_mgw_partner_settings() to authenticat
 
 revoke all on function public.partner_get_dashboard() from public,anon;
 grant execute on function public.partner_get_dashboard() to authenticated,service_role;
-revoke all on function public.partner_update_payout_profile(text,text,text) from public,anon;
-grant execute on function public.partner_update_payout_profile(text,text,text) to authenticated,service_role;
 revoke all on function public.create_mgw_partner_commission() from public,anon,authenticated;
 revoke all on function public.admin_list_mgw_partners() from public,anon,authenticated;
 grant execute on function public.admin_list_mgw_partners() to authenticated,service_role;

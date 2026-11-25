@@ -537,9 +537,16 @@ export async function fetchPartnerDashboardData(): Promise<PartnerDashboardData>
   if(error) throw new Error(error.message);
   return data as PartnerDashboardData;
 }
-export async function savePartnerPayoutProfile(input:{pixKey:string;pixKeyType:'cpf'|'cnpj'|'email'|'phone'|'random';holderName:string}):Promise<void>{
-  const {error}=await getSupabaseClient().rpc('partner_update_payout_profile',{p_pix_key:input.pixKey.trim(),p_pix_key_type:input.pixKeyType,p_holder_name:input.holderName.trim()});
-  if(error) throw new Error(error.message);
+export async function savePartnerPayoutProfile(input: {
+  pixKey: string;
+  pixKeyType: 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
+  holderName: string;
+}): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.functions.invoke('partner-payout-profile', {
+    body: { pixKey: input.pixKey.trim(), pixKeyType: input.pixKeyType, holderName: input.holderName.trim() },
+  });
+  if (error || data?.saved !== true) throw new Error(error?.message || data?.error || 'Não foi possível salvar os dados Pix.');
 }
 
 export async function updateAccountPassword(password: string): Promise<void> {
