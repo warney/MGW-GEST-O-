@@ -156,6 +156,7 @@ import { SubscriptionBlockedScreen } from './components/SubscriptionBlockedScree
 import { AppShell } from './components/AppShell';
 
 import { LandingPageView } from './components/landing/LandingPageView';
+import { InstitutionalPageView } from './components/landing/InstitutionalPageView';
 import { LegalDocumentView } from './components/landing/LegalDocumentView';
 import { isDemoSandboxActive } from './services/demoSandbox';
 import { getSupabaseClient } from './lib/supabase';
@@ -1458,6 +1459,15 @@ export default function App() {
     if (!dataContext) return;
     await saveDeliveryPricingSettings(dataContext, input);
     showToast('Regras gerais de entrega salvas com sucesso.');
+  }
+
+  if (publicRoute.kind === 'institutional') {
+    return (
+      <InstitutionalPageView
+        kind={publicRoute.page}
+        onNavigate={navigatePublicPath}
+      />
+    );
   }
 
   if (publicRoute.kind === 'menu') {
