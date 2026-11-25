@@ -184,7 +184,7 @@ drop policy if exists mgw_partner_lead_events_owner_read on public.mgw_partner_l
 create policy mgw_partner_lead_events_owner_read on public.mgw_partner_lead_events
 for select to authenticated
 using (
-  exists (select 1 from public.mgw_partners p where p.id = partner_id and p.user_id = auth.uid())
+  exists (select 1 from public.mgw_partners p where p.id = partner_id and p.user_id = auth.uid() and p.status = 'active')
   or public.is_platform_admin(array['super_admin'])
 );
 
