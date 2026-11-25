@@ -24,8 +24,8 @@ create table if not exists public.mgw_partner_payout_profiles (
 create table if not exists public.mgw_partner_commissions (
   id uuid primary key default gen_random_uuid(),
   partner_id uuid not null references public.mgw_partners(id) on delete restrict,
-  referral_id uuid not null unique references public.mgw_partner_referrals(id) on delete restrict,
-  tenant_id uuid not null unique references public.tenants(id) on delete restrict,
+  referral_id uuid not null references public.mgw_partner_referrals(id) on delete restrict,
+  tenant_id uuid not null references public.tenants(id) on delete restrict,
   source_payment_id uuid not null unique references public.platform_payments(id) on delete restrict,
   base_amount_cents integer not null check(base_amount_cents>0),
   commission_percent numeric(5,2) not null check(commission_percent between 0 and 100),
@@ -45,6 +45,8 @@ create index if not exists idx_mgw_partner_commissions_partner_created
   on public.mgw_partner_commissions(partner_id,created_at desc);
 create index if not exists idx_mgw_partner_commissions_status_created
   on public.mgw_partner_commissions(status,created_at desc);
+create unique index if not exists uq_mgw_partner_commission_active_referral
+  on public.mgw_partner_commissions(referral_id) where status in ('available','paid');
 create unique index if not exists uq_mgw_partner_commission_payment_reference
   on public.mgw_partner_commissions(lower(btrim(payment_reference)))
   where payment_reference is not null;
@@ -139,6 +141,14 @@ begin
     update public.mgw_partner_commissions
     set reversal_required=true,updated_at=now()
     where source_payment_id=new.id and status='paid';
+
+    -- Se a comissao ainda nao foi paga, a indicacao volta a ficar elegivel
+    -- para o primeiro pagamento aprovado posterior, sem duplicar comissao ativa.
+    update public.mgw_partner_referrals r
+    set status='registered',converted_at=null
+    where r.tenant_id=new.tenant_id and r.status='converted'
+      and exists(select 1 from public.mgw_partner_commissions c
+        where c.source_payment_id=new.id and c.status='cancelled');
   end if;
   return new;
 end;
