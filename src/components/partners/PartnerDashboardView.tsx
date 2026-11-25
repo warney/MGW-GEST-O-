@@ -91,9 +91,10 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
           </article>
           <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ECFDF3] text-emerald-700"><Wallet className="h-5 w-5" /></div>
-            <p className="mt-4 text-sm font-semibold text-[#667085]">Comissões</p>
-            <p className="mt-1 text-2xl font-extrabold">{data ? money(data.pending_cents+data.paid_cents) : '—'}</p>
-            <p className="mt-1 text-xs text-[#98A2B3]">{data ? `${money(data.pending_cents)} pendentes · ${money(data.paid_cents)} pagos` : 'Carregando...'}</p><p className="mt-2 text-xs font-semibold text-emerald-700">Pagamentos semanais: toda sexta-feira</p>
+            <p className="mt-4 text-sm font-semibold text-[#667085]">Saldo a receber</p>
+            <p className="mt-1 text-2xl font-extrabold">{data ? money(data.pending_cents) : '—'}</p>
+            <p className="mt-1 text-xs text-[#98A2B3]">{data ? `${money(data.paid_cents)} ja recebidos` : 'Carregando...'}</p>
+            <p className="mt-2 text-xs font-semibold text-emerald-700">Pagamentos semanais: toda sexta-feira</p><p className="mt-2 text-xs font-semibold text-emerald-700">Pagamentos semanais: toda sexta-feira</p>
           </article>
         </section>
         {loadError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{loadError} <button onClick={()=>void reloadDashboard()} className="underline font-bold">Tentar novamente</button></p>}
@@ -106,7 +107,7 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
           </article>
           <article className="rounded-2xl border border-[#E5E7EB] bg-white p-5">
             <div className="flex items-center gap-2"><CreditCard className="h-5 w-5"/><h2 className="font-bold">Dados para recebimento Pix</h2></div>
-            <p className="mt-1 text-xs text-slate-500">{data?.payout_profile?.has_pix_key ? 'Sua chave Pix está cadastrada e protegida por criptografia. Informe uma nova chave somente se desejar substituí-la.' : 'Cadastre sua chave Pix. Ela será criptografada antes de ser armazenada.'}</p>
+            <p className="mt-1 text-xs text-slate-500">{data?.payout_profile?.has_pix_key ? 'Sua chave Pix esta cadastrada e protegida por criptografia. Informe uma nova chave somente se desejar substitui-la.' : 'Cadastre sua chave Pix. Ela sera criptografada antes de ser armazenada.'} Os pagamentos sao realizados manualmente pelo MGW toda sexta-feira.</p>
             <form onSubmit={event=>void handleSavePix(event)} className="mt-4 space-y-3">
               <label className="block text-xs font-semibold">Titular<input value={holderName} onChange={e=>setHolderName(e.target.value)} required maxLength={120} className="mt-1 w-full rounded-lg border p-3 text-sm"/></label>
               <label className="block text-xs font-semibold">Tipo de chave<select value={pixKeyType} onChange={e=>setPixKeyType(e.target.value as typeof pixKeyType)} className="mt-1 w-full rounded-lg border p-3 text-sm"><option value="cpf">CPF</option><option value="cnpj">CNPJ</option><option value="email">E-mail</option><option value="phone">Telefone</option><option value="random">Aleatória</option></select></label>
@@ -117,7 +118,7 @@ export function PartnerDashboardView({ partner, onLogout }: PartnerDashboardView
           </article>
         </section>
         <section className="mt-6 rounded-2xl border border-[#E5E7EB] bg-white p-5"><h2 className="font-bold">Histórico de comissões</h2>
-          {(data?.commissions??[]).map(item=><div key={item.id} className="flex justify-between gap-3 border-b py-3 text-sm"><span>{new Date(item.created_at).toLocaleDateString('pt-BR')}</span><b>{money(item.amount_cents)}</b><span>{item.status==='paid'?'Pago':item.status==='available'?'Disponível':item.status==='processing'?'Em processamento':'Pendente'}</span></div>)}
+          {(data?.commissions??[]).map(item=><div key={item.id} className="border-b py-3 text-sm"><div className="flex flex-wrap justify-between gap-2"><span>{new Date(item.created_at).toLocaleDateString('pt-BR')}</span><b>{money(item.amount_cents)}</b><span>{item.status==='paid'?'Pago':item.status==='available'?'A receber':item.status==='cancelled'?'Cancelada':'Pendente'}</span></div>{item.status==='paid'&&<p className="mt-1 text-xs text-slate-500">Recebido em {item.paid_at?new Date(item.paid_at).toLocaleDateString('pt-BR'):'—'} · referencia {item.payment_reference||'—'}</p>}</div>)}
           {data && !data.commissions.length&&<p className="mt-3 text-sm text-slate-500">Nenhuma comissão registrada ainda.</p>}
         </section>
       </div>

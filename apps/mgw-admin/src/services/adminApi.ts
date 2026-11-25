@@ -486,3 +486,27 @@ export async function updateMgwPartnerStatus(partnerId:string,status:'active'|'s
 export async function updateMgwPartnerProgram(params:{commissionPercent:number;reason:string}):Promise<MgwPartnerProgramSettings>{
   return callRpc('admin_update_mgw_partner_settings',{p_commission_percent:params.commissionPercent,p_reason:params.reason});
 }
+
+export interface MgwPartnerCommissionRecord {
+  id:string; partner_id:string; partner_name:string; partner_email:string; referral_code:string;
+  base_amount_cents:number; commission_percent:number; amount_cents:number;
+  status:'available'|'paid'|'cancelled'; created_at:string; paid_at:string|null;
+  payment_reference:string|null; payment_method:string|null; payment_note:string;
+  has_pix_key:boolean; pix_key_type:string|null; pix_holder_name:string|null;
+}
+export interface MgwPartnerPixDetails { pix_key:string; pix_key_type:string; holder_name:string; }
+export async function fetchMgwPartnerCommissions(status:'available'|'paid'|'all'='available'):Promise<MgwPartnerCommissionRecord[]> {
+  return callRpc('admin_list_mgw_partner_commissions',{p_status:status});
+}
+export async function markMgwPartnerCommissionPaid(params:{commissionId:string;paymentReference:string;paymentNote?:string}):Promise<{id:string;status:string;amount_cents:number;paid_at:string}> {
+  return callRpc('admin_mark_mgw_partner_commission_paid',{
+    p_commission_id:params.commissionId,p_payment_reference:params.paymentReference,p_payment_note:params.paymentNote??'',
+  });
+}
+export async function revealMgwPartnerPix(partnerId:string):Promise<MgwPartnerPixDetails> {
+  const supabase=getSupabaseAdminClient();
+  const {data,error}=await supabase.functions.invoke('admin-partner-pix',{body:{partnerId}});
+  if(error) throw new Error(error.message||'Nao foi possivel consultar a chave Pix.');
+  if(!data?.pix_key) throw new Error(data?.error||'Chave Pix indisponivel.');
+  return data as MgwPartnerPixDetails;
+}

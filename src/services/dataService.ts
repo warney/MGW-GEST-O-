@@ -529,7 +529,7 @@ export async function registerPartnerWithEmailPassword(
 export interface PartnerDashboardData {
   referral_count: number; converted_count: number; pending_cents: number; paid_cents: number; commission_percent: number;
   referrals: Array<{id:string;status:string;created_at:string;converted_at:string|null}>;
-  commissions: Array<{id:string;amount_cents:number;status:string;created_at:string;paid_at:string|null}>;
+  commissions: Array<{id:string;amount_cents:number;base_amount_cents:number;commission_percent:number;status:string;created_at:string;paid_at:string|null;payment_reference:string|null;payment_method:string|null}>;
   payout_profile: {has_pix_key:boolean;pix_key_type:string;holder_name:string}|null;
 }
 export async function fetchPartnerDashboardData(): Promise<PartnerDashboardData> {
