@@ -845,7 +845,11 @@ export default function App() {
       document.title = titles[publicRoute.page];
       return;
     }
-    if (publicRoute.kind === 'menu' || publicRoute.kind === 'tracking' || publicRoute.kind === 'review') {
+    if (publicRoute.kind === 'review') {
+      document.title = 'Avalie seu pedido — MGW Cardápio Digital';
+      return;
+    }
+    if (publicRoute.kind === 'menu' || publicRoute.kind === 'tracking') {
       return;
     }
     if (dataContext) {
