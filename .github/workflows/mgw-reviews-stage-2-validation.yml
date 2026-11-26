@@ -7,6 +7,8 @@ on:
     paths:
       - 'src/App.tsx'
       - 'src/components/PublicReviewView.tsx'
+      - 'src/components/PublicMenuReviews.tsx'
+      - 'src/components/PublicMenuView.tsx'
       - 'src/components/PublicOrderTrackingView.tsx'
       - 'src/components/DigitalMenuPromoBanners.tsx'
       - 'src/services/dataService.ts'
