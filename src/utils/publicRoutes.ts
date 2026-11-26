@@ -10,7 +10,8 @@ export type PublicUrlRoute =
   | { kind: 'partnerRegister' }
   | { kind: 'partnerPortal' }
   | { kind: 'menu'; slug?: string }
-  | { kind: 'tracking'; token: string };
+  | { kind: 'tracking'; token: string }
+  | { kind: 'review'; token: string };
 
 export function parsePublicUrlRoute(
   pathname: string,
@@ -53,6 +54,10 @@ export function parsePublicUrlRoute(
   }
   if (normalized === '/cardapio') {
     return { kind: 'menu', slug: lastPublicMenuSlug || undefined };
+  }
+  if (normalized.startsWith('/cardapio/avaliar/')) {
+    const token = decodeURIComponent(normalized.slice('/cardapio/avaliar/'.length));
+    if (token) return { kind: 'review', token };
   }
   if (normalized.startsWith('/cardapio/pedido/')) {
     const token = decodeURIComponent(
