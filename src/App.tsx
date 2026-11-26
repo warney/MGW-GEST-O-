@@ -146,6 +146,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { OrdersCenterView } from './components/OrdersCenterView';
 import { PublicMenuView } from './components/PublicMenuView';
 import { PublicOrderTrackingView } from './components/PublicOrderTrackingView';
+import { PublicReviewView } from './components/PublicReviewView';
 import { PasswordRecoveryScreen } from './components/PasswordRecoveryScreen';
 import { ReportsView } from './components/ReportsView';
 import { SaleModal } from './components/SaleModal';
@@ -1487,6 +1488,19 @@ export default function App() {
       <PublicMenuView
         slug={publicRoute.slug}
         onOrderCreated={(token) => navigatePublicPath(`/cardapio/pedido/${token}`)}
+      />
+    );
+  }
+
+  if (publicRoute.kind === 'review') {
+    return (
+      <PublicReviewView
+        token={publicRoute.token}
+        onBackToMenu={() => {
+          let slug = '';
+          try { slug = window.localStorage.getItem('mgw_public_menu_last_slug') || ''; } catch {}
+          navigatePublicPath(slug ? `/cardapio/${slug}` : '/cardapio');
+        }}
       />
     );
   }
