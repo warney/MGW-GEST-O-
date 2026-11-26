@@ -8,6 +8,7 @@ on:
       - 'src/App.tsx'
       - 'src/components/PublicReviewView.tsx'
       - 'src/components/PublicOrderTrackingView.tsx'
+      - 'src/components/DigitalMenuPromoBanners.tsx'
       - 'src/services/dataService.ts'
       - 'src/utils/publicRoutes.ts'
       - 'src/utils/publicRoutes.test.ts'
