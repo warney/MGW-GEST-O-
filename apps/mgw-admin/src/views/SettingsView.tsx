@@ -90,7 +90,7 @@ export function SettingsView({
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-xl font-bold text-slate-900">Configurações da Plataforma</h1>
-        <p className="text-xs text-slate-400 mt-0.5">
+        <p className="text-xs text-slate-500 mt-0.5">
           Parâmetros globais de trial, carência, retenção de dados e modo de manutenção.
           {settings && (
             <span className="ml-2 font-mono text-slate-500">
@@ -101,22 +101,22 @@ export function SettingsView({
       </div>
 
       {!isSuperAdmin && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-300">
-          Modo somente leitura. Apenas <code className="font-mono text-[#F5B731]">super_admin</code> pode
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-700">
+          Modo somente leitura. Apenas <code className="font-mono font-semibold text-amber-700">super_admin</code> pode
           alterar parâmetros globais da plataforma.
         </div>
       )}
 
       {isSuperAdmin && !mfaVerified && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-800 flex items-center justify-between gap-3">
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-900 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
+            <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0" />
             <span>Valide seu segundo fator (MFA AAL2) para salvar alterações globais.</span>
           </div>
           <button
             type="button"
             onClick={onRequestMfa}
-            className="rounded-lg border border-amber-400/50 px-3 py-1 font-semibold hover:bg-amber-500/20 cursor-pointer whitespace-nowrap"
+            className="rounded-lg border border-amber-500/50 px-3 py-1 font-semibold hover:bg-amber-500/20 cursor-pointer whitespace-nowrap"
           >
             Validar MFA
           </button>
@@ -139,9 +139,9 @@ export function SettingsView({
         <div className="h-72 rounded-xl border border-slate-200 bg-white animate-pulse" />
       ) : (
         <form onSubmit={handleSave} className="rounded-xl border border-slate-200 bg-white p-6 space-y-5 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-slate-300 mb-1.5 font-medium">Nome da Plataforma</label>
+              <label className="block text-slate-700 mb-1.5 font-medium">Nome da Plataforma</label>
               <input
                 type="text"
                 required
@@ -153,7 +153,7 @@ export function SettingsView({
             </div>
 
             <div>
-              <label className="block text-slate-300 mb-1.5 font-medium">E-mail de Suporte</label>
+              <label className="block text-slate-700 mb-1.5 font-medium">E-mail de Suporte</label>
               <input
                 type="email"
                 disabled={!isSuperAdmin}
@@ -163,11 +163,23 @@ export function SettingsView({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 disabled:opacity-60"
               />
             </div>
+
+            <div>
+              <label className="block text-slate-700 mb-1.5 font-medium">WhatsApp de Suporte</label>
+              <input
+                type="tel"
+                disabled={!isSuperAdmin}
+                value={form.supportWhatsapp}
+                onChange={(e) => setForm((f) => ({ ...f, supportWhatsapp: e.target.value }))}
+                placeholder="(92) 99999-0000"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-slate-900 disabled:opacity-60"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-slate-300 mb-1.5 font-medium">Dias de Trial Padrão</label>
+              <label className="block text-slate-700 mb-1.5 font-medium">Dias de Trial Padrão</label>
               <input
                 type="number"
                 min={1}
@@ -180,7 +192,7 @@ export function SettingsView({
             </div>
 
             <div>
-              <label className="block text-slate-300 mb-1.5 font-medium">Dias de Carência</label>
+              <label className="block text-slate-700 mb-1.5 font-medium">Dias de Carência</label>
               <input
                 type="number"
                 min={0}
@@ -193,7 +205,7 @@ export function SettingsView({
             </div>
 
             <div>
-              <label className="block text-slate-300 mb-1.5 font-medium">Retenção Pós-Encerramento (Meses)</label>
+              <label className="block text-slate-700 mb-1.5 font-medium">Retenção Pós-Encerramento (Meses)</label>
               <input
                 type="number"
                 min={1}
@@ -207,7 +219,7 @@ export function SettingsView({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
-            <label className="flex items-center gap-2.5 text-slate-200 cursor-pointer">
+            <label className="flex items-center gap-2.5 text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
                 disabled={!isSuperAdmin}
@@ -217,7 +229,7 @@ export function SettingsView({
               <span>Permitir novos cadastros públicos no MGW Gestão</span>
             </label>
 
-            <label className="flex items-center gap-2.5 text-slate-200 cursor-pointer">
+            <label className="flex items-center gap-2.5 text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
                 disabled={!isSuperAdmin}
@@ -230,7 +242,7 @@ export function SettingsView({
 
           {form.maintenanceMode && (
             <div>
-              <label className="block text-slate-300 mb-1.5 font-medium">Mensagem de Manutenção</label>
+              <label className="block text-slate-700 mb-1.5 font-medium">Mensagem de Manutenção</label>
               <textarea
                 rows={2}
                 disabled={!isSuperAdmin}
@@ -244,7 +256,7 @@ export function SettingsView({
           {isSuperAdmin && (
             <div className="pt-3 border-t border-slate-200 space-y-3">
               <div>
-                <label className="block text-slate-300 mb-1.5 font-medium">
+                <label className="block text-slate-700 mb-1.5 font-medium">
                   Motivo da alteração (registrado na auditoria)
                 </label>
                 <input

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="mgwGoldMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D" />
+      <stop offset="55%" stop-color="#F5B731" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+    <linearGradient id="mgwNavyMask" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#283140" />
+      <stop offset="100%" stop-color="#1A202B" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#mgwNavyMask)" />
+  <circle cx="256" cy="256" r="184" fill="#202733" stroke="url(#mgwGoldMask)" stroke-opacity="0.35" stroke-width="8" />
+  <path
+    d="M150 326V180h44l62 96 62-96h44v146h-42V244l-50 76h-28l-50-76v82h-42z"
+    fill="url(#mgwGoldMask)"
+  />
+  <path
+    d="M162 162c58-30 130-30 188 0"
+    fill="none"
+    stroke="#FCD34D"
+    stroke-width="11"
+    stroke-linecap="round"
+    stroke-opacity="0.85"
+  />
+</svg>

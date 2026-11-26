@@ -102,11 +102,11 @@ export function StatusIndicator({
   const tone = toneOverride ?? meta.tone;
 
   const toneClasses: Record<IndicatorTone, string> = {
-    success: 'text-emerald-400',
-    warning: 'text-amber-400',
-    danger: 'text-rose-400',
-    accent: 'text-[#F5B731]',
-    neutral: 'text-slate-400',
+    success: 'text-emerald-700',
+    warning: 'text-amber-700',
+    danger: 'text-rose-700',
+    accent: 'text-amber-800',
+    neutral: 'text-slate-600',
   };
 
   const Icon =
@@ -130,12 +130,12 @@ export function StatusIndicator({
 
 export function MfaBadgeIndicator({ verified }: { verified: boolean }) {
   return verified ? (
-    <span className="inline-flex items-center gap-1.5 text-xs font-mono text-emerald-400 whitespace-nowrap">
+    <span className="inline-flex items-center gap-1.5 text-xs font-mono font-medium text-emerald-700 whitespace-nowrap">
       <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
       <span>MFA AAL2</span>
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1.5 text-xs font-mono text-amber-400 whitespace-nowrap">
+    <span className="inline-flex items-center gap-1.5 text-xs font-mono font-medium text-amber-700 whitespace-nowrap">
       <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
       <span>MFA AAL1</span>
     </span>

@@ -96,10 +96,10 @@ export function MfaGateModal({ open, onClose, onVerified }: MfaGateModalProps) {
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6">
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
-            <ShieldCheck className="h-5 w-5 text-[#F5B731]" />
+            <ShieldCheck className="h-5 w-5 text-amber-600" />
             <div>
               <h2 className="text-base font-bold text-slate-900">Verificação MFA (AAL2)</h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Obrigatória para ações administrativas críticas no banco.
               </p>
             </div>
@@ -107,7 +107,7 @@ export function MfaGateModal({ open, onClose, onVerified }: MfaGateModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
+            className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
             aria-label="Fechar verificação MFA"
           >
             <X className="h-4 w-4" />
@@ -116,26 +116,26 @@ export function MfaGateModal({ open, onClose, onVerified }: MfaGateModalProps) {
 
         <div className="pt-4 space-y-4">
           {error && (
-            <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3 text-xs text-rose-700 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 text-xs text-rose-800 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-rose-600" />
               <span>{error}</span>
             </div>
           )}
 
           {loading ? (
-            <div className="py-8 text-center text-xs text-slate-400">Consultando fatores MFA...</div>
+            <div className="py-8 text-center text-xs text-slate-500">Consultando fatores MFA...</div>
           ) : factors.length === 0 && !enrollData ? (
             <div className="space-y-4">
-              <p className="text-xs leading-relaxed text-slate-300">
+              <p className="text-xs leading-relaxed text-slate-600">
                 Nenhum autenticador TOTP verificado foi encontrado nesta conta. Configure um
                 aplicativo autenticador (Google Authenticator, 1Password, Authy) para elevar a
-                sessão ao nível <code className="font-mono text-[#F5B731]">AAL2</code>.
+                sessão ao nível <code className="font-mono font-semibold text-amber-800">AAL2</code>.
               </p>
               <button
                 type="button"
                 onClick={handleStartEnroll}
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#F5B731] px-4 py-2 text-sm font-semibold text-[#0B0D11] hover:bg-[#e5a824] disabled:opacity-50 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#F5B731] px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-[#e5a824] disabled:opacity-50 cursor-pointer"
               >
                 <KeyRound className="h-4 w-4" />
                 <span>{submitting ? 'Gerando chave TOTP...' : 'Configurar Autenticador TOTP'}</span>
@@ -145,14 +145,14 @@ export function MfaGateModal({ open, onClose, onVerified }: MfaGateModalProps) {
             <form onSubmit={handleVerify} className="space-y-4">
               {enrollData && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-                  <p className="text-xs text-slate-300">
+                  <p className="text-xs text-slate-600">
                     Escaneie o QR Code no seu aplicativo autenticador ou insira a chave manual:
                   </p>
-                  <div className="flex justify-center bg-white rounded p-3 w-fit mx-auto">
+                  <div className="flex justify-center bg-white rounded p-3 w-fit mx-auto border border-slate-200">
                     <img src={qrImageSrc} alt="QR Code TOTP MGW Admin" className="h-36 w-36" />
                   </div>
                   <div className="text-center">
-                    <code className="text-[11px] font-mono text-[#F5B731] break-all select-all">
+                    <code className="text-[11px] font-mono text-amber-800 break-all select-all">
                       {enrollData.secret}
                     </code>
                   </div>
@@ -160,7 +160,7 @@ export function MfaGateModal({ open, onClose, onVerified }: MfaGateModalProps) {
               )}
 
               <div>
-                <label htmlFor="mfa-totp-code" className="block text-xs font-medium text-slate-300 mb-1.5">
+                <label htmlFor="mfa-totp-code" className="block text-xs font-medium text-slate-700 mb-1.5">
                   Código de 6 dígitos do autenticador
                 </label>
                 <input
@@ -173,7 +173,7 @@ export function MfaGateModal({ open, onClose, onVerified }: MfaGateModalProps) {
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="000000"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-center font-mono text-lg tracking-[0.35em] text-slate-900 focus:border-[#F5B731] focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-center font-mono text-lg tracking-[0.35em] text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
                 />
               </div>
 
@@ -181,14 +181,14 @@ export function MfaGateModal({ open, onClose, onVerified }: MfaGateModalProps) {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-100 cursor-pointer"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={submitting || code.length !== 6}
-                  className="flex items-center gap-1.5 rounded-lg bg-[#F5B731] px-4 py-2 text-xs font-semibold text-[#0B0D11] hover:bg-[#e5a824] disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-lg bg-[#F5B731] px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-[#e5a824] disabled:opacity-50 cursor-pointer"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   <span>{submitting ? 'Verificando...' : 'Confirmar MFA AAL2'}</span>

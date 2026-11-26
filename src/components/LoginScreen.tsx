@@ -26,6 +26,7 @@ interface LoginScreenProps {
   isSigningIn: boolean;
   errorMessage: string | null;
   initialMode?: 'login' | 'register' | 'reset';
+  allowPublicSignup?: boolean;
   onModeChange?: (mode: 'login' | 'register' | 'reset') => void;
   onBackToHome?: () => void;
 }
@@ -109,6 +110,7 @@ export function LoginScreen({
   isSigningIn,
   errorMessage,
   initialMode = 'login',
+  allowPublicSignup = true,
   onModeChange,
   onBackToHome,
 }: LoginScreenProps) {
@@ -519,7 +521,7 @@ export function LoginScreen({
                   >
                     Esqueceu sua senha?
                   </button>
-                  {onRegister && (
+                  {onRegister && allowPublicSignup && (
                     <button
                       type="button"
                       disabled={busy}
@@ -533,7 +535,23 @@ export function LoginScreen({
               </form>
             )}
 
-            {mode === 'register' && (
+            {mode === 'register' && !allowPublicSignup && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 leading-relaxed">
+                  Novos cadastros públicos estão temporariamente pausados pela administração da plataforma.
+                  Se você já possui uma loja cadastrada, entre normalmente com seu e-mail e senha.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => changeMode('login')}
+                  className="w-full min-h-[44px] rounded-xl bg-[#F5B900] hover:bg-[#FFC928] text-[#172033] font-bold text-sm cursor-pointer transition-colors"
+                >
+                  Voltar para o login
+                </button>
+              </div>
+            )}
+
+            {mode === 'register' && allowPublicSignup && (
               <form
                 noValidate
                 aria-busy={busy}

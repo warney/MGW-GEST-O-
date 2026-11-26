@@ -476,13 +476,51 @@ export async function loginWithEmailPassword(
   }
 }
 
+export interface PlatformRuntimeStatus {
+  platformName: string;
+  supportEmail: string;
+  supportWhatsapp: string;
+  allowPublicSignup: boolean;
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+}
+
+export const DEFAULT_PLATFORM_RUNTIME_STATUS: PlatformRuntimeStatus = {
+  platformName: 'MGW Gestão',
+  supportEmail: '',
+  supportWhatsapp: '',
+  allowPublicSignup: true,
+  maintenanceMode: false,
+  maintenanceMessage: '',
+};
+
+export async function fetchPlatformRuntimeStatus(): Promise<PlatformRuntimeStatus> {
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.rpc('get_platform_runtime_status');
+    if (error || !data || typeof data !== 'object') {
+      return DEFAULT_PLATFORM_RUNTIME_STATUS;
+    }
+    const record = data as Partial<PlatformRuntimeStatus>;
+    return {
+      platformName: record.platformName || 'MGW Gestão',
+      supportEmail: record.supportEmail || '',
+      supportWhatsapp: record.supportWhatsapp || '',
+      allowPublicSignup: record.allowPublicSignup !== false,
+      maintenanceMode: Boolean(record.maintenanceMode),
+      maintenanceMessage: record.maintenanceMessage || '',
+    };
+  } catch {
+    return DEFAULT_PLATFORM_RUNTIME_STATUS;
+  }
+}
+
 export async function registerWithEmailPassword(
   name: string,
   storeName: string,
   email: string,
   password: string,
 ): Promise<void> {
-  
   const cleanName = name.trim().slice(0, 80);
   const cleanStoreName = storeName.trim().slice(0, 80);
   const cleanEmail = email.trim().toLowerCase();
@@ -491,6 +529,11 @@ export async function registerWithEmailPassword(
   }
   if (password.length < 8) {
     throw new Error('A senha precisa ter pelo menos 8 caracteres.');
+  }
+
+  const runtimeStatus = await fetchPlatformRuntimeStatus();
+  if (!runtimeStatus.allowPublicSignup) {
+    throw new Error('Novos cadastros públicos estão temporariamente pausados pela administração.');
   }
 
   const supabase = getSupabaseClient();
@@ -1535,35 +1578,50 @@ export async function seedDefaultCatalog(
 export async function addSale(
   ctx: DataExecutionContext,
   input: SaleInput,
-): Promise<void> {
+): Promise<SaleRecord> {
   if (isDemoSandboxActive()) {
-    demoMutations.addSale(input);
-    return;
+    return demoMutations.addSale(input);
   }
-  
+
   const supabase = getSupabaseClient();
   const payload = buildSalePayloadForSupabase(input);
+  const saleId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const nowIso = new Date().toISOString();
+
   const { error } = await supabase.from('sales').insert({
+    id: saleId,
     tenant_id: ctx.tenant.tenantId,
     owner_email: ctx.user.email,
     ...payload,
   });
   if (error) throw new Error(error.message);
   notifyTenantRefresh(ctx.tenant.tenantId);
+
+  return mapSaleRow({
+    id: saleId,
+    tenant_id: ctx.tenant.tenantId,
+    owner_email: ctx.user.email,
+    ...payload,
+    created_at: nowIso,
+    updated_at: nowIso,
+  });
 }
 
 export async function updateSale(
   ctx: DataExecutionContext,
   saleId: string,
   input: SaleInput,
-): Promise<void> {
+): Promise<SaleRecord> {
   if (isDemoSandboxActive()) {
-    demoMutations.updateSale(saleId, input);
-    return;
+    return demoMutations.updateSale(saleId, input);
   }
-  
+
   const supabase = getSupabaseClient();
   const payload = buildSalePayloadForSupabase(input);
+  const nowIso = new Date().toISOString();
   const { error } = await supabase
     .from('sales')
     .update(payload)
@@ -1571,6 +1629,15 @@ export async function updateSale(
     .eq('tenant_id', ctx.tenant.tenantId);
   if (error) throw new Error(error.message);
   notifyTenantRefresh(ctx.tenant.tenantId);
+
+  return mapSaleRow({
+    id: saleId,
+    tenant_id: ctx.tenant.tenantId,
+    owner_email: ctx.user.email,
+    ...payload,
+    created_at: nowIso,
+    updated_at: nowIso,
+  });
 }
 
 export async function deleteSale(

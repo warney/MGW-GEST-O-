@@ -487,6 +487,12 @@ export interface SaleRecord {
   onlineOrderId?: string | null;
   onlineOrderNumber?: number | null;
   deliveryFee?: number;
+  customerId?: string | null;
+  customerName?: string;
+  customerAddress?: string;
+  customerNumber?: string;
+  customerNeighborhood?: string;
+  customerComplement?: string;
   createdAtMs: number;
   updatedAtMs: number;
 }
@@ -544,6 +550,12 @@ export interface SaleInput {
   onlineOrderId?: string | null;
   onlineOrderNumber?: number | null;
   deliveryFee?: number;
+  customerId?: string | null;
+  customerName?: string;
+  customerAddress?: string;
+  customerNumber?: string;
+  customerNeighborhood?: string;
+  customerComplement?: string;
 }
 
 export interface ExpenseInput {

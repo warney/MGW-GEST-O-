@@ -286,3 +286,26 @@ export interface MfaFactorSummary {
   friendlyName: string;
   status: 'verified' | 'unverified';
 }
+
+export interface EstablishmentDetailResponse {
+  establishment: EstablishmentRecord;
+  openTicketsCount: number;
+  recentPayments: Array<{
+    id: string;
+    provider: string;
+    amount_cents: number;
+    status: string;
+    payment_method: string;
+    payer_email: string;
+    paid_at: string | null;
+    created_at: string;
+  }>;
+  recentAuditLogs: Array<{
+    id: string;
+    admin_email: string;
+    action: string;
+    reason: string;
+    created_at: string;
+  }>;
+}
+

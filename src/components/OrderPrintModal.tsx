@@ -14,6 +14,8 @@ const PAPER_PREF_KEY = 'mgw_print_paper_format';
 interface OrderPrintModalProps {
   order: PrintableOrderSource | null;
   allowKitchenToggle?: boolean;
+  availableFormats?: PrintPaperFormat[];
+  initialPaperFormat?: PrintPaperFormat;
   onClose: () => void;
 }
 
@@ -23,27 +25,46 @@ const PAPER_OPTIONS: Array<{ id: PrintPaperFormat; label: string }> = [
   { id: 'a4', label: 'Folha A4 / PDF' },
 ];
 
+function resolveInitialPaperFormat(
+  allowed: PrintPaperFormat[],
+  preferred?: PrintPaperFormat,
+): PrintPaperFormat {
+  if (preferred && allowed.includes(preferred)) {
+    return preferred;
+  }
+  try {
+    const saved = window.localStorage.getItem(PAPER_PREF_KEY);
+    if (
+      (saved === '58mm' || saved === '80mm' || saved === 'a4') &&
+      allowed.includes(saved)
+    ) {
+      return saved;
+    }
+  } catch {
+    // Ignora erro de storage
+  }
+  return allowed[0] ?? '80mm';
+}
+
 export function OrderPrintModal({
   order,
   allowKitchenToggle = true,
+  availableFormats = ['80mm', '58mm', 'a4'],
+  initialPaperFormat,
   onClose,
 }: OrderPrintModalProps) {
-  const [paperFormat, setPaperFormat] = useState<PrintPaperFormat>(() => {
-    try {
-      const saved = window.localStorage.getItem(PAPER_PREF_KEY);
-      if (saved === '58mm' || saved === '80mm' || saved === 'a4') return saved;
-    } catch {
-      // Ignora erro de storage
-    }
-    return '80mm';
-  });
+  const safeFormats = availableFormats.length > 0 ? availableFormats : (['80mm', '58mm'] as PrintPaperFormat[]);
+  const [paperFormat, setPaperFormat] = useState<PrintPaperFormat>(() =>
+    resolveInitialPaperFormat(safeFormats, initialPaperFormat),
+  );
 
   const [copyMode, setCopyMode] = useState<PrintCopyMode>('complete');
 
   useEffect(() => {
     if (!order) return;
     setCopyMode('complete');
-  }, [order?.id]);
+    setPaperFormat(resolveInitialPaperFormat(safeFormats, initialPaperFormat));
+  }, [order?.id, initialPaperFormat]);
 
   useEffect(() => {
     if (!order || typeof document === 'undefined') return;
@@ -115,11 +136,15 @@ export function OrderPrintModal({
             >
               <Printer className="w-4 h-4 text-[#B38300] shrink-0" aria-hidden="true" />
               <span className="truncate">
-                Imprimir Pedido {doc.orderNumberFormatted}
+                {doc.documentKind === 'quick_sale'
+                  ? `Imprimir Nota da Venda${doc.hasOrderNumber ? ` ${doc.orderNumberFormatted}` : ''}`
+                  : `Imprimir Pedido ${doc.orderNumberFormatted}`}
               </span>
             </h2>
             <p className="text-[11px] sm:text-xs text-[#778094] mt-0.5">
-              Compatível com impressora térmica (80mm / 58mm), folha A4 ou Salvar como PDF.
+              {doc.documentKind === 'quick_sale'
+                ? 'Compatível com impressoras térmicas (58mm / 80mm) e impressão pelo navegador.'
+                : 'Compatível com impressora térmica (80mm / 58mm), folha A4 ou Salvar como PDF.'}
             </p>
           </div>
 
@@ -140,7 +165,7 @@ export function OrderPrintModal({
             aria-label="Formato do papel da impressora"
             className="flex flex-wrap items-center gap-1.5"
           >
-            {PAPER_OPTIONS.map((opt) => (
+            {PAPER_OPTIONS.filter((opt) => safeFormats.includes(opt.id)).map((opt) => (
               <button
                 key={opt.id}
                 type="button"
@@ -216,24 +241,53 @@ export function OrderPrintModal({
               </p>
             </header>
 
-            {/* Order Identity & Fulfillment */}
+            {/* Order / Sale Identity */}
             <section className="border-b border-dashed border-black pb-2.5 space-y-1 mgw-print-avoid-break">
-              <div className="flex items-center justify-between gap-2 font-bold text-sm">
-                <span className="tabular-nums">PEDIDO {doc.orderNumberFormatted}</span>
-                <span className="uppercase text-[10px] border border-black px-1.5 py-0.5 shrink-0">
-                  {doc.fulfillmentLabel}
-                </span>
-              </div>
-              <p className="text-[11px] tabular-nums">
-                Data/Hora: {doc.createdAtFormatted}
-              </p>
-              <p className="text-[11px]">Status: {doc.statusLabel}</p>
+              {doc.documentKind === 'quick_sale' ? (
+                <>
+                  <div className="flex items-center justify-between gap-2 font-bold text-sm">
+                    <span>
+                      {doc.hasOrderNumber
+                        ? `PEDIDO ${doc.orderNumberFormatted}`
+                        : 'VENDA RÁPIDA'}
+                    </span>
+                    <span className="uppercase text-[10px] border border-black px-1.5 py-0.5 shrink-0">
+                      {doc.paymentMethod}
+                    </span>
+                  </div>
+                  {doc.saleDateFormatted && (
+                    <p className="text-[11px] tabular-nums">
+                      Data da venda: {doc.saleDateFormatted}
+                    </p>
+                  )}
+                  <p className="text-[11px] tabular-nums">
+                    Registro: {doc.createdAtFormatted}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2 font-bold text-sm">
+                    <span className="tabular-nums">PEDIDO {doc.orderNumberFormatted}</span>
+                    <span className="uppercase text-[10px] border border-black px-1.5 py-0.5 shrink-0">
+                      {doc.fulfillmentLabel}
+                    </span>
+                  </div>
+                  <p className="text-[11px] tabular-nums">
+                    Data/Hora: {doc.createdAtFormatted}
+                  </p>
+                  <p className="text-[11px]">Status: {doc.statusLabel}</p>
+                </>
+              )}
             </section>
 
             {/* Customer & Delivery Info */}
             {(doc.customerName ||
               doc.customerPhone ||
-              doc.deliveryAddress) && (
+              doc.deliveryAddress ||
+              doc.customerAddress ||
+              doc.customerNumber ||
+              doc.customerNeighborhood ||
+              doc.customerComplement) && (
               <section className="border-b border-dashed border-black pb-2.5 space-y-1 mgw-print-avoid-break">
                 {doc.customerName && (
                   <p className="break-words">
@@ -257,6 +311,30 @@ export function OrderPrintModal({
                   <p className="break-words">
                     <span className="font-bold">Referência:</span>{' '}
                     {doc.deliveryReference}
+                  </p>
+                )}
+                {doc.documentKind === 'quick_sale' &&
+                  (doc.customerAddress || doc.customerNumber) && (
+                    <p className="break-words">
+                      <span className="font-bold">Endereço:</span>{' '}
+                      {[
+                        doc.customerAddress,
+                        doc.customerNumber ? `nº ${doc.customerNumber}` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </p>
+                  )}
+                {doc.documentKind === 'quick_sale' && doc.customerNeighborhood && (
+                  <p className="break-words">
+                    <span className="font-bold">Bairro:</span>{' '}
+                    {doc.customerNeighborhood}
+                  </p>
+                )}
+                {doc.documentKind === 'quick_sale' && doc.customerComplement && (
+                  <p className="break-words">
+                    <span className="font-bold">Complemento:</span>{' '}
+                    {doc.customerComplement}
                   </p>
                 )}
               </section>
@@ -334,7 +412,7 @@ export function OrderPrintModal({
                     <span className="tabular-nums">− {doc.discountFormatted}</span>
                   </div>
                 )}
-                {doc.isDelivery && (
+                {(doc.isDelivery || doc.hasDeliveryFee) && (
                   <div className="flex justify-between gap-2">
                     <span>Taxa de entrega</span>
                     <span className="tabular-nums">

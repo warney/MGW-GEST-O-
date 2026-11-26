@@ -13,6 +13,7 @@ import {
   Eye,
   Pencil,
   Plus,
+  Printer,
   Search,
   ShoppingCart,
   Trash2,
@@ -28,11 +29,13 @@ import {
   addDays,
   formatCurrencyBRL,
   formatDateBR,
+  formatSaleCustomerAddressLine,
   formatSaleItemsSummary,
   getLocalTodayDate,
   getSaleCombosCount,
   getSaleOrigin,
   getSaleXSaladaCount,
+  hasSaleCustomerDetails,
 } from '../utils/finance';
 import {
   buildSalesCsvContent,
@@ -49,9 +52,14 @@ import {
   InteractiveBreakdownDoughnutChart,
   SalesByDayAreaChart,
 } from './SalesExpensesCharts';
+import { fromSaleRecord } from '../utils/orderPrint';
+import { OrderPrintModal } from './OrderPrintModal';
 
 interface SalesViewProps {
   sales: SaleRecord[];
+  establishmentName?: string;
+  storePhone?: string;
+  storeAddress?: string;
   canCreateSales?: boolean;
   canEditSales?: boolean;
   canDeleteSales?: boolean;
@@ -61,6 +69,7 @@ interface SalesViewProps {
   onOpenNewSale: () => void;
   onEditSale: (sale: SaleRecord) => void;
   onDeleteSale: (saleId: string) => Promise<void>;
+  onPrintSale?: (sale: SaleRecord) => void;
 }
 
 const SALES_PAGE_SIZE = 15;
@@ -131,11 +140,13 @@ function SaleDetailsDialog({
   canEditSales,
   onClose,
   onEdit,
+  onPrint,
 }: {
   sale: SaleRecord | null;
   canEditSales: boolean;
   onClose: () => void;
   onEdit: (sale: SaleRecord) => void;
+  onPrint: (sale: SaleRecord) => void;
 }) {
   useEffect(() => {
     if (!sale) return;
@@ -150,6 +161,8 @@ function SaleDetailsDialog({
 
   const pm = normalizePaymentMethod(sale.paymentMethod);
   const origin = getSaleOrigin(sale);
+  const hasCustomer = hasSaleCustomerDetails(sale);
+  const customerAddressLine = formatSaleCustomerAddressLine(sale);
 
   return createPortal(
     <div
@@ -159,7 +172,7 @@ function SaleDetailsDialog({
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-50 bg-[#172033]/50 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="no-print fixed inset-0 z-50 bg-[#172033]/50 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4"
     >
       <div className="w-full sm:max-w-lg max-h-[90vh] bg-white border border-[#E8EAF0] rounded-t-2xl sm:rounded-2xl shadow-[0_18px_42px_rgba(23,32,51,0.16)] flex flex-col overflow-hidden">
         <header className="px-5 py-4 border-b border-[#E8EAF0] flex items-start justify-between gap-3">
@@ -221,6 +234,45 @@ function SaleDetailsDialog({
             )}
           </div>
 
+          {hasCustomer && (
+            <div className="bg-white border border-[#E8EAF0] rounded-xl p-4 space-y-1.5 text-xs">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#778094]">
+                Dados do Cliente
+              </p>
+              {sale.customerName && (
+                <p className="text-[#172033]">
+                  <span className="font-semibold">Cliente:</span> {sale.customerName}
+                </p>
+              )}
+              {(sale.customerAddress || sale.customerNumber) && (
+                <p className="text-[#4B5563]">
+                  <span className="font-semibold text-[#172033]">Endereço:</span>{' '}
+                  {[
+                    sale.customerAddress,
+                    sale.customerNumber ? `nº ${sale.customerNumber}` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                </p>
+              )}
+              {sale.customerNeighborhood && (
+                <p className="text-[#4B5563]">
+                  <span className="font-semibold text-[#172033]">Bairro:</span>{' '}
+                  {sale.customerNeighborhood}
+                </p>
+              )}
+              {sale.customerComplement && (
+                <p className="text-[#4B5563]">
+                  <span className="font-semibold text-[#172033]">Complemento:</span>{' '}
+                  {sale.customerComplement}
+                </p>
+              )}
+              {!sale.customerAddress && !sale.customerNeighborhood && customerAddressLine && (
+                <p className="text-[#4B5563]">{customerAddressLine}</p>
+              )}
+            </div>
+          )}
+
           <div className="bg-white border border-[#E8EAF0] rounded-xl p-4 space-y-2 text-xs">
             <div className="flex items-center justify-between text-[#778094]">
               <span>Forma de pagamento</span>
@@ -249,7 +301,18 @@ function SaleDetailsDialog({
           </div>
         </div>
 
-        <footer className="px-5 py-3.5 border-t border-[#E8EAF0] bg-white flex items-center justify-end gap-2">
+        <footer className="px-5 py-3.5 border-t border-[#E8EAF0] bg-white flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onPrint(sale);
+            }}
+            className="mgw-btn-secondary inline-flex items-center gap-1.5"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Imprimir Nota</span>
+          </button>
           {canEditSales && (
             <button
               type="button"
@@ -275,6 +338,9 @@ function SaleDetailsDialog({
 
 export function SalesView({
   sales,
+  establishmentName = 'MGW Lanches',
+  storePhone = '',
+  storeAddress = '',
   canCreateSales = true,
   canEditSales = true,
   canDeleteSales = true,
@@ -284,6 +350,7 @@ export function SalesView({
   onOpenNewSale,
   onEditSale,
   onDeleteSale,
+  onPrintSale,
 }: SalesViewProps) {
   const today = getLocalTodayDate();
 
@@ -304,6 +371,15 @@ export function SalesView({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
+  const [localPrintingSale, setLocalPrintingSale] = useState<SaleRecord | null>(null);
+
+  function handleRequestPrint(sale: SaleRecord) {
+    if (onPrintSale) {
+      onPrintSale(sale);
+      return;
+    }
+    setLocalPrintingSale(sale);
+  }
 
   const summary = useMemo(
     () =>
@@ -346,7 +422,7 @@ export function SalesView({
       if (q) {
         const originLabel = origin === 'online' ? 'cardápio online' : 'manual';
         const hay =
-          `${formatSaleItemsSummary(s)} ${s.note} ${pm} ${originLabel} ${formatDateBR(s.date)} ${getSaleXSaladaCount(s)}`.toLowerCase();
+          `${formatSaleItemsSummary(s)} ${s.customerName || ''} ${s.customerAddress || ''} ${s.customerNeighborhood || ''} ${s.note} ${pm} ${originLabel} ${formatDateBR(s.date)} ${getSaleXSaladaCount(s)}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -845,6 +921,7 @@ export function SalesView({
                               combosCount === 1 ? '' : 's'
                             }`
                           : ''}
+                        {sale.customerName ? ` · Cliente: ${sale.customerName}` : ''}
                         {sale.note ? ` · ${sale.note}` : ''}
                       </p>
                     </div>
@@ -874,6 +951,15 @@ export function SalesView({
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRequestPrint(sale)}
+                            aria-label={`Imprimir nota da venda ${summaryText} em ${formatDateBR(sale.date)}`}
+                            title="Imprimir / Reimprimir nota"
+                            className="min-w-[40px] min-h-[40px] rounded-xl border border-[#E8EAF0] hover:border-[#F5B900] flex items-center justify-center text-[#778094] hover:text-[#B45309] transition-colors cursor-pointer"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => setSelectedSale(sale)}
@@ -963,7 +1049,21 @@ export function SalesView({
         canEditSales={canEditSales}
         onClose={() => setSelectedSale(null)}
         onEdit={onEditSale}
+        onPrint={handleRequestPrint}
       />
+
+      {localPrintingSale && (
+        <OrderPrintModal
+          order={fromSaleRecord(localPrintingSale, {
+            storeName: establishmentName,
+            storePhone,
+            storeAddress,
+          })}
+          allowKitchenToggle={false}
+          availableFormats={['80mm', '58mm']}
+          onClose={() => setLocalPrintingSale(null)}
+        />
+      )}
     </div>
   );
 }

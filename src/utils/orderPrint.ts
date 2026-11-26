@@ -4,8 +4,16 @@ import type {
   OnlineOrderRecord,
   OnlineOrderStatus,
   PublicOrderTrackingRecord,
+  SaleRecord,
 } from '../types/finance';
-import { formatCurrencyBRL, roundCurrency } from './finance';
+import { normalizePaymentMethod } from '../types/finance';
+import {
+  formatCurrencyBRL,
+  formatDateBR,
+  formatSaleCustomerAddressLine,
+  formatSaleItemsSummary,
+  roundCurrency,
+} from './finance';
 import {
   formatDateTimeBR,
   formatOrderNumber,
@@ -14,6 +22,7 @@ import {
 
 export type PrintPaperFormat = '80mm' | '58mm' | 'a4';
 export type PrintCopyMode = 'complete' | 'kitchen';
+export type PrintableDocumentKind = 'online_order' | 'quick_sale';
 
 export interface PrintableOrderAddonGroup {
   groupId: string;
@@ -33,22 +42,28 @@ export interface PrintableOrderItem {
 
 export interface PrintableOrderSource {
   id: string;
+  documentKind?: PrintableDocumentKind;
   orderNumber: number;
   status: OnlineOrderStatus;
   fulfillmentType: OnlineOrderFulfillment;
-  paymentMethod: OnlineOrderPaymentMethod;
+  paymentMethod: OnlineOrderPaymentMethod | string;
   changeFor: number | null;
   subtotalAmount: number;
   deliveryFee: number;
   discountAmount?: number;
   totalAmount: number;
   customerNote: string;
+  saleDate?: string;
   createdAtMs: number;
   items: PrintableOrderItem[];
   customerName?: string;
   customerPhone?: string;
   deliveryAddress?: string;
   deliveryReference?: string;
+  customerAddress?: string;
+  customerNumber?: string;
+  customerNeighborhood?: string;
+  customerComplement?: string;
   storeName: string;
   storePhone?: string;
   storeAddress?: string;
@@ -70,8 +85,11 @@ export interface PrintableOrderLine {
 }
 
 export interface PrintableOrderDocument {
+  documentKind: PrintableDocumentKind;
   orderNumberFormatted: string;
+  hasOrderNumber: boolean;
   statusLabel: string;
+  saleDateFormatted: string;
   createdAtFormatted: string;
   storeName: string;
   storePhone: string;
@@ -85,12 +103,18 @@ export interface PrintableOrderDocument {
   customerPhone: string;
   deliveryAddress: string;
   deliveryReference: string;
-  paymentMethod: OnlineOrderPaymentMethod;
+  customerAddress: string;
+  customerNumber: string;
+  customerNeighborhood: string;
+  customerComplement: string;
+  customerAddressLine: string;
+  paymentMethod: string;
   changeForFormatted: string | null;
   changeReturnFormatted: string | null;
   subtotalFormatted: string;
   discountFormatted: string | null;
   deliveryFeeFormatted: string;
+  hasDeliveryFee: boolean;
   totalFormatted: string;
   customerNote: string;
   lines: PrintableOrderLine[];
@@ -148,6 +172,66 @@ export function fromPublicTrackingRecord(
   };
 }
 
+export function fromSaleRecord(
+  sale: SaleRecord,
+  storeMeta: { storeName: string; storePhone?: string; storeAddress?: string },
+): PrintableOrderSource {
+  const deliveryFee = roundCurrency(Math.max(0, Number(sale.deliveryFee || 0)));
+  const items: PrintableOrderItem[] =
+    sale.items && sale.items.length > 0
+      ? sale.items.map((item, idx) => ({
+          id: `${item.refId || 'item'}-${idx}`,
+          itemName: item.name,
+          quantity: Math.max(1, Math.trunc(item.quantity || 1)),
+          unitPrice: roundCurrency(item.unitPrice),
+          lineTotal: roundCurrency(item.lineTotal),
+          itemNote: '',
+        }))
+      : [
+          {
+            id: `legacy-${sale.id}`,
+            itemName: formatSaleItemsSummary(sale),
+            quantity: Math.max(1, Math.trunc(sale.quantity || 1)),
+            unitPrice: roundCurrency(
+              sale.unitPrice > 0
+                ? sale.unitPrice
+                : sale.totalAmount / Math.max(1, Math.trunc(sale.quantity || 1)),
+            ),
+            lineTotal: roundCurrency(Math.max(0, sale.totalAmount - deliveryFee)),
+            itemNote: '',
+          },
+        ];
+
+  const itemsSubtotal = roundCurrency(
+    items.reduce((acc, item) => acc + item.lineTotal, 0),
+  );
+
+  return {
+    id: sale.id,
+    documentKind: 'quick_sale',
+    orderNumber: sale.onlineOrderNumber ?? 0,
+    status: 'completed',
+    fulfillmentType: 'pickup',
+    paymentMethod: normalizePaymentMethod(sale.paymentMethod),
+    changeFor: null,
+    subtotalAmount: itemsSubtotal > 0 ? itemsSubtotal : roundCurrency(sale.totalAmount),
+    deliveryFee,
+    totalAmount: roundCurrency(sale.totalAmount),
+    customerNote: sale.note || '',
+    saleDate: sale.date,
+    createdAtMs: sale.createdAtMs,
+    items,
+    customerName: sale.customerName || '',
+    customerAddress: sale.customerAddress || '',
+    customerNumber: sale.customerNumber || '',
+    customerNeighborhood: sale.customerNeighborhood || '',
+    customerComplement: sale.customerComplement || '',
+    storeName: storeMeta.storeName || 'MGW GESTÃO',
+    storePhone: storeMeta.storePhone,
+    storeAddress: storeMeta.storeAddress,
+  };
+}
+
 function storeNameFallback(name: string): string {
   return (name || '').trim() || 'MGW GESTÃO';
 }
@@ -183,8 +267,10 @@ export function buildPrintableOrderDocument(
   source: PrintableOrderSource,
   mode: PrintCopyMode = 'complete',
 ): PrintableOrderDocument {
-  const showPrices = mode === 'complete';
-  const isDelivery = source.fulfillmentType === 'delivery';
+  const documentKind: PrintableDocumentKind = source.documentKind ?? 'online_order';
+  const isQuickSale = documentKind === 'quick_sale';
+  const showPrices = isQuickSale ? true : mode === 'complete';
+  const isDelivery = !isQuickSale && source.fulfillmentType === 'delivery';
 
   const changeForNumber =
     source.paymentMethod === 'Dinheiro' &&
@@ -206,22 +292,54 @@ export function buildPrintableOrderDocument(
       ? roundCurrency(source.discountAmount)
       : null;
 
+  const customerAddress = (source.customerAddress || '').trim();
+  const customerNumber = (source.customerNumber || '').trim();
+  const customerNeighborhood = (source.customerNeighborhood || '').trim();
+  const customerComplement = (source.customerComplement || '').trim();
+  const customerAddressLine = formatSaleCustomerAddressLine({
+    customerAddress,
+    customerNumber,
+    customerNeighborhood,
+    customerComplement,
+  });
+
+  const hasOrderNumber = Number(source.orderNumber) > 0;
+  const saleDateFormatted = source.saleDate ? formatDateBR(source.saleDate) : '';
+  const createdAtFormatted = formatDateTimeBR(source.createdAtMs);
+  const deliveryFee = roundCurrency(Math.max(0, Number(source.deliveryFee || 0)));
+
   return {
-    orderNumberFormatted: formatOrderNumber(source.orderNumber),
-    statusLabel: ORDER_STATUS_LABELS[source.status] ?? source.status,
-    createdAtFormatted: formatDateTimeBR(source.createdAtMs),
+    documentKind,
+    orderNumberFormatted: hasOrderNumber ? formatOrderNumber(source.orderNumber) : '',
+    hasOrderNumber,
+    statusLabel: isQuickSale ? '' : (ORDER_STATUS_LABELS[source.status] ?? source.status),
+    saleDateFormatted,
+    createdAtFormatted,
     storeName: source.storeName.trim() || 'MGW GESTÃO',
     storePhone: (source.storePhone || '').trim(),
     storeAddress: (source.storeAddress || '').trim(),
     mode,
-    modeLabel: mode === 'kitchen' ? 'VIA COZINHA' : 'COMANDA DO PEDIDO',
+    modeLabel: isQuickSale
+      ? 'COMPROVANTE DE VENDA'
+      : mode === 'kitchen'
+        ? 'VIA COZINHA'
+        : 'COMANDA DO PEDIDO',
     showPrices,
-    fulfillmentLabel: isDelivery ? 'ENTREGA' : 'RETIRADA NO BALCÃO',
+    fulfillmentLabel: isQuickSale
+      ? 'VENDA RÁPIDA'
+      : isDelivery
+        ? 'ENTREGA'
+        : 'RETIRADA NO BALCÃO',
     isDelivery,
     customerName: (source.customerName || '').trim(),
     customerPhone: (source.customerPhone || '').trim(),
     deliveryAddress: isDelivery ? (source.deliveryAddress || '').trim() : '',
     deliveryReference: isDelivery ? (source.deliveryReference || '').trim() : '',
+    customerAddress,
+    customerNumber,
+    customerNeighborhood,
+    customerComplement,
+    customerAddressLine,
     paymentMethod: source.paymentMethod,
     changeForFormatted:
       changeForNumber !== null ? formatCurrencyBRL(changeForNumber) : null,
@@ -231,9 +349,8 @@ export function buildPrintableOrderDocument(
     discountFormatted:
       discountNumber !== null ? formatCurrencyBRL(discountNumber) : null,
     deliveryFeeFormatted:
-      !isDelivery || source.deliveryFee <= 0
-        ? 'Grátis'
-        : formatCurrencyBRL(source.deliveryFee),
+      deliveryFee <= 0 ? 'Grátis' : formatCurrencyBRL(deliveryFee),
+    hasDeliveryFee: deliveryFee > 0,
     totalFormatted: formatCurrencyBRL(source.totalAmount),
     customerNote: (source.customerNote || '').trim(),
     lines: source.items.map((item) => ({

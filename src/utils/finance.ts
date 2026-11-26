@@ -202,11 +202,75 @@ export function computeReportChannelBreakdown(
   };
 }
 
+export interface SaleCustomerDetails {
+  customerId?: string | null;
+  customerName?: string;
+  customerAddress?: string;
+  customerNumber?: string;
+  customerNeighborhood?: string;
+  customerComplement?: string;
+}
+
+export function sanitizeSaleCustomerDetails(
+  details?: SaleCustomerDetails,
+): Required<Omit<SaleCustomerDetails, 'customerId'>> & { customerId: string | null } {
+  const customerId =
+    typeof details?.customerId === 'string' && details.customerId.trim().length > 0
+      ? details.customerId.trim()
+      : null;
+  return {
+    customerId,
+    customerName: (details?.customerName || '').trim().slice(0, 120),
+    customerAddress: (details?.customerAddress || '').trim().slice(0, 200),
+    customerNumber: (details?.customerNumber || '').trim().slice(0, 40),
+    customerNeighborhood: (details?.customerNeighborhood || '').trim().slice(0, 120),
+    customerComplement: (details?.customerComplement || '').trim().slice(0, 160),
+  };
+}
+
+export function hasSaleCustomerDetails(
+  sale: Pick<
+    SaleRecord,
+    | 'customerName'
+    | 'customerAddress'
+    | 'customerNumber'
+    | 'customerNeighborhood'
+    | 'customerComplement'
+  >,
+): boolean {
+  return Boolean(
+    (sale.customerName || '').trim() ||
+      (sale.customerAddress || '').trim() ||
+      (sale.customerNumber || '').trim() ||
+      (sale.customerNeighborhood || '').trim() ||
+      (sale.customerComplement || '').trim(),
+  );
+}
+
+export function formatSaleCustomerAddressLine(
+  sale: Pick<
+    SaleRecord,
+    'customerAddress' | 'customerNumber' | 'customerNeighborhood' | 'customerComplement'
+  >,
+): string {
+  const street = (sale.customerAddress || '').trim();
+  const number = (sale.customerNumber || '').trim();
+  const neighborhood = (sale.customerNeighborhood || '').trim();
+  const complement = (sale.customerComplement || '').trim();
+
+  const streetPart = [street, number ? `nº ${number}` : '']
+    .filter(Boolean)
+    .join(', ');
+  const parts = [streetPart, neighborhood, complement].filter(Boolean);
+  return parts.join(' · ');
+}
+
 export function buildSaleInputFromOrder(
   draftItems: SaleOrderDraftItem[],
   date: string,
   paymentMethod: PaymentMethod,
   note: string,
+  customerDetails?: SaleCustomerDetails,
 ): SaleInput {
   const cleanItems = draftItems.filter((item) => item.quantity > 0);
   if (cleanItems.length === 0) {
@@ -274,6 +338,8 @@ export function buildSaleInputFromOrder(
   const unitPrice = roundCurrency(totalAmount / quantity);
   const saleMode = hasCombo && hasProduct ? 'mixed' : hasCombo ? 'combo' : 'individual';
 
+  const normalizedCustomer = sanitizeSaleCustomerDetails(customerDetails);
+
   return {
     date,
     quantity,
@@ -284,6 +350,12 @@ export function buildSaleInputFromOrder(
     xSaladaCount,
     combosCount,
     items,
+    customerId: normalizedCustomer.customerId,
+    customerName: normalizedCustomer.customerName,
+    customerAddress: normalizedCustomer.customerAddress,
+    customerNumber: normalizedCustomer.customerNumber,
+    customerNeighborhood: normalizedCustomer.customerNeighborhood,
+    customerComplement: normalizedCustomer.customerComplement,
   };
 }
 
@@ -1097,6 +1169,7 @@ export function isLikelyDuplicateSale(
       ? candidate.items.map((i) => `${i.kind}:${i.refId}:${i.quantity}:${i.unitPrice}`).join('|')
       : `legacy:${candidate.quantity}:${candidate.unitPrice}`;
   const normalizedNote = candidate.note.trim().toLowerCase();
+  const normalizedCustomerName = (candidate.customerName || '').trim().toLowerCase();
   return existingSales.some((s) => {
     if (Math.abs(nowMs - s.createdAtMs) > windowMs) return false;
     if (s.date !== candidate.date) return false;
@@ -1105,6 +1178,9 @@ export function isLikelyDuplicateSale(
       return false;
     }
     if (s.note.trim().toLowerCase() !== normalizedNote) return false;
+    if ((s.customerName || '').trim().toLowerCase() !== normalizedCustomerName) {
+      return false;
+    }
     const existingSig =
       s.items && s.items.length > 0
         ? s.items.map((i) => `${i.kind}:${i.refId}:${i.quantity}:${i.unitPrice}`).join('|')

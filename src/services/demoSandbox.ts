@@ -597,7 +597,7 @@ export const demoMutations = {
       ),
     });
   },
-  addSale(input: SaleInput) {
+  addSale(input: SaleInput): SaleRecord {
     const st = readDemoState();
     const now = Date.now();
     const totalAmount =
@@ -612,24 +612,56 @@ export const demoMutations = {
       saleOrigin: input.saleOrigin ?? 'manual',
       onlineOrderId: input.onlineOrderId ?? null,
       deliveryFee: input.deliveryFee ?? 0,
+      customerId: input.customerId ?? null,
+      customerName: (input.customerName || '').trim(),
+      customerAddress: (input.customerAddress || '').trim(),
+      customerNumber: (input.customerNumber || '').trim(),
+      customerNeighborhood: (input.customerNeighborhood || '').trim(),
+      customerComplement: (input.customerComplement || '').trim(),
       createdAtMs: now,
       updatedAtMs: now,
     };
     writeDemoState({ ...st, sales: [sale, ...st.sales] });
+    return sale;
   },
-  updateSale(id: string, input: SaleInput) {
+  updateSale(id: string, input: SaleInput): SaleRecord {
     const st = readDemoState();
     const now = Date.now();
     const totalAmount =
       input.items && input.items.length > 0
         ? roundCurrency(input.items.reduce((acc, i) => acc + i.lineTotal, 0))
         : calculateSaleTotal(input.quantity, input.unitPrice);
+    let updatedSale: SaleRecord | null = null;
+    const nextSales = st.sales.map((s) => {
+      if (s.id !== id) return s;
+      updatedSale = {
+        ...s,
+        ...input,
+        totalAmount,
+        customerId: input.customerId ?? null,
+        customerName: (input.customerName || '').trim(),
+        customerAddress: (input.customerAddress || '').trim(),
+        customerNumber: (input.customerNumber || '').trim(),
+        customerNeighborhood: (input.customerNeighborhood || '').trim(),
+        customerComplement: (input.customerComplement || '').trim(),
+        updatedAtMs: now,
+      };
+      return updatedSale;
+    });
     writeDemoState({
       ...st,
-      sales: st.sales.map((s) =>
-        s.id === id ? { ...s, ...input, totalAmount, updatedAtMs: now } : s,
-      ),
+      sales: nextSales,
     });
+    return (
+      updatedSale ?? {
+        id,
+        ownerId: 'demo-owner',
+        ...input,
+        totalAmount,
+        createdAtMs: now,
+        updatedAtMs: now,
+      }
+    );
   },
   deleteSale(id: string) {
     const st = readDemoState();

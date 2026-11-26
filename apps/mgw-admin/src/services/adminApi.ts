@@ -1,6 +1,7 @@
 import type {
   AdminSubscriptionRecord,
   ClientRecord,
+  EstablishmentDetailResponse,
   EstablishmentRecord,
   FinanceSummary,
   MfaFactorSummary,
@@ -216,39 +217,54 @@ export async function fetchEstablishmentMembers(tenantId: string): Promise<{
   members: EstablishmentMemberDetail[];
   truncated: boolean;
 }> {
-  const res = await fetchClients('', 200, 0);
-  const members: EstablishmentMemberDetail[] = [];
+  try {
+    const members = await callRpc<EstablishmentMemberDetail[]>(
+      'admin_list_establishment_members',
+      { p_tenant_id: tenantId },
+    );
+    return {
+      members: Array.isArray(members) ? members : [],
+      truncated: false,
+    };
+  } catch (err) {
+    if (!isPendingMigrationError(err)) {
+      throw err;
+    }
 
-  for (const client of res.items) {
-    for (const membership of client.memberships) {
-      if (membership.tenantId === tenantId) {
-        members.push({
-          memberId: membership.memberId,
-          userId: client.user_id,
-          email: client.email,
-          fullName: client.full_name,
-          emailConfirmedAt: client.email_confirmed_at,
-          lastSignInAt: client.last_sign_in_at,
-          role: membership.role,
-          memberActive: membership.memberActive,
-          isFounder: membership.isFounder,
-        });
+    const res = await fetchClients('', 200, 0);
+    const members: EstablishmentMemberDetail[] = [];
+
+    for (const client of res.items) {
+      for (const membership of client.memberships) {
+        if (membership.tenantId === tenantId) {
+          members.push({
+            memberId: membership.memberId,
+            userId: client.user_id,
+            email: client.email,
+            fullName: client.full_name,
+            emailConfirmedAt: client.email_confirmed_at,
+            lastSignInAt: client.last_sign_in_at,
+            role: membership.role,
+            memberActive: membership.memberActive,
+            isFounder: membership.isFounder,
+          });
+        }
       }
     }
+
+    const rolePriority: Record<string, number> = {
+      owner: 0,
+      admin: 1,
+      manager: 2,
+      staff: 3,
+    };
+    members.sort((a, b) => (rolePriority[a.role] ?? 9) - (rolePriority[b.role] ?? 9));
+
+    return {
+      members,
+      truncated: res.total > res.items.length,
+    };
   }
-
-  const rolePriority: Record<string, number> = {
-    owner: 0,
-    admin: 1,
-    manager: 2,
-    staff: 3,
-  };
-  members.sort((a, b) => (rolePriority[a.role] ?? 9) - (rolePriority[b.role] ?? 9));
-
-  return {
-    members,
-    truncated: res.total > res.items.length,
-  };
 }
 
 export async function setEstablishmentStatus(
@@ -261,6 +277,21 @@ export async function setEstablishmentStatus(
     p_status: status,
     p_reason: reason,
   });
+}
+
+export async function fetchEstablishmentDetail(
+  tenantId: string,
+): Promise<EstablishmentDetailResponse | null> {
+  try {
+    return await callRpc<EstablishmentDetailResponse>('admin_get_establishment_detail', {
+      p_tenant_id: tenantId,
+    });
+  } catch (err) {
+    if (isPendingMigrationError(err)) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function fetchPlansAndSubscriptions(
@@ -342,6 +373,24 @@ export async function fetchPayments(
   return callRpc('admin_list_payments', {
     p_status: status,
     p_limit: limit,
+  });
+}
+
+export async function recordManualPayment(params: {
+  tenantId: string;
+  amountCents: number;
+  paymentMethod: string;
+  payerEmail: string;
+  status: 'approved' | 'pending' | 'refunded';
+  reason: string;
+}): Promise<{ id: string; tenantId: string; amountCents: number; status: string; ok: boolean }> {
+  return callRpc('admin_record_manual_payment', {
+    p_tenant_id: params.tenantId,
+    p_amount_cents: params.amountCents,
+    p_payment_method: params.paymentMethod,
+    p_payer_email: params.payerEmail,
+    p_status: params.status,
+    p_reason: params.reason,
   });
 }
 

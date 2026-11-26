@@ -22,7 +22,10 @@ import {
   createDeliveryCourier,
   createDeliveryCustomer,
   createDeliveryRegion,
+  DEFAULT_PLATFORM_RUNTIME_STATUS,
+  fetchPlatformRuntimeStatus,
   type DataExecutionContext,
+  type PlatformRuntimeStatus,
   deleteDeliveryCourier,
   deleteDeliveryCustomerAddress,
   deleteDeliveryRegion,
@@ -150,6 +153,8 @@ import { PasswordRecoveryScreen } from './components/PasswordRecoveryScreen';
 import { ReportsView } from './components/ReportsView';
 import { SaleModal } from './components/SaleModal';
 import { SalesView } from './components/SalesView';
+import { OrderPrintModal } from './components/OrderPrintModal';
+import { fromSaleRecord, type PrintPaperFormat } from './utils/orderPrint';
 import { SettingsView } from './components/SettingsView';
 import { StoreOnboardingScreen } from './components/StoreOnboardingScreen';
 import { SubscriptionBlockedScreen } from './components/SubscriptionBlockedScreen';
@@ -201,8 +206,15 @@ export default function App() {
     resolveCurrentPublicRoute(),
   );
 
+  const [runtimeStatus, setRuntimeStatus] = useState<PlatformRuntimeStatus>(
+    DEFAULT_PLATFORM_RUNTIME_STATUS,
+  );
+
   useEffect(() => {
     void recordPartnerReferralAccess(new URL(window.location.href));
+    if (!isDemoSandboxActive()) {
+      void fetchPlatformRuntimeStatus().then(setRuntimeStatus);
+    }
     const onPopState = () => {
       void recordPartnerReferralAccess(new URL(window.location.href));
       setPublicRoute(resolveCurrentPublicRoute());
@@ -370,6 +382,10 @@ export default function App() {
 
   const [saleModalOpen, setSaleModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
+  const [printingSale, setPrintingSale] = useState<{
+    sale: SaleRecord;
+    format?: PrintPaperFormat;
+  } | null>(null);
 
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseRecord | null>(null);
@@ -1095,7 +1111,10 @@ export default function App() {
     showToast('Estabelecimento configurado com sucesso!');
   }
 
-  async function handleSaveSale(input: SaleInput, editingId?: string) {
+  async function handleSaveSale(
+    input: SaleInput,
+    editingId?: string,
+  ): Promise<SaleRecord | void> {
     if (!editingId && isLikelyDuplicateSale(sales, input)) {
       throw new Error(
         'Venda idêntica registrada há poucos segundos. Evitamos duplicação acidental.',
@@ -1104,12 +1123,13 @@ export default function App() {
 
     if (!dataContext) return;
     if (editingId) {
-      await updateSale(dataContext, editingId, input);
+      const updated = await updateSale(dataContext, editingId, input);
       showToast('Venda atualizada no banco de dados.');
-    } else {
-      await addSale(dataContext, input);
-      showToast('Venda salva permanentemente.');
+      return updated;
     }
+    const created = await addSale(dataContext, input);
+    showToast('Venda salva permanentemente.');
+    return created;
   }
 
   async function handleDeleteSale(saleId: string) {
@@ -1525,6 +1545,51 @@ export default function App() {
   const viewOrdersRequested =
     initialSearchRoute === 'orders' || initialSearchRoute === 'delivery_dispatch';
 
+  if (runtimeStatus.maintenanceMode && !demoActive) {
+    const whatsappDigits = runtimeStatus.supportWhatsapp.replace(/\D/g, '');
+    return (
+      <div className="min-h-screen bg-[#F5F6FA] text-[#172033] flex items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md rounded-2xl border border-[#E8EAF0] bg-white p-7 shadow-sm space-y-4 text-center">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#B38300]">
+            {runtimeStatus.platformName}
+          </p>
+          <h1 className="font-display text-xl font-bold text-[#172033]">
+            Sistema em manutenção programada
+          </h1>
+          <p className="text-sm text-[#4B5563] leading-relaxed">
+            {runtimeStatus.maintenanceMessage ||
+              'Estamos realizando melhorias técnicas na plataforma. O atendimento será restabelecido em breve.'}
+          </p>
+          {(runtimeStatus.supportEmail || whatsappDigits) && (
+            <div className="rounded-xl border border-[#E8EAF0] bg-[#F8F9FC] p-3 text-xs text-[#4B5563] space-y-1">
+              {runtimeStatus.supportEmail && (
+                <p>
+                  Suporte por e-mail:{' '}
+                  <strong className="text-[#172033]">{runtimeStatus.supportEmail}</strong>
+                </p>
+              )}
+              {whatsappDigits && (
+                <p>
+                  WhatsApp:{' '}
+                  <strong className="text-[#172033]">{runtimeStatus.supportWhatsapp}</strong>
+                </p>
+              )}
+            </div>
+          )}
+          {user && (
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              className="w-full min-h-[42px] rounded-xl border border-[#E8EAF0] bg-white hover:bg-[#F5F6FA] text-xs font-semibold text-[#172033] cursor-pointer"
+            >
+              Encerrar sessão
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (publicRoute.kind === 'landing' && !demoActive && !callbackPending && !viewOrdersRequested) {
     if (!authReady) {
       return (
@@ -1549,6 +1614,7 @@ export default function App() {
           onRegister={handleRegister}
           onPasswordReset={handlePasswordReset}
           supportsEmailAuth={true}
+          allowPublicSignup={runtimeStatus.allowPublicSignup}
           isSigningIn={isSigningIn}
           errorMessage={authError}
           onBackToHome={() => navigatePublicPath('/')}
@@ -1611,6 +1677,7 @@ export default function App() {
     return (
       <LoginScreen
         initialMode={publicRoute.kind === 'register' ? 'register' : 'login'}
+        allowPublicSignup={runtimeStatus.allowPublicSignup}
         onModeChange={(nextMode) => {
           if (typeof window === 'undefined') return;
           if (nextMode === 'register' && window.location.pathname !== '/cadastro') {
@@ -1788,15 +1855,43 @@ export default function App() {
         isOpen={saleModalOpen}
         editingSale={editingSale}
         defaultUnitPrice={settings.xSaladaPrice}
-        establishmentName={settings.establishmentName}
+        establishmentName={
+          digitalMenuSettings.storeName || settings.establishmentName || activeTenant.name
+        }
+        storePhone={digitalMenuSettings.phoneWhatsapp}
+        storeAddress={digitalMenuSettings.address}
         products={products}
         combos={combos}
+        deliveryCustomers={deliveryCustomers}
+        deliveryCustomerAddresses={deliveryCustomerAddresses}
         onClose={() => {
           setSaleModalOpen(false);
           setEditingSale(null);
         }}
         onSubmit={handleSaveSale}
+        onRequestPrintSale={(sale, format) => {
+          setSaleModalOpen(false);
+          setEditingSale(null);
+          setPrintingSale({ sale, format });
+        }}
       />
+
+      {printingSale && (
+        <OrderPrintModal
+          order={fromSaleRecord(printingSale.sale, {
+            storeName:
+              digitalMenuSettings.storeName ||
+              settings.establishmentName ||
+              activeTenant.name,
+            storePhone: digitalMenuSettings.phoneWhatsapp,
+            storeAddress: digitalMenuSettings.address,
+          })}
+          allowKitchenToggle={false}
+          availableFormats={['80mm', '58mm']}
+          initialPaperFormat={printingSale.format}
+          onClose={() => setPrintingSale(null)}
+        />
+      )}
 
       <ExpenseModal
         isOpen={expenseModalOpen}
@@ -2105,6 +2200,13 @@ export default function App() {
           {effectiveRoute === 'sales' && (canReadSales || canCreateSales) && (
             <SalesView
               sales={sales}
+              establishmentName={
+                digitalMenuSettings.storeName ||
+                settings.establishmentName ||
+                activeTenant.name
+              }
+              storePhone={digitalMenuSettings.phoneWhatsapp}
+              storeAddress={digitalMenuSettings.address}
               canCreateSales={canCreateSales}
               canEditSales={canEditSales}
               canDeleteSales={canDeleteSales}
@@ -2122,6 +2224,7 @@ export default function App() {
                 setSaleModalOpen(true);
               }}
               onDeleteSale={handleDeleteSale}
+              onPrintSale={(sale) => setPrintingSale({ sale })}
             />
           )}
 

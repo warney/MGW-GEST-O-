@@ -185,6 +185,12 @@ export interface SupabaseSaleRow {
   sale_origin?: string | null;
   online_order_id?: string | null;
   delivery_fee?: number | string | null;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_address?: string | null;
+  customer_number?: string | null;
+  customer_neighborhood?: string | null;
+  customer_complement?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -583,6 +589,12 @@ export function mapSaleRow(row: SupabaseSaleRow): SaleRecord {
       row.delivery_fee !== undefined && row.delivery_fee !== null
         ? Number(row.delivery_fee) || 0
         : 0,
+    customerId: typeof row.customer_id === 'string' && row.customer_id.trim() ? row.customer_id : null,
+    customerName: String(row.customer_name || '').trim(),
+    customerAddress: String(row.customer_address || '').trim(),
+    customerNumber: String(row.customer_number || '').trim(),
+    customerNeighborhood: String(row.customer_neighborhood || '').trim(),
+    customerComplement: String(row.customer_complement || '').trim(),
     createdAtMs: isoTimestampToMs(row.created_at),
     updatedAtMs: isoTimestampToMs(row.updated_at),
   };
@@ -623,6 +635,12 @@ export function buildSalePayloadForSupabase(
   sale_origin: SaleOrigin;
   online_order_id: string | null;
   delivery_fee: number;
+  customer_id: string | null;
+  customer_name: string;
+  customer_address: string;
+  customer_number: string;
+  customer_neighborhood: string;
+  customer_complement: string;
 } {
   const quantity = Math.max(1, Math.trunc(Number(input.quantity)));
   const deliveryFee = roundCurrency(Math.max(0, Number(input.deliveryFee || 0)));
@@ -671,6 +689,15 @@ export function buildSalePayloadForSupabase(
     sale_origin: input.saleOrigin === 'online' ? 'online' : 'manual',
     online_order_id: input.onlineOrderId ?? null,
     delivery_fee: roundCurrency(Math.max(0, Number(input.deliveryFee || 0))),
+    customer_id:
+      typeof input.customerId === 'string' && input.customerId.trim().length > 0
+        ? input.customerId.trim()
+        : null,
+    customer_name: (input.customerName || '').trim().slice(0, 120),
+    customer_address: (input.customerAddress || '').trim().slice(0, 200),
+    customer_number: (input.customerNumber || '').trim().slice(0, 40),
+    customer_neighborhood: (input.customerNeighborhood || '').trim().slice(0, 120),
+    customer_complement: (input.customerComplement || '').trim().slice(0, 160),
   };
 }
 

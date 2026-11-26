@@ -30,12 +30,27 @@ const MIGRATION_4_1_PATH = path.join(
   WORKSPACE_ROOT,
   'supabase/migrations/20261122171122_etapa4_1_platform_admin_security_and_audit.sql',
 );
+const MIGRATION_PHASE1_PATH = path.join(
+  WORKSPACE_ROOT,
+  'supabase/migrations/20261126120000_mgw_admin_phase1_stability_and_rpcs.sql',
+);
+const MIGRATION_PHASE3_PATH = path.join(
+  WORKSPACE_ROOT,
+  'supabase/migrations/20261126140000_mgw_admin_phase3_operations_finance_and_audit.sql',
+);
+const MIGRATION_PHASE4_PATH = path.join(
+  WORKSPACE_ROOT,
+  'supabase/migrations/20261126150000_mgw_admin_phase4_public_runtime_status.sql',
+);
 const BOOTSTRAP_SEED_PATH = path.join(
   WORKSPACE_ROOT,
   'supabase/seeds/002_platform_admin_bootstrap.sql',
 );
 
 const migrationSql = fs.readFileSync(MIGRATION_4_1_PATH, 'utf8');
+const migrationPhase1Sql = fs.readFileSync(MIGRATION_PHASE1_PATH, 'utf8');
+const migrationPhase3Sql = fs.readFileSync(MIGRATION_PHASE3_PATH, 'utf8');
+const migrationPhase4Sql = fs.readFileSync(MIGRATION_PHASE4_PATH, 'utf8');
 const bootstrapSql = fs.readFileSync(BOOTSTRAP_SEED_PATH, 'utf8');
 
 function walkFiles(dir: string): string[] {
@@ -310,3 +325,132 @@ test('Formatters output valid pt-BR currency and role labels', () => {
   assert.equal(formatRoleLabel('support'), 'Suporte');
   assert.equal(formatRoleLabel('finance'), 'Financeiro');
 });
+
+test('Phase 1 migration adds audited member & subscription expiry RPCs with MFA AAL2 and founder protection', () => {
+  assert.match(migrationPhase1Sql, /CREATE OR REPLACE FUNCTION public\.admin_list_establishment_members/i);
+  assert.match(migrationPhase1Sql, /CREATE OR REPLACE FUNCTION public\.admin_set_subscription_expiry/i);
+  assert.match(migrationPhase1Sql, /assert_platform_admin\(ARRAY\['super_admin', 'finance'\], true\)/i);
+  assert.match(migrationPhase1Sql, /is_founder_account/i);
+  assert.match(migrationPhase1Sql, /write_platform_audit_log\(/i);
+  assert.match(migrationPhase1Sql, /REVOKE ALL ON FUNCTION public\.admin_list_establishment_members\(uuid\) FROM PUBLIC, anon/i);
+  assert.match(
+    migrationPhase1Sql,
+    /REVOKE ALL ON FUNCTION public\.admin_set_subscription_expiry\(uuid, text, integer, text, timestamptz, text\) FROM PUBLIC, anon/i,
+  );
+  // Constraint chk_subscriptions_status allows 'authorized', never 'active'
+  assert.equal(/'active'\s*,?\s*--/.test(migrationPhase1Sql), false);
+  assert.match(migrationPhase1Sql, /'authorized'/);
+});
+
+test('Phase 1 UI hygiene: zero browser native dialogs, zero legacy dark surfaces, zero CSS utility overrides, and canonical menu route', () => {
+  const indexCss = fs.readFileSync(path.join(APP_ROOT, 'src/index.css'), 'utf8');
+  assert.equal(/@layer utilities/.test(indexCss), false, 'index.css must not use @layer utilities !important hacks');
+
+  const sourceFiles = walkFiles(path.join(APP_ROOT, 'src'));
+  for (const filePath of sourceFiles) {
+    if (filePath.endsWith('adminSecurity.test.ts')) continue;
+    const content = fs.readFileSync(filePath, 'utf8');
+    const rel = path.relative(APP_ROOT, filePath);
+    assert.equal(/window\.(prompt|alert|confirm)\(/.test(content), false, `Native browser dialog found in ${rel}`);
+    assert.equal(/bg-\[#(12151C|0B0D11)\]/i.test(content), false, `Legacy dark background found in ${rel}`);
+  }
+
+  const establishmentsView = fs.readFileSync(
+    path.join(APP_ROOT, 'src/views/EstablishmentsView.tsx'),
+    'utf8',
+  );
+  assert.equal(/\?menu=/.test(establishmentsView), false, 'Legacy /?menu= link should be replaced by /cardapio/');
+  assert.match(establishmentsView, /\/cardapio\/\$\{/);
+});
+
+test('Phase 2 brand & design system: official logo asset present, typography updated, and navigation modules grouped cleanly', () => {
+  assert.equal(fs.existsSync(path.join(APP_ROOT, 'public/brand/mgw-logo.png')), true);
+
+  const indexHtml = fs.readFileSync(path.join(APP_ROOT, 'index.html'), 'utf8');
+  const indexCss = fs.readFileSync(path.join(APP_ROOT, 'src/index.css'), 'utf8');
+  assert.match(indexHtml, /Plus\+Jakarta\+Sans/);
+  assert.match(indexHtml, /JetBrains\+Mono/);
+  assert.match(indexCss, /Plus Jakarta Sans/);
+  assert.equal(/\bInter\b/.test(indexHtml), false);
+  assert.equal(/\bInter\b/.test(indexCss), false);
+});
+
+test('Phase 3 migration adds establishment detail, manual payment RPCs, MFA AAL2, and partner audit logs', () => {
+  assert.match(migrationPhase3Sql, /CREATE OR REPLACE FUNCTION public\.admin_get_establishment_detail/i);
+  assert.match(migrationPhase3Sql, /CREATE OR REPLACE FUNCTION public\.admin_record_manual_payment/i);
+  assert.match(migrationPhase3Sql, /assert_platform_admin\(ARRAY\['super_admin', 'finance'\], true\)/i);
+  assert.match(migrationPhase3Sql, /'manual_adjustment'/);
+  assert.match(migrationPhase3Sql, /'payment_manual_recorded'/);
+  assert.match(migrationPhase3Sql, /'partner_campaign_created'/);
+  assert.match(migrationPhase3Sql, /'partner_campaign_status_updated'/);
+  assert.match(migrationPhase3Sql, /'partner_material_created'/);
+  assert.match(migrationPhase3Sql, /'partner_material_status_updated'/);
+  assert.match(migrationPhase3Sql, /SET search_path = pg_catalog, public, auth/i);
+  assert.match(migrationPhase3Sql, /REVOKE ALL ON FUNCTION public\.admin_get_establishment_detail\(uuid\) FROM PUBLIC, anon/i);
+  assert.match(
+    migrationPhase3Sql,
+    /REVOKE ALL ON FUNCTION public\.admin_record_manual_payment\(uuid, integer, text, text, text, text\) FROM PUBLIC, anon/i,
+  );
+  assert.match(
+    migrationPhase3Sql,
+    /REVOKE ALL ON FUNCTION public\.admin_create_mgw_partner_campaign\(text, text, text, text, text, timestamptz, timestamptz\) FROM PUBLIC, anon/i,
+  );
+  assert.match(
+    migrationPhase3Sql,
+    /REVOKE ALL ON FUNCTION public\.admin_set_mgw_partner_campaign_status\(uuid, text\) FROM PUBLIC, anon/i,
+  );
+  assert.match(
+    migrationPhase3Sql,
+    /REVOKE ALL ON FUNCTION public\.admin_create_mgw_partner_material\(text, text, text, text, text, uuid\) FROM PUBLIC, anon/i,
+  );
+  assert.match(
+    migrationPhase3Sql,
+    /REVOKE ALL ON FUNCTION public\.admin_set_mgw_partner_material_active\(uuid, boolean\) FROM PUBLIC, anon/i,
+  );
+
+  // Must remain strictly additive and never touch operational tenant policies
+  assert.equal(/DROP POLICY/i.test(migrationPhase3Sql), false);
+  assert.equal(/DELETE FROM/i.test(migrationPhase3Sql), false);
+});
+
+test('Phase 4 PWA compliance & runtime status: manifest, icons, SW, install UI, and safe public flags', () => {
+  const requiredAssets = [
+    'public/icon.svg',
+    'public/icon-maskable.svg',
+    'public/pwa-192x192.png',
+    'public/pwa-512x512.png',
+    'public/pwa-maskable-512x512.png',
+    'public/apple-touch-icon.png',
+  ];
+  for (const relAsset of requiredAssets) {
+    assert.equal(fs.existsSync(path.join(APP_ROOT, relAsset)), true, `Missing PWA asset: ${relAsset}`);
+  }
+
+  const viteConfig = fs.readFileSync(path.join(APP_ROOT, 'vite.config.ts'), 'utf8');
+  assert.match(viteConfig, /VitePWA\(/);
+  assert.match(viteConfig, /short_name:\s*'MGW Admin'/);
+  assert.match(viteConfig, /display:\s*'standalone'/);
+  assert.match(viteConfig, /handler:\s*'NetworkOnly'/);
+  assert.match(viteConfig, /devOptions:\s*\{\s*enabled:\s*true/);
+
+  const indexHtml = fs.readFileSync(path.join(APP_ROOT, 'index.html'), 'utf8');
+  assert.match(indexHtml, /apple-touch-icon\.png/);
+  assert.match(indexHtml, /name="theme-color" content="#202733"/);
+  assert.match(indexHtml, /name="apple-mobile-web-app-capable" content="yes"/);
+
+  const mainTsx = fs.readFileSync(path.join(APP_ROOT, 'src/main.tsx'), 'utf8');
+  assert.match(mainTsx, /virtual:pwa-register/);
+
+  const adminLayout = fs.readFileSync(path.join(APP_ROOT, 'src/components/AdminLayout.tsx'), 'utf8');
+  const adminLogin = fs.readFileSync(path.join(APP_ROOT, 'src/components/AdminLoginScreen.tsx'), 'utf8');
+  const settingsView = fs.readFileSync(path.join(APP_ROOT, 'src/views/SettingsView.tsx'), 'utf8');
+  assert.match(adminLayout, /<PWAInstallButton/);
+  assert.match(adminLogin, /<PWAInstallButton/);
+  assert.match(settingsView, /WhatsApp de Suporte/);
+
+  assert.match(migrationPhase4Sql, /CREATE OR REPLACE FUNCTION public\.get_platform_runtime_status\(\)/i);
+  assert.match(migrationPhase4Sql, /'allowPublicSignup'/);
+  assert.match(migrationPhase4Sql, /'maintenanceMode'/);
+  assert.equal(/DROP POLICY/i.test(migrationPhase4Sql), false);
+});
+

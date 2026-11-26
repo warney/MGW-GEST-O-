@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
+  ArrowUpRight,
   Building2,
   ChevronLeft,
   ChevronRight,
   Copy,
   Download,
   Globe,
+  LifeBuoy,
   PauseCircle,
   PlayCircle,
   Search,
@@ -18,6 +20,7 @@ import { PendingIntegrationBanner } from '../components/PendingIntegrationBanner
 import { ReasonConfirmModal } from '../components/ReasonConfirmModal';
 import { StatusIndicator } from '../components/StatusIndicator';
 import {
+  fetchEstablishmentDetail,
   fetchEstablishmentMembers,
   fetchEstablishments,
   isPendingMigrationError,
@@ -32,14 +35,30 @@ import {
   type EstablishmentSubscriptionFilter,
 } from '../services/directoryFilters';
 import { exportEstablishmentsToExcel } from '../services/exportReports';
-import { canMutateTenantsOrPlans, formatCurrencyCents, formatDateBr, formatDateTimeBr } from '../services/rbac';
-import type { EstablishmentRecord, PlatformRole } from '../types/admin';
+import {
+  canAccessModule,
+  canMutateTenantsOrPlans,
+  canReplySupportTickets,
+  formatCurrencyCents,
+  formatDateBr,
+  formatDateTimeBr,
+} from '../services/rbac';
+import type {
+  AdminModuleId,
+  EstablishmentDetailResponse,
+  EstablishmentRecord,
+  PlatformRole,
+} from '../types/admin';
 
 interface EstablishmentsViewProps {
   role: PlatformRole;
   mfaVerified: boolean;
   onRequestMfa: () => void;
   refreshTrigger: number;
+  focusedTenantId?: string | null;
+  onFocusedTenantConsumed?: () => void;
+  onNavigate?: (moduleId: AdminModuleId) => void;
+  onOpenTicketForTenant?: (tenantId: string) => void;
 }
 
 const PAGE_SIZE = 50;
@@ -49,6 +68,10 @@ export function EstablishmentsView({
   mfaVerified,
   onRequestMfa,
   refreshTrigger,
+  focusedTenantId,
+  onFocusedTenantConsumed,
+  onNavigate,
+  onOpenTicketForTenant,
 }: EstablishmentsViewProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -69,6 +92,7 @@ export function EstablishmentsView({
   const [membersError, setMembersError] = useState<string | null>(null);
   const [members, setMembers] = useState<EstablishmentMemberDetail[]>([]);
   const [membersTruncated, setMembersTruncated] = useState(false);
+  const [tenantDetail, setTenantDetail] = useState<EstablishmentDetailResponse | null>(null);
   const [copiedSlug, setCopiedSlug] = useState(false);
 
   const [pendingStatusAction, setPendingStatusAction] = useState<{
@@ -89,6 +113,10 @@ export function EstablishmentsView({
       setItems(res.items);
       setTotal(res.total);
       setSelectedTenant((prev) => {
+        if (focusedTenantId) {
+          const match = res.items.find((t) => t.id === focusedTenantId);
+          if (match) return match;
+        }
         if (!prev) return res.items[0] ?? null;
         return res.items.find((t) => t.id === prev.id) ?? (res.items[0] ?? null);
       });
@@ -104,20 +132,52 @@ export function EstablishmentsView({
   }, [refreshTrigger, statusFilter, page]);
 
   useEffect(() => {
+    if (!focusedTenantId) return;
+    const match = items.find((t) => t.id === focusedTenantId);
+    if (match) {
+      setSelectedTenant(match);
+      onFocusedTenantConsumed?.();
+      return;
+    }
+
+    let active = true;
+    fetchEstablishmentDetail(focusedTenantId)
+      .then((detail) => {
+        if (!active || !detail) return;
+        setSelectedTenant(detail.establishment);
+        setTenantDetail(detail);
+        onFocusedTenantConsumed?.();
+      })
+      .catch(() => {
+        /* fallback caso tenant nao esteja acessivel */
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [focusedTenantId, items, onFocusedTenantConsumed]);
+
+  useEffect(() => {
     if (!selectedTenant) {
       setMembers([]);
       setMembersTruncated(false);
+      setTenantDetail(null);
       return;
     }
 
     let active = true;
     setMembersLoading(true);
     setMembersError(null);
-    fetchEstablishmentMembers(selectedTenant.id)
-      .then((res) => {
+
+    Promise.all([
+      fetchEstablishmentMembers(selectedTenant.id),
+      fetchEstablishmentDetail(selectedTenant.id).catch(() => null),
+    ])
+      .then(([membersRes, detailRes]) => {
         if (!active) return;
-        setMembers(res.members);
-        setMembersTruncated(res.truncated);
+        setMembers(membersRes.members);
+        setMembersTruncated(membersRes.truncated);
+        setTenantDetail(detailRes);
       })
       .catch((err) => {
         if (!active) return;
@@ -150,7 +210,7 @@ export function EstablishmentsView({
       <div className="space-y-5">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Estabelecimentos (Tenants)</h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Controle multi-tenant, proprietários, situação operacional e cardápio digital.
           </p>
         </div>
@@ -166,7 +226,7 @@ export function EstablishmentsView({
 
   const handleCopyMenuSlug = async (slug: string) => {
     try {
-      await navigator.clipboard.writeText(`/?menu=${slug}`);
+      await navigator.clipboard.writeText(`/cardapio/${slug}`);
       setCopiedSlug(true);
       setTimeout(() => setCopiedSlug(false), 1800);
     } catch {
@@ -179,7 +239,7 @@ export function EstablishmentsView({
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Estabelecimentos (Tenants)</h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Controle multi-tenant de lojas, equipe, operação e cardápio digital ({total} registros
             totais · {visibleItems.length} visíveis).
           </p>
@@ -201,12 +261,12 @@ export function EstablishmentsView({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Nome, slug ou e-mail..."
-                className="w-56 rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-500 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
+                className="w-56 rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-500 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-400/30"
               />
             </div>
             <button
               type="submit"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 cursor-pointer"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
             >
               Buscar
             </button>
@@ -216,7 +276,7 @@ export function EstablishmentsView({
             type="button"
             onClick={() => exportEstablishmentsToExcel(visibleItems)}
             disabled={visibleItems.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50 cursor-pointer whitespace-nowrap"
           >
             <Download className="h-3.5 w-3.5" />
             <span>Exportar Excel</span>
@@ -227,7 +287,7 @@ export function EstablishmentsView({
       {/* Filters Toolbar */}
       <div className="rounded-xl border border-slate-200 bg-white p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
             {[
               { id: 'all', label: 'Todos' },
               { id: 'active', label: 'Ativos' },
@@ -244,7 +304,7 @@ export function EstablishmentsView({
                 className={`rounded px-2.5 py-1 font-medium cursor-pointer whitespace-nowrap ${
                   statusFilter === tab.id
                     ? 'bg-[#F5B731] text-slate-900'
-                    : 'text-slate-300 hover:text-slate-900'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {tab.label}
@@ -304,7 +364,7 @@ export function EstablishmentsView({
               setPage(0);
               void loadData('', 'all', 0);
             }}
-            className="text-xs text-[#F5B731] hover:underline cursor-pointer"
+            className="text-xs font-medium text-amber-700 hover:underline cursor-pointer"
           >
             Limpar filtros
           </button>
@@ -327,13 +387,13 @@ export function EstablishmentsView({
               ))}
             </div>
           ) : visibleItems.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-400">
+            <div className="p-8 text-center text-xs text-slate-500">
               Nenhum estabelecimento corresponde aos filtros atuais.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-400 border-b border-slate-200">
+                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Estabelecimento</th>
                     <th className="px-4 py-2.5 font-medium">Status</th>
@@ -352,19 +412,19 @@ export function EstablishmentsView({
                         key={tenant.id}
                         onClick={() => setSelectedTenant(tenant)}
                         className={`cursor-pointer transition-colors ${
-                          isSelected ? 'bg-[#F5B731]/8' : 'hover:bg-slate-50'
+                          isSelected ? 'bg-amber-50' : 'hover:bg-slate-50'
                         }`}
                       >
                         <td className="px-4 py-3">
                           <div className="font-medium text-slate-900">
                             {tenant.name}
                             {tenant.is_founder_account && (
-                              <span className="ml-2 font-mono text-[11px] text-[#F5B731]">
+                              <span className="ml-2 font-mono text-[11px] font-semibold text-amber-700">
                                 · Fundador
                               </span>
                             )}
                           </div>
-                          <div className="font-mono text-[11px] text-slate-400">
+                          <div className="font-mono text-[11px] text-slate-500">
                             {tenant.slug} · {tenant.owner_email || 'Sem owner_email'}
                           </div>
                         </td>
@@ -374,7 +434,7 @@ export function EstablishmentsView({
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             <StatusIndicator status={tenant.subscription_status} />
-                            <span className="font-mono text-[11px] text-slate-400 tabular-nums">
+                            <span className="font-mono text-[11px] text-slate-600 tabular-nums">
                               {formatCurrencyCents(tenant.plan_amount_cents)}
                             </span>
                           </div>
@@ -385,13 +445,13 @@ export function EstablishmentsView({
                             labelOverride={tenant.digital_menu_active ? 'Publicado' : 'Oculto'}
                           />
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-200 tabular-nums">
+                        <td className="px-4 py-3 text-right font-mono text-slate-800 tabular-nums">
                           {tenant.active_members_count}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-200 tabular-nums">
+                        <td className="px-4 py-3 text-right font-mono text-slate-800 tabular-nums">
                           {tenant.sales_count}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-400 tabular-nums">
+                        <td className="px-4 py-3 text-right font-mono text-slate-500 tabular-nums">
                           {formatDateBr(tenant.created_at)}
                         </td>
                       </tr>
@@ -403,7 +463,7 @@ export function EstablishmentsView({
           )}
 
           {total > PAGE_SIZE && (
-            <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-400">
+            <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-600">
               <span className="font-mono tabular-nums">
                 Página {page + 1} de {totalPages} · {total} registros
               </span>
@@ -412,7 +472,7 @@ export function EstablishmentsView({
                   type="button"
                   disabled={page === 0 || loading}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-slate-200 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                   <span>Anterior</span>
@@ -421,7 +481,7 @@ export function EstablishmentsView({
                   type="button"
                   disabled={page + 1 >= totalPages || loading}
                   onClick={() => setPage((p) => p + 1)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-slate-200 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
                 >
                   <span>Próxima</span>
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -434,7 +494,7 @@ export function EstablishmentsView({
         {/* Establishment Detail Inspector */}
         <div className="rounded-xl border border-slate-200 bg-white p-5 h-fit space-y-5">
           {!selectedTenant ? (
-            <div className="py-10 text-center text-xs text-slate-400">
+            <div className="py-10 text-center text-xs text-slate-500">
               Selecione um estabelecimento na tabela para inspecionar dados cadastrais, membros,
               operação e cardápio digital.
             </div>
@@ -445,86 +505,110 @@ export function EstablishmentsView({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                      <Building2 className="h-4 w-4 text-[#F5B731] shrink-0" />
+                      <Building2 className="h-4 w-4 text-amber-600 shrink-0" />
                       <span className="truncate">{selectedTenant.name}</span>
                     </h2>
-                    <p className="text-[11px] font-mono text-slate-400 mt-0.5 break-all">
+                    <p className="text-[11px] font-mono text-slate-500 mt-0.5 break-all">
                       {selectedTenant.slug} · {selectedTenant.id}
                     </p>
                   </div>
                   <StatusIndicator status={selectedTenant.status} />
                 </div>
 
-                {canMutate && (
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {selectedTenant.status === 'active' ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPendingStatusAction({
-                            tenant: selectedTenant,
-                            nextStatus: 'suspended',
-                          })
-                        }
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-500/15 cursor-pointer"
-                      >
-                        <PauseCircle className="h-3.5 w-3.5" />
-                        <span>Suspender loja</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPendingStatusAction({
-                            tenant: selectedTenant,
-                            nextStatus: 'active',
-                          })
-                        }
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/35 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-500/15 cursor-pointer"
-                      >
-                        <PlayCircle className="h-3.5 w-3.5" />
-                        <span>Reativar loja</span>
-                      </button>
-                    )}
-
-                    {!selectedTenant.is_founder_account &&
-                      selectedTenant.status !== 'archived' && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {canMutate && (
+                    <>
+                      {selectedTenant.status === 'active' ? (
                         <button
                           type="button"
                           onClick={() =>
                             setPendingStatusAction({
                               tenant: selectedTenant,
-                              nextStatus: 'archived',
+                              nextStatus: 'suspended',
                             })
                           }
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-300 hover:bg-slate-100 cursor-pointer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-500/15 cursor-pointer"
                         >
-                          <Archive className="h-3.5 w-3.5" />
-                          <span>Arquivar</span>
+                          <PauseCircle className="h-3.5 w-3.5" />
+                          <span>Suspender loja</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPendingStatusAction({
+                              tenant: selectedTenant,
+                              nextStatus: 'active',
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/35 px-2.5 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-500/15 cursor-pointer"
+                        >
+                          <PlayCircle className="h-3.5 w-3.5" />
+                          <span>Reativar loja</span>
                         </button>
                       )}
-                  </div>
-                )}
+
+                      {!selectedTenant.is_founder_account &&
+                        selectedTenant.status !== 'archived' && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPendingStatusAction({
+                                tenant: selectedTenant,
+                                nextStatus: 'archived',
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                            <span>Arquivar</span>
+                          </button>
+                        )}
+                    </>
+                  )}
+
+                  {canReplySupportTickets(role) && onOpenTicketForTenant && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenTicketForTenant(selectedTenant.id)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      <LifeBuoy className="h-3.5 w-3.5 text-amber-600" />
+                      <span>Abrir chamado</span>
+                    </button>
+                  )}
+
+                  {canAccessModule(role, 'plans') && onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('plans')}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      <span>Assinaturas</span>
+                      <ArrowUpRight className="h-3 w-3 text-slate-500" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Dados do Estabelecimento & Situacao Operacional */}
               <div className="space-y-2 text-xs">
-                <h3 className="font-semibold text-slate-300">Dados &amp; Situação Operacional</h3>
+                <h3 className="font-semibold text-slate-800">Dados &amp; Situação Operacional</h3>
                 <div className="space-y-1.5">
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">E-mail proprietário</span>
-                    <span className="font-mono text-slate-200 truncate">
+                    <span className="text-slate-500">E-mail proprietário</span>
+                    <span className="font-mono text-slate-800 truncate">
                       {selectedTenant.owner_email || '—'}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Fuso horário</span>
-                    <span className="font-mono text-slate-200">
+                    <span className="text-slate-500">Fuso horário</span>
+                    <span className="font-mono text-slate-800">
                       {selectedTenant.timezone || 'America/Manaus'}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Onboarding</span>
+                    <span className="text-slate-500">Onboarding</span>
                     <StatusIndicator
                       status={selectedTenant.onboarding_completed ? 'active' : 'pending'}
                       labelOverride={
@@ -533,50 +617,130 @@ export function EstablishmentsView({
                     />
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Plano / Assinatura</span>
-                    <span className="font-mono text-slate-200 tabular-nums">
+                    <span className="text-slate-500">Plano / Assinatura</span>
+                    <span className="font-mono text-slate-800 tabular-nums">
                       {selectedTenant.plan_code ?? '—'} ·{' '}
                       {formatCurrencyCents(selectedTenant.plan_amount_cents)}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Status assinatura</span>
+                    <span className="text-slate-500">Status assinatura</span>
                     <StatusIndicator status={selectedTenant.subscription_status} />
                   </div>
                   {selectedTenant.trial_ends_at && (
                     <div className="flex justify-between gap-2">
-                      <span className="text-slate-400">Fim do trial</span>
+                      <span className="text-slate-500">Fim do trial</span>
                       <span className="font-mono text-amber-800 tabular-nums">
                         {formatDateTimeBr(selectedTenant.trial_ends_at)}
                       </span>
                     </div>
                   )}
+                  {selectedTenant.current_period_end && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500">Vigência até</span>
+                      <span className="font-mono text-slate-800 tabular-nums">
+                        {formatDateTimeBr(selectedTenant.current_period_end)}
+                      </span>
+                    </div>
+                  )}
+                  {selectedTenant.grace_until && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500">Carência até</span>
+                      <span className="font-mono text-amber-800 tabular-nums">
+                        {formatDateTimeBr(selectedTenant.grace_until)}
+                      </span>
+                    </div>
+                  )}
+                  {selectedTenant.retention_ends_at && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500">Retenção até</span>
+                      <span className="font-mono text-rose-700 tabular-nums">
+                        {formatDateTimeBr(selectedTenant.retention_ends_at)}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Produtos / Vendas / Pedidos</span>
+                    <span className="text-slate-500">Produtos / Vendas / Pedidos</span>
                     <span className="font-mono text-slate-900 tabular-nums">
                       {selectedTenant.products_count} / {selectedTenant.sales_count} /{' '}
                       {selectedTenant.online_orders_count}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Última venda</span>
-                    <span className="font-mono text-slate-300 tabular-nums">
+                    <span className="text-slate-500">Última venda</span>
+                    <span className="font-mono text-slate-700 tabular-nums">
                       {formatDateTimeBr(selectedTenant.last_sale_at)}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <span className="text-slate-400">Criado em</span>
-                    <span className="font-mono text-slate-400 tabular-nums">
+                    <span className="text-slate-500">Criado em</span>
+                    <span className="font-mono text-slate-600 tabular-nums">
                       {formatDateTimeBr(selectedTenant.created_at)}
                     </span>
                   </div>
+                  {tenantDetail && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-500">Chamados em aberto</span>
+                      <span className="font-mono font-semibold text-amber-700 tabular-nums">
+                        {tenantDetail.openTicketsCount}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {tenantDetail && tenantDetail.recentPayments.length > 0 && (
+                <div className="pt-3 border-t border-slate-200 space-y-2 text-xs">
+                  <h3 className="font-semibold text-slate-800">Últimos pagamentos</h3>
+                  <div className="space-y-1.5">
+                    {tenantDetail.recentPayments.map((pay) => (
+                      <div
+                        key={pay.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-mono text-[11px] text-slate-800 tabular-nums">
+                            {formatCurrencyCents(pay.amount_cents)} · {pay.payment_method || pay.provider}
+                          </p>
+                          <p className="text-[10px] font-mono text-slate-500 tabular-nums">
+                            {formatDateBr(pay.paid_at || pay.created_at)}
+                          </p>
+                        </div>
+                        <StatusIndicator status={pay.status} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {tenantDetail && tenantDetail.recentAuditLogs.length > 0 && (
+                <div className="pt-3 border-t border-slate-200 space-y-2 text-xs">
+                  <h3 className="font-semibold text-slate-800">Auditoria recente da loja</h3>
+                  <div className="space-y-1.5">
+                    {tenantDetail.recentAuditLogs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 space-y-0.5"
+                      >
+                        <div className="flex items-center justify-between gap-2 text-[11px] font-mono">
+                          <span className="font-semibold text-amber-700 truncate">{log.action}</span>
+                          <span className="text-slate-500 tabular-nums shrink-0">
+                            {formatDateBr(log.created_at)}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 truncate">
+                          {log.admin_email} · {log.reason || '—'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Cardapio Digital */}
               <div className="pt-3 border-t border-slate-200 space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-slate-300 flex items-center gap-1.5">
+                  <h3 className="font-semibold text-slate-800 flex items-center gap-1.5">
                     <Globe className="h-3.5 w-3.5 text-sky-700" />
                     <span>Cardápio Digital</span>
                   </h3>
@@ -585,17 +749,17 @@ export function EstablishmentsView({
                     labelOverride={selectedTenant.digital_menu_active ? 'Publicado' : 'Oculto'}
                   />
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-2.5 flex items-center justify-between gap-2">
-                  <code className="text-[11px] font-mono text-slate-300 truncate">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 flex items-center justify-between gap-2">
+                  <code className="text-[11px] font-mono text-slate-700 truncate">
                     {selectedTenant.digital_menu_slug
-                      ? `/?menu=${selectedTenant.digital_menu_slug}`
+                      ? `/cardapio/${selectedTenant.digital_menu_slug}`
                       : 'Slug não configurado'}
                   </code>
                   {selectedTenant.digital_menu_slug && (
                     <button
                       type="button"
                       onClick={() => void handleCopyMenuSlug(selectedTenant.digital_menu_slug!)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-100 shrink-0 cursor-pointer"
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 shrink-0 cursor-pointer"
                     >
                       <Copy className="h-3 w-3" />
                       <span>{copiedSlug ? 'Copiado' : 'Copiar'}</span>
@@ -607,8 +771,8 @@ export function EstablishmentsView({
               {/* Proprietario e Membros */}
               <div className="pt-3 border-t border-slate-200 space-y-2.5 text-xs">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5 text-[#F5B731]" />
+                  <h3 className="font-semibold text-slate-800 flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-amber-600" />
                     <span>
                       Proprietário &amp; Membros ({selectedTenant.active_members_count} ativos)
                     </span>
@@ -638,12 +802,12 @@ export function EstablishmentsView({
                             <p className="font-medium text-slate-900 truncate">
                               {member.fullName || member.email}
                               {member.isFounder && (
-                                <span className="ml-1.5 font-mono text-[10px] text-[#F5B731]">
+                                <span className="ml-1.5 font-mono text-[10px] font-semibold text-amber-700">
                                   · Fundador
                                 </span>
                               )}
                             </p>
-                            <p className="text-[11px] font-mono text-slate-400 truncate">
+                            <p className="text-[11px] font-mono text-slate-500 truncate">
                               {member.email} · {member.role}
                             </p>
                           </div>
@@ -662,7 +826,7 @@ export function EstablishmentsView({
                                 nextActive: !member.memberActive,
                               })
                             }
-                            className="w-full inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-300 hover:bg-slate-100 cursor-pointer"
+                            className="w-full inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-100 cursor-pointer"
                           >
                             {member.memberActive ? (
                               <>

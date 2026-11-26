@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AdminLayout } from './components/AdminLayout';
 import { AdminLoginScreen } from './components/AdminLoginScreen';
 import { MfaGateModal } from './components/MfaGateModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import {
   fetchMyAdminProfile,
   fetchPlatformOverview,
@@ -18,16 +19,18 @@ import { DashboardView } from './views/DashboardView';
 import { EstablishmentsView } from './views/EstablishmentsView';
 import { FinanceView } from './views/FinanceView';
 import { MonitoringView } from './views/MonitoringView';
+import { PartnersView } from './views/PartnersView';
 import { PlansSubscriptionsView } from './views/PlansSubscriptionsView';
 import { SettingsView } from './views/SettingsView';
 import { SupportView } from './views/SupportView';
-import { PartnersView } from './views/PartnersView';
 
 export function App() {
   const [booting, setBooting] = useState(true);
   const [profile, setProfile] = useState<PlatformAdminProfile | null>(null);
   const [unauthorizedNotice, setUnauthorizedNotice] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<AdminModuleId>('dashboard');
+  const [focusedTenantId, setFocusedTenantId] = useState<string | null>(null);
+  const [focusedTicketTenantId, setFocusedTicketTenantId] = useState<string | null>(null);
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
 
   const [overview, setOverview] = useState<PlatformOverview | null>(null);
@@ -35,13 +38,16 @@ export function App() {
   const [overviewError, setOverviewError] = useState<unknown>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const loadSessionAndProfile = useCallback(async () => {
+  const loadSessionAndProfile = useCallback(async (options?: { silent?: boolean }) => {
     if (!isSupabaseConfigured) {
       setBooting(false);
       return;
     }
 
-    setBooting(true);
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setBooting(true);
+    }
     setUnauthorizedNotice(null);
     try {
       const supabase = getSupabaseAdminClient();
@@ -69,7 +75,9 @@ export function App() {
       setUnauthorizedNotice(formatAdminError(err));
       setProfile(null);
     } finally {
-      setBooting(false);
+      if (!silent) {
+        setBooting(false);
+      }
     }
   }, []);
 
@@ -99,7 +107,7 @@ export function App() {
         setProfile(null);
         setOverview(null);
       } else if (event === 'TOKEN_REFRESHED' || event === 'MFA_CHALLENGE_VERIFIED') {
-        void loadSessionAndProfile();
+        void loadSessionAndProfile({ silent: true });
       }
     });
 
@@ -114,7 +122,25 @@ export function App() {
 
   const handleSelectModule = (moduleId: AdminModuleId) => {
     if (!profile || !canAccessModule(profile.role, moduleId)) return;
+    if (moduleId !== 'establishments') {
+      setFocusedTenantId(null);
+    }
+    if (moduleId !== 'support') {
+      setFocusedTicketTenantId(null);
+    }
     setActiveModule(moduleId);
+  };
+
+  const handleInspectEstablishment = (tenantId: string) => {
+    if (!profile || !canAccessModule(profile.role, 'establishments')) return;
+    setFocusedTenantId(tenantId);
+    setActiveModule('establishments');
+  };
+
+  const handleOpenTicketForTenant = (tenantId: string) => {
+    if (!profile || !canAccessModule(profile.role, 'support')) return;
+    setFocusedTicketTenantId(tenantId);
+    setActiveModule('support');
   };
 
   const handleGlobalRefresh = () => {
@@ -125,6 +151,8 @@ export function App() {
     await signOutAdmin();
     setProfile(null);
     setOverview(null);
+    setFocusedTenantId(null);
+    setFocusedTicketTenantId(null);
     setActiveModule('dashboard');
   };
 
@@ -138,10 +166,13 @@ export function App() {
 
   if (!profile) {
     return (
-      <AdminLoginScreen
-        onSuccess={loadSessionAndProfile}
-        unauthorizedNotice={unauthorizedNotice}
-      />
+      <>
+        <AdminLoginScreen
+          onSuccess={loadSessionAndProfile}
+          unauthorizedNotice={unauthorizedNotice}
+        />
+        <OfflineIndicator />
+      </>
     );
   }
 
@@ -162,6 +193,7 @@ export function App() {
             loading={overviewLoading}
             error={overviewError}
             onNavigate={handleSelectModule}
+            onInspectEstablishment={handleInspectEstablishment}
             onRetry={loadOverview}
           />
         )}
@@ -172,6 +204,7 @@ export function App() {
             mfaVerified={profile.mfaVerified}
             onRequestMfa={() => setMfaModalOpen(true)}
             refreshTrigger={refreshTrigger}
+            onInspectEstablishment={handleInspectEstablishment}
           />
         )}
 
@@ -181,6 +214,10 @@ export function App() {
             mfaVerified={profile.mfaVerified}
             onRequestMfa={() => setMfaModalOpen(true)}
             refreshTrigger={refreshTrigger}
+            focusedTenantId={focusedTenantId}
+            onFocusedTenantConsumed={() => setFocusedTenantId(null)}
+            onNavigate={handleSelectModule}
+            onOpenTicketForTenant={handleOpenTicketForTenant}
           />
         )}
 
@@ -190,19 +227,35 @@ export function App() {
             mfaVerified={profile.mfaVerified}
             onRequestMfa={() => setMfaModalOpen(true)}
             refreshTrigger={refreshTrigger}
+            onInspectEstablishment={handleInspectEstablishment}
           />
         )}
 
         {activeModule === 'finance' && canAccessModule(profile.role, 'finance') && (
-          <FinanceView refreshTrigger={refreshTrigger} />
+          <FinanceView
+            role={profile.role}
+            mfaVerified={profile.mfaVerified}
+            onRequestMfa={() => setMfaModalOpen(true)}
+            refreshTrigger={refreshTrigger}
+            onInspectEstablishment={handleInspectEstablishment}
+          />
         )}
 
         {activeModule === 'monitoring' && (
-          <MonitoringView refreshTrigger={refreshTrigger} />
+          <MonitoringView
+            refreshTrigger={refreshTrigger}
+            onInspectEstablishment={handleInspectEstablishment}
+          />
         )}
 
         {activeModule === 'support' && (
-          <SupportView role={profile.role} refreshTrigger={refreshTrigger} />
+          <SupportView
+            role={profile.role}
+            refreshTrigger={refreshTrigger}
+            onInspectEstablishment={handleInspectEstablishment}
+            focusedTicketTenantId={focusedTicketTenantId}
+            onFocusedTicketTenantConsumed={() => setFocusedTicketTenantId(null)}
+          />
         )}
 
         {activeModule === 'settings' && (
@@ -223,14 +276,29 @@ export function App() {
           />
         )}
 
-        {activeModule === 'audit' && <AuditReportsView refreshTrigger={refreshTrigger} />}\n        {activeModule === 'partners' && canAccessModule(profile.role, 'partners') && <PartnersView role={profile.role} mfaVerified={profile.mfaVerified} onRequestMfa={() => setMfaModalOpen(true)} refreshTrigger={refreshTrigger} />}
+        {activeModule === 'audit' && (
+          <AuditReportsView
+            refreshTrigger={refreshTrigger}
+            onInspectEstablishment={handleInspectEstablishment}
+          />
+        )}
+
+        {activeModule === 'partners' && canAccessModule(profile.role, 'partners') && (
+          <PartnersView
+            role={profile.role}
+            mfaVerified={profile.mfaVerified}
+            onRequestMfa={() => setMfaModalOpen(true)}
+            refreshTrigger={refreshTrigger}
+          />
+        )}
       </AdminLayout>
 
       <MfaGateModal
         open={mfaModalOpen}
         onClose={() => setMfaModalOpen(false)}
-        onVerified={loadSessionAndProfile}
+        onVerified={() => loadSessionAndProfile({ silent: true })}
       />
+      <OfflineIndicator />
     </>
   );
 }
