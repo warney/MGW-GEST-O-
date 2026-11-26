@@ -845,7 +845,7 @@ export default function App() {
       document.title = titles[publicRoute.page];
       return;
     }
-    if (publicRoute.kind === 'menu' || publicRoute.kind === 'tracking') {
+    if (publicRoute.kind === 'menu' || publicRoute.kind === 'tracking' || publicRoute.kind === 'review') {
       return;
     }
     if (dataContext) {
