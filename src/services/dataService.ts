@@ -1750,6 +1750,51 @@ export async function fetchPublicOrderByToken(
   return mapPublicOrderTrackingRpcResponse(data);
 }
 
+export interface PublicEstablishmentReview {
+  id: string;
+  rating: number;
+  comment: string;
+  submittedAt: string;
+  verified: boolean;
+  reply?: string | null;
+  replyAt?: string | null;
+}
+export interface PublicEstablishmentReviewsPayload {
+  found: boolean;
+  averageRating: number;
+  totalReviews: number;
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  reviews: PublicEstablishmentReview[];
+}
+export async function fetchPublicEstablishmentReviews(slug: string): Promise<PublicEstablishmentReviewsPayload> {
+  const { data, error } = await getSupabaseClient().rpc('get_public_establishment_reviews', { p_slug: slug });
+  if (error) throw new Error(error.message);
+  const value = data && typeof data === 'object' ? data : {};
+  const rawDistribution = value.distribution && typeof value.distribution === 'object' ? value.distribution : {};
+  const reviews = Array.isArray(value.reviews) ? value.reviews : [];
+  return {
+    found: value.found === true,
+    averageRating: Number(value.averageRating) || 0,
+    totalReviews: Number(value.totalReviews) || 0,
+    distribution: {
+      '1': Number(rawDistribution['1']) || 0,
+      '2': Number(rawDistribution['2']) || 0,
+      '3': Number(rawDistribution['3']) || 0,
+      '4': Number(rawDistribution['4']) || 0,
+      '5': Number(rawDistribution['5']) || 0,
+    },
+    reviews: reviews.map((item: Record<string, unknown>) => ({
+      id: String(item.id ?? ''),
+      rating: Number(item.rating) || 0,
+      comment: String(item.comment ?? ''),
+      submittedAt: String(item.submittedAt ?? ''),
+      verified: item.verified === true,
+      reply: typeof item.reply === 'string' ? item.reply : null,
+      replyAt: typeof item.replyAt === 'string' ? item.replyAt : null,
+    })),
+  };
+}
+
 export interface PublicReviewInvitation {
   valid: boolean;
   storeName?: string;
