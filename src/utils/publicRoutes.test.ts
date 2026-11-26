@@ -17,7 +17,7 @@ test('parsePublicUrlRoute maps landing, auth, legal, admin, menu, and tracking r
   assert.deepEqual(parsePublicUrlRoute('/login'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/login/'), { kind: 'login' });
   assert.deepEqual(parsePublicUrlRoute('/cadastro'), { kind: 'register' });
-  assert.deepEqual(parsePublicUrlRoute('/parceiros'), { kind: 'partnerLogin' });
+  assert.deepEqual(parsePublicUrlRoute('/parceiros'), { kind: 'institutional', page: 'parceiros' });
   assert.deepEqual(parsePublicUrlRoute('/parceiros/login'), { kind: 'partnerLogin' });
   assert.deepEqual(parsePublicUrlRoute('/parceiros/cadastro'), { kind: 'partnerRegister' });
   assert.deepEqual(parsePublicUrlRoute('/parceiros/painel'), { kind: 'partnerPortal' });
