@@ -29,19 +29,25 @@ BEGIN
     RAISE EXCEPTION 'Este pedido já possui uma avaliação.';
   END IF;
 
-  v_token := encode(gen_random_bytes(32), 'hex');
+  -- Derivado do token aleatório de acompanhamento (192 bits), para que recargas
+  -- do acompanhamento recuperem o mesmo convite sem armazenar o token em claro.
+  v_token := encode(digest('mgw-review-v1:' || p_tracking_token, 'sha256'), 'hex');
   v_expires := now() + interval '30 days';
 
   INSERT INTO public.review_invitation_tokens
     (tenant_id, order_id, token_hash, issued_at, expires_at, consumed_at, revoked_at)
   VALUES
     (v_order.tenant_id, v_order.id, encode(digest(v_token, 'sha256'), 'hex'), now(), v_expires, NULL, NULL)
-  ON CONFLICT (order_id) DO UPDATE SET
-    token_hash = EXCLUDED.token_hash,
-    issued_at = EXCLUDED.issued_at,
-    expires_at = EXCLUDED.expires_at,
-    consumed_at = NULL,
-    revoked_at = NULL;
+  ON CONFLICT (order_id) DO NOTHING;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.review_invitation_tokens
+    WHERE order_id = v_order.id
+      AND token_hash = encode(digest(v_token, 'sha256'), 'hex')
+      AND revoked_at IS NULL AND consumed_at IS NULL AND expires_at > now()
+  ) THEN
+    RAISE EXCEPTION 'Este pedido já possui um convite de avaliação utilizado ou revogado.';
+  END IF;
 
   RETURN jsonb_build_object('token', v_token, 'expiresAt', v_expires);
 END;
