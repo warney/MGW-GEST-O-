@@ -60,7 +60,7 @@ export function PublicMenuPromoCarousel({
         zoom: Math.min(2.5, Math.max(1, Number(row.zoom) || 1)),
         positionX: Math.min(100, Math.max(0, Number(row.positionX) || 50)),
         positionY: Math.min(100, Math.max(0, Number(row.positionY) || 50)),
-        clickAction: row.clickAction === 'product' || row.clickAction === 'combo' ? row.clickAction : 'none',
+        clickAction: row.clickAction === 'product' || row.clickAction === 'combo' ? row.clickAction as PromoAction : 'none',
         targetId: typeof row.targetId === 'string' ? row.targetId : null,
         sortOrder: Number(row.sortOrder) || 0,
         displayIntervalSeconds: INTERVALS.includes(Number(row.displayIntervalSeconds)) ? Number(row.displayIntervalSeconds) : 5,
