@@ -43,7 +43,16 @@ export function PublicMenuReviews({ slug }: PublicMenuReviewsProps) {
   if (error) {
     return <section aria-label="Avaliações dos clientes" className="rounded-2xl border border-[#262B38] bg-[#14171F] p-5"><p className="text-sm text-[#9CA3AF]">As avaliações estarão disponíveis em instantes.</p></section>;
   }
-  if (!data?.found || data.totalReviews === 0) return null;
+  if (!data?.found) return null;
+  if (data.totalReviews === 0) {
+    return (
+      <section id="avaliacoes" aria-label="Avaliações dos clientes" className="rounded-2xl border border-[#262B38] bg-[#14171F] p-5 space-y-2">
+        <p className="text-[11px] font-bold tracking-[0.16em] uppercase text-[#F5B900]">Opinião de quem pediu</p>
+        <h2 className="text-lg font-extrabold text-white">Avaliações dos clientes</h2>
+        <p className="text-sm text-[#9CA3AF]">Este estabelecimento ainda não recebeu avaliações. Quando os primeiros clientes avaliarem seus pedidos, elas aparecerão aqui.</p>
+      </section>
+    );
+  }
 
   return (
     <section id="avaliacoes" aria-label="Avaliações dos clientes" className="rounded-2xl border border-[#262B38] bg-[#14171F] p-4 sm:p-5 space-y-5">
