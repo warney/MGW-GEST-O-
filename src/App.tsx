@@ -1512,6 +1512,9 @@ export default function App() {
         onBackToMenu={(slug) =>
           navigatePublicPath(slug ? `/cardapio/${slug}` : '/cardapio')
         }
+        onOpenReview={(reviewToken) =>
+          navigatePublicPath(`/cardapio/avaliar/${reviewToken}`)
+        }
       />
     );
   }
