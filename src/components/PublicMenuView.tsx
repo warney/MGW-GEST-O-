@@ -1782,92 +1782,76 @@ export function PublicMenuView({
             </div>
           </div>
 
-          {/* Commercial Details Strip: Hours | Address | Phone (Compact Horizontal Composition) */}
+          {/* Compact store information: hours, address and contact */}
           {infoStripCount > 0 && (
-            <div
-              className={`pt-2.5 border-t border-[#242936]/80 grid ${infoStripGridClass} gap-2 sm:gap-4 text-[11px] sm:text-xs text-[#D1D5DB]`}
-            >
+            <div className="mt-2.5 border-y border-[#242936]/75 py-2 grid grid-cols-3 gap-2 text-[10px] sm:text-xs text-[#D1D5DB]">
               {store.openingHours && (
-                <div className="flex items-start gap-1.5 sm:gap-2 min-w-0 min-[360px]:pr-2 min-[360px]:border-r min-[360px]:border-[#242936]/80">
-                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F5B900] shrink-0 mt-0.5" aria-hidden="true" />
-                  <span className="leading-tight break-words">{store.openingHours}</span>
+                <div className="flex items-start gap-1.5 min-w-0">
+                  <Clock className="w-3.5 h-3.5 text-[#F5B900] shrink-0 mt-px" aria-hidden="true" />
+                  <span className="leading-[1.25] min-w-0 break-words">{store.openingHours}</span>
                 </div>
               )}
               {store.address && (
-                <div
-                  className={`flex items-start gap-1.5 sm:gap-2 min-w-0 ${
-                    store.phoneWhatsapp
-                      ? 'min-[360px]:pr-2 min-[360px]:border-r min-[360px]:border-[#242936]/80'
-                      : ''
-                  }`}
-                >
-                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F5B900] shrink-0 mt-0.5" aria-hidden="true" />
-                  <span className="leading-tight break-words">{store.address}</span>
+                <div className="flex items-start gap-1.5 min-w-0">
+                  <MapPin className="w-3.5 h-3.5 text-[#F5B900] shrink-0 mt-px" aria-hidden="true" />
+                  <span className="leading-[1.25] min-w-0 break-words">{store.address}</span>
                 </div>
               )}
               {store.phoneWhatsapp && (
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 font-mono tabular-nums">
-                  <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
-                  <span className="truncate">{store.phoneWhatsapp}</span>
+                <div className="flex items-start gap-1.5 min-w-0">
+                  <Phone className="w-3.5 h-3.5 text-[#F5B900] shrink-0 mt-px" aria-hidden="true" />
+                  <span className="leading-[1.25] min-w-0 break-all font-mono tabular-nums">{store.phoneWhatsapp}</span>
                 </div>
               )}
             </div>
           )}
 
-          {/* Delivery Fee & Pickup Availability Bar */}
-          <div className="pt-2 border-t border-[#242936]/75 flex flex-wrap items-center justify-center lg:justify-start gap-x-2.5 gap-y-1 text-xs font-semibold text-white">
-            <Truck className="w-4 h-4 text-[#F5B900] shrink-0" aria-hidden="true" />
-            <span className="font-mono tabular-nums">
-              {!store.acceptsDelivery
-                ? 'Somente retirada'
-                : usesRegionalPricing
-                  ? (() => {
-                      const activeList = deliveryRegions.filter(
-                        (r) => r.status === 'active' && !r.isTemporarilySuspended,
-                      );
-                      const sample = activeList.length > 0 ? activeList : deliveryRegions;
-                      const fees = sample.map((r) => r.deliveryFee);
-                      const minFee = Math.min(...fees);
-                      const maxFee = Math.max(...fees);
-                      return minFee === maxFee
-                        ? minFee <= 0
-                          ? 'Entrega grátis'
-                          : `Entrega ${formatCurrencyBRL(minFee)}`
-                        : `Entrega ${formatCurrencyBRL(minFee)} a ${formatCurrencyBRL(maxFee)} por bairro`;
-                    })()
-                  : store.deliveryFee <= 0
-                    ? 'Entrega grátis'
-                    : `Entrega ${formatCurrencyBRL(store.deliveryFee)}`}
-            </span>
+          {/* Compact delivery and pickup conditions */}
+          <div className="py-2 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[10px] sm:text-xs font-semibold text-white">
+            {store.acceptsDelivery && (
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <Truck className="w-3.5 h-3.5 text-[#F5B900] shrink-0" aria-hidden="true" />
+                <span className="font-mono tabular-nums">
+                  {!store.acceptsDelivery
+                    ? 'Somente retirada'
+                    : usesRegionalPricing
+                      ? (() => {
+                          const activeList = deliveryRegions.filter(
+                            (r) => r.status === 'active' && !r.isTemporarilySuspended,
+                          );
+                          const sample = activeList.length > 0 ? activeList : deliveryRegions;
+                          const fees = sample.map((r) => r.deliveryFee);
+                          const minFee = Math.min(...fees);
+                          const maxFee = Math.max(...fees);
+                          return minFee === maxFee
+                            ? minFee <= 0
+                              ? 'Entrega grátis'
+                              : `Entrega ${formatCurrencyBRL(minFee)}`
+                            : `Entrega ${formatCurrencyBRL(minFee)} a ${formatCurrencyBRL(maxFee)} por bairro`;
+                        })()
+                      : store.deliveryFee <= 0
+                        ? 'Entrega grátis'
+                        : `Entrega ${formatCurrencyBRL(store.deliveryFee)}`}
+                </span>
+              </span>
+            )}
             {store.acceptsDelivery &&
               deliveryPricing?.freeDeliveryEnabled &&
               deliveryPricing.freeDeliveryMinAmount > 0 && (
-                <>
-                  <span aria-hidden="true" className="text-[#6B7280]">
-                    •
-                  </span>
-                  <span className="text-[#4ADE80] font-mono tabular-nums">
-                    Grátis acima de {formatCurrencyBRL(deliveryPricing.freeDeliveryMinAmount)}
-                  </span>
-                </>
+                <span className="text-[#4ADE80] font-mono tabular-nums whitespace-nowrap">
+                  Grátis acima de {formatCurrencyBRL(deliveryPricing.freeDeliveryMinAmount)}
+                </span>
               )}
             {store.acceptsDelivery && store.acceptsPickup && (
-              <>
-                <span aria-hidden="true" className="text-[#6B7280]">
-                  •
-                </span>
-                <span>Retirada disponível</span>
-              </>
+              <span className="whitespace-nowrap text-[#D1D5DB]">Retirada disponível</span>
+            )}
+            {!store.acceptsDelivery && store.acceptsPickup && (
+              <span className="whitespace-nowrap text-[#D1D5DB]">Somente retirada</span>
             )}
             {store.minimumOrderAmount > 0 && (
-              <>
-                <span aria-hidden="true" className="text-[#6B7280]">
-                  •
-                </span>
-                <span className="text-[#D1D5DB] font-mono tabular-nums">
-                  Pedido mín. {formatCurrencyBRL(store.minimumOrderAmount)}
-                </span>
-              </>
+              <span className="text-[#D1D5DB] font-mono tabular-nums whitespace-nowrap">
+                Pedido mín. {formatCurrencyBRL(store.minimumOrderAmount)}
+              </span>
             )}
           </div>
         </div>
