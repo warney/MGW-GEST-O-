@@ -216,7 +216,7 @@ export default function App() {
   // O painel administrativo mantém o manifesto principal do MGW Gestão.
   useEffect(() => {
     const isPublicMenuApp =
-      publicRoute.kind === 'menu' || publicRoute.kind === 'tracking';
+      publicRoute.kind === 'menu' || publicRoute.kind === 'tracking' || publicRoute.kind === 'review';
 
     // Mantém o tema independente do Cardápio Digital público.
     document.documentElement.classList.toggle('dark', isPublicMenuApp);
