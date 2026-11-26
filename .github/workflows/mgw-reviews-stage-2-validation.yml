@@ -1,0 +1,59 @@
+name: MGW Reviews stage 2 validation
+
+on:
+  push:
+    branches:
+      - feat/cardapio-avaliacoes-stage-1
+    paths:
+      - 'src/App.tsx'
+      - 'src/components/PublicReviewView.tsx'
+      - 'src/components/PublicOrderTrackingView.tsx'
+      - 'src/services/dataService.ts'
+      - 'src/utils/publicRoutes.ts'
+      - 'src/utils/publicRoutes.test.ts'
+      - 'supabase/migrations/*review*'
+      - 'supabase/migrations/*reviews*'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - '.github/workflows/mgw-reviews-stage-2-validation.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/App.tsx'
+      - 'src/components/PublicReviewView.tsx'
+      - 'src/components/PublicOrderTrackingView.tsx'
+      - 'src/services/dataService.ts'
+      - 'src/utils/publicRoutes.ts'
+      - 'src/utils/publicRoutes.test.ts'
+      - 'supabase/migrations/*review*'
+      - 'supabase/migrations/*reviews*'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - '.github/workflows/mgw-reviews-stage-2-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript check
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Production build
+        run: npm run build
