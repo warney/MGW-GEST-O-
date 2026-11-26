@@ -27,6 +27,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import {
+  createPublicReviewInvitation,
   fetchPublicDigitalMenu,
   fetchPublicOrderByToken,
   subscribePublicOrderTracking,
@@ -62,6 +63,7 @@ interface PublicOrderTrackingViewProps {
   onBackToMenu?: (slug: string) => void;
   initialOrder?: PublicOrderTrackingRecord | null;
   initialStoreMenu?: PublicDigitalMenuPayload | null;
+  onOpenReview?: (token: string) => void;
 }
 
 const STATUS_HEADLINES: Record<OnlineOrderStatus, string> = {
@@ -160,6 +162,7 @@ export function PublicOrderTrackingView({
   onBackToMenu,
   initialOrder,
   initialStoreMenu,
+  onOpenReview,
 }: PublicOrderTrackingViewProps) {
   const [order, setOrder] = useState<PublicOrderTrackingRecord | null>(
     initialOrder ?? null,
@@ -173,6 +176,8 @@ export function PublicOrderTrackingView({
   const [printingOpen, setPrintingOpen] = useState(false);
   const [copiedPix, setCopiedPix] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [reviewInvitationLoading, setReviewInvitationLoading] = useState(false);
+  const [reviewInvitationError, setReviewInvitationError] = useState('');
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   function markImageBroken(url?: string) {
@@ -221,6 +226,21 @@ export function PublicOrderTrackingView({
       } catch {
         setCopiedPix(false);
       }
+    }
+  }
+
+  async function handleOpenReview() {
+    if (reviewInvitationLoading || order?.status !== 'completed') return;
+    setReviewInvitationLoading(true);
+    setReviewInvitationError('');
+    try {
+      const reviewToken = await createPublicReviewInvitation(token);
+      if (onOpenReview) onOpenReview(reviewToken);
+      else window.location.assign(`/cardapio/avaliar/${reviewToken}`);
+    } catch (err) {
+      setReviewInvitationError(err instanceof Error ? err.message : 'Não foi possível abrir a avaliação.');
+    } finally {
+      setReviewInvitationLoading(false);
     }
   }
 
@@ -1039,6 +1059,19 @@ export function PublicOrderTrackingView({
             </span>
             <ChevronRight className="w-4 h-4 text-[#22C55E] shrink-0" aria-hidden="true" />
           </a>
+        )}
+
+        {order.status === 'completed' && (
+          <section className="rounded-2xl bg-[#14171F] border border-[#F5B900]/40 p-4 space-y-3">
+            <div className="space-y-1">
+              <h2 className="text-sm font-extrabold text-white">Seu pedido foi concluído!</h2>
+              <p className="text-xs text-[#A0A8B8]">Conte como foi sua experiência. Sua avaliação ajuda o estabelecimento e outros clientes.</p>
+            </div>
+            {reviewInvitationError && <p role="alert" className="text-xs text-red-300">{reviewInvitationError}</p>}
+            <button type="button" onClick={() => void handleOpenReview()} disabled={reviewInvitationLoading} className="w-full min-h-[48px] rounded-xl bg-[#F5B900] hover:bg-[#FFC928] disabled:opacity-60 text-[#0B0D11] text-sm font-extrabold inline-flex items-center justify-center gap-2">
+              {reviewInvitationLoading ? <><RefreshCw className="w-4 h-4 animate-spin" /> Preparando avaliação...</> : <><CheckCircle2 className="w-4 h-4" /> Avaliar meu pedido</>}
+            </button>
+          </section>
         )}
 
         {/* Persistent Return Assurance Notice */}
