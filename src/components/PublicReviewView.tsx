@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { CheckCircle2, LoaderCircle, Star } from 'lucide-react';
 import {
   fetchPublicReviewInvitation,
@@ -29,7 +29,7 @@ export function PublicReviewView({ token, onBackToMenu }: PublicReviewViewProps)
     return () => { active = false; };
   }, [token]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (rating < 1 || submitting) return;
     setSubmitting(true);
