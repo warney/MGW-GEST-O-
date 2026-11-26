@@ -36,6 +36,10 @@ test('parsePublicUrlRoute maps landing, auth, legal, admin, menu, and tracking r
     kind: 'menu',
     slug: 'xburger',
   });
+  assert.deepEqual(parsePublicUrlRoute('/cardapio/avaliar/' + 'a'.repeat(64)), {
+    kind: 'review',
+    token: 'a'.repeat(64),
+  });
   assert.deepEqual(parsePublicUrlRoute('/cardapio/pedido/tok-123'), {
     kind: 'tracking',
     token: 'tok-123',
@@ -59,6 +63,7 @@ test('isAuthShellRoute identifies routes connected to Supabase auth session', ()
   assert.equal(isAuthShellRoute({ kind: 'privacy' }), false);
   assert.equal(isAuthShellRoute({ kind: 'menu', slug: 'loja' }), false);
   assert.equal(isAuthShellRoute({ kind: 'tracking', token: 'abc' }), false);
+  assert.equal(isAuthShellRoute({ kind: 'review', token: 'abc' }), false);
 });
 
 test('hasAuthCallbackParams detects OAuth and password recovery return parameters', () => {
