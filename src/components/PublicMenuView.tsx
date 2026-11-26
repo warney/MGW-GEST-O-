@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { PublicMenuPromoCarousel } from './DigitalMenuPromoBanners';
+import { PublicMenuReviews } from './PublicMenuReviews';
 import {
   createPublicOnlineOrder,
   fetchPublicDigitalMenu,
@@ -2475,6 +2476,10 @@ export function PublicMenuView({
           </div>
         </aside>
       </main>
+
+      <div className="max-w-6xl mx-auto px-3.5 sm:px-6 pb-6">
+        <PublicMenuReviews slug={store.slug} />
+      </div>
 
       {/* Storefront Footer */}
       <footer className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 pb-6 border-t border-[#242936]/80 text-xs text-[#7B8396] flex flex-wrap items-center justify-between gap-2">
