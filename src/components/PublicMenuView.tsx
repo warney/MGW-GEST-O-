@@ -895,13 +895,6 @@ export function PublicMenuView({
     Boolean(store.address),
     Boolean(store.phoneWhatsapp),
   ].filter(Boolean).length;
-  const infoStripGridClass =
-    infoStripCount >= 3
-      ? 'grid-cols-1 min-[360px]:grid-cols-3'
-      : infoStripCount === 2
-        ? 'grid-cols-1 min-[360px]:grid-cols-2'
-        : 'grid-cols-1';
-
   const cartPanelContent = (
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b border-[#242936] pb-3">
