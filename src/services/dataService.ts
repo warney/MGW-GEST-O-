@@ -1750,6 +1750,61 @@ export async function fetchPublicOrderByToken(
   return mapPublicOrderTrackingRpcResponse(data);
 }
 
+export interface PublicReviewInvitation {
+  valid: boolean;
+  storeName?: string;
+  orderCode?: string;
+  expiresAt?: string;
+}
+
+export async function createPublicReviewInvitation(trackingToken: string): Promise<string> {
+  if (isDemoSandboxActive()) {
+    throw new Error('Avaliações estarão disponíveis quando o pedido for concluído no ambiente oficial.');
+  }
+  const { data, error } = await getSupabaseClient().rpc('create_public_review_invitation', {
+    p_tracking_token: trackingToken,
+  });
+  if (error) throw new Error(error.message);
+  const token = data && typeof data.token === 'string' ? data.token : '';
+  if (!/^[a-f0-9]{64}$/.test(token)) throw new Error('Não foi possível gerar o convite de avaliação.');
+  return token;
+}
+
+export async function fetchPublicReviewInvitation(token: string): Promise<PublicReviewInvitation> {
+  if (!/^[a-f0-9]{64}$/.test(token)) return { valid: false };
+  const { data, error } = await getSupabaseClient().rpc('get_public_review_invitation', {
+    p_token: token,
+  });
+  if (error) throw new Error(error.message);
+  if (!data || typeof data !== 'object') return { valid: false };
+  return {
+    valid: data.valid === true,
+    storeName: typeof data.storeName === 'string' ? data.storeName : undefined,
+    orderCode: typeof data.orderCode === 'string' ? data.orderCode : undefined,
+    expiresAt: typeof data.expiresAt === 'string' ? data.expiresAt : undefined,
+  };
+}
+
+export async function submitPublicEstablishmentReview(input: {
+  token: string;
+  rating: number;
+  comment?: string;
+}): Promise<void> {
+  if (!/^[a-f0-9]{64}$/.test(input.token)) throw new Error('Convite inválido ou expirado.');
+  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) {
+    throw new Error('Selecione uma nota de 1 a 5 estrelas.');
+  }
+  const comment = (input.comment ?? '').trim();
+  if (comment.length > 1200) throw new Error('O comentário deve ter no máximo 1.200 caracteres.');
+  const { data, error } = await getSupabaseClient().rpc('submit_public_establishment_review', {
+    p_token: input.token,
+    p_rating: input.rating,
+    p_comment: comment,
+  });
+  if (error) throw new Error(error.message);
+  if (!data || data.success !== true) throw new Error('Não foi possível registrar sua avaliação.');
+}
+
 export interface PublicOrderPollingOptions {
   tokenHash?: string;
   intervalMs?: number;
