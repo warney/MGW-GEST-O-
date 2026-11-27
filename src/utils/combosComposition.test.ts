@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import type {
   ComboComponentInput,
   ComboRecord,
@@ -177,4 +179,19 @@ test('combos: disponibilidade considera fator de conversão e saldo de todos os 
   assert.equal(result.available, true);
   assert.equal(result.maxProducibleQty, 2);
   assert.equal(result.components[0].requiredPerComboBase, 12);
+});
+
+test('Etapa 5 migration: preserva constraints alheias e exige idempotência segura', () => {
+  const sql = fs.readFileSync(
+    path.resolve(process.cwd(), 'supabase/migrations/20261127180000_etapa5_adega_combos.sql'),
+    'utf8',
+  );
+
+  assert.match(sql, /DROP CONSTRAINT IF EXISTS inventory_movements_movement_type_check/i);
+  assert.match(sql, /DROP CONSTRAINT IF EXISTS inventory_movements_origin_type_check/i);
+  assert.doesNotMatch(sql, /FOR v_conname IN\s+SELECT c\.conname[\s\S]{0,500}pg_get_constraintdef/i);
+  assert.match(sql, /Chave de idempotencia obrigatoria/i);
+  assert.match(sql, /Chave de idempotencia ja utilizada com dados diferentes/i);
+  assert.match(sql, /AND pc\.active = true/i);
+  assert.doesNotMatch(sql, /DROP POLICY IF EXISTS (products|combos|sales|online_orders)_/i);
 });
