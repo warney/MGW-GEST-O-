@@ -1,4 +1,8 @@
 import {
+  type ComboComponentRecord,
+  type ComboConsumptionItemSnapshot,
+  type ComboConsumptionOriginType,
+  type ComboConsumptionRecord,
   type ComboInput,
   type ComboProductItem,
   type ComboRecord,
@@ -40,7 +44,10 @@ import {
   PRODUCT_CATEGORIES,
   type ProductCategory,
   type ProductInput,
+  type ProductPackageType,
   type ProductRecord,
+  type ProductSaleUnit,
+  type ProductVolumeUnit,
   type PublicCatalogCombo,
   type PublicCatalogProduct,
   type PublicDeliveryPricingSettings,
@@ -59,6 +66,25 @@ import {
   type TenantBillingBlockReason,
   type TenantContext,
   type TenantRole,
+  type InventoryBalanceRecord,
+  type InventoryCountItemRecord,
+  type InventoryCountRecord,
+  type InventoryCountStatus,
+  type InventoryMovementDirection,
+  type InventoryMovementOriginType,
+  type InventoryMovementRecord,
+  type InventoryMovementType,
+  type InventoryPackagingConversionInput,
+  type InventoryPackagingConversionRecord,
+  type ProductSupplierLinkInput,
+  type ProductSupplierLinkRecord,
+  type PurchaseOrderItemRecord,
+  type PurchaseOrderRecord,
+  type PurchaseOrderStatus,
+  type PurchaseReceiptItemRecord,
+  type PurchaseReceiptRecord,
+  type SupplierInput,
+  type SupplierRecord,
 } from '../types/finance';
 import {
   normalizeCourierPlateForStorage,
@@ -89,6 +115,19 @@ import {
   normalizeTenantRole,
 } from './rbacPolicy';
 
+import { normalizeBusinessSegment } from './segmentEngine';
+import {
+  hasExplicitUniversalProductFields,
+  isValidBarcodeFormat,
+  MAX_PRODUCT_MONEY_VALUE,
+  MAX_PRODUCT_VOLUME_VALUE,
+  MAX_UNITS_PER_PACKAGE,
+  normalizeBarcodeInput,
+  normalizePackageType,
+  normalizeSaleUnit,
+  normalizeVolumeUnit,
+} from '../utils/universalProducts';
+
 export interface SupabaseTenantRow {
   id: string;
   slug: string;
@@ -97,6 +136,7 @@ export interface SupabaseTenantRow {
   billing_exempt: boolean;
   status: string;
   onboarding_completed?: boolean;
+  business_segment?: string | null;
 }
 
 export interface SupabaseSubscriptionRow {
@@ -146,6 +186,17 @@ export interface SupabaseProductRow {
   active: boolean;
   image_url?: string | null;
   image_path?: string | null;
+  description?: string | null;
+  internal_code?: string | null;
+  cost_price?: number | string | null;
+  brand?: string | null;
+  notes?: string | null;
+  barcode?: string | null;
+  volume_value?: number | string | null;
+  volume_unit?: string | null;
+  sale_unit?: string | null;
+  package_type?: string | null;
+  units_per_package?: number | string | null;
   created_at: string;
   updated_at: string;
 }
@@ -157,6 +208,8 @@ export interface SupabaseComboRow {
   owner_email?: string | null;
   name: string;
   description: string;
+  category?: string | null;
+  notes?: string | null;
   items: unknown;
   sale_price: number | string;
   estimated_cost: number | string;
@@ -525,8 +578,21 @@ export function mapShopSettingsRow(
 
 export function mapProductRow(row: SupabaseProductRow): ProductRecord {
   const category = String(row.category || 'Outro').trim() || 'Outro';
+  const rawCost =
+    row.cost_price !== undefined && row.cost_price !== null
+      ? Number(row.cost_price)
+      : undefined;
+  const rawVolumeVal =
+    row.volume_value !== undefined && row.volume_value !== null
+      ? Number(row.volume_value)
+      : null;
+  const normalizedVolUnit = normalizeVolumeUnit(row.volume_unit) ?? null;
+  const rawUnitsPerPkg =
+    row.units_per_package !== undefined && row.units_per_package !== null
+      ? Number(row.units_per_package)
+      : undefined;
 
-  return {
+  const record: ProductRecord = {
     id: row.id,
     ownerId: String(row.owner_email || row.tenant_id),
     name: String(row.name || ''),
@@ -539,10 +605,59 @@ export function mapProductRow(row: SupabaseProductRow): ProductRecord {
     createdAtMs: isoTimestampToMs(row.created_at),
     updatedAtMs: isoTimestampToMs(row.updated_at),
   };
+
+  if (typeof row.description === 'string') {
+    record.description = row.description;
+  }
+  if (row.internal_code !== undefined) {
+    record.internalCode = row.internal_code ? String(row.internal_code).trim() : null;
+  }
+  if (rawCost !== undefined && Number.isFinite(rawCost) && rawCost >= 0) {
+    record.costPrice = roundCurrency(rawCost);
+  }
+  if (typeof row.brand === 'string') {
+    record.brand = row.brand;
+  }
+  if (typeof row.notes === 'string') {
+    record.notes = row.notes;
+  }
+  if (row.barcode !== undefined) {
+    record.barcode = normalizeBarcodeInput(row.barcode);
+  }
+  if (
+    rawVolumeVal !== null &&
+    Number.isFinite(rawVolumeVal) &&
+    rawVolumeVal > 0 &&
+    normalizedVolUnit
+  ) {
+    record.volumeValue = rawVolumeVal;
+    record.volumeUnit = normalizedVolUnit;
+  } else if (row.volume_value !== undefined || row.volume_unit !== undefined) {
+    record.volumeValue = null;
+    record.volumeUnit = null;
+  }
+  if (row.sale_unit !== undefined && row.sale_unit !== null) {
+    record.saleUnit = normalizeSaleUnit(row.sale_unit);
+  }
+  if (row.package_type !== undefined && row.package_type !== null) {
+    record.packageType = normalizePackageType(row.package_type);
+  }
+  if (
+    rawUnitsPerPkg !== undefined &&
+    Number.isInteger(rawUnitsPerPkg) &&
+    rawUnitsPerPkg >= 1
+  ) {
+    record.unitsPerPackage = rawUnitsPerPkg;
+  }
+
+  return record;
 }
 
-export function mapComboRow(row: SupabaseComboRow): ComboRecord {
-  return {
+export function mapComboRow(
+  row: SupabaseComboRow,
+  components?: ComboComponentRecord[],
+): ComboRecord {
+  const mapped: ComboRecord = {
     id: row.id,
     ownerId: String(row.owner_email || row.tenant_id),
     name: String(row.name || ''),
@@ -556,6 +671,16 @@ export function mapComboRow(row: SupabaseComboRow): ComboRecord {
     createdAtMs: isoTimestampToMs(row.created_at),
     updatedAtMs: isoTimestampToMs(row.updated_at),
   };
+  if (typeof row.category === 'string' && row.category.trim()) {
+    mapped.category = row.category.trim();
+  }
+  if (typeof row.notes === 'string' && row.notes.trim()) {
+    mapped.notes = row.notes.trim();
+  }
+  if (components && components.length > 0) {
+    mapped.components = components;
+  }
+  return mapped;
 }
 
 export function mapSaleRow(row: SupabaseSaleRow): SaleRecord {
@@ -739,26 +864,100 @@ export function buildProductPayloadForSupabase(input: ProductInput): {
   active: boolean;
   image_url: string;
   image_path: string;
+  description?: string;
+  internal_code?: string | null;
+  cost_price?: number;
+  brand?: string;
+  notes?: string;
+  barcode?: string | null;
+  volume_value?: number | null;
+  volume_unit?: ProductVolumeUnit | null;
+  sale_unit?: ProductSaleUnit;
+  package_type?: ProductPackageType;
+  units_per_package?: number;
 } {
   const name = input.name.trim().slice(0, 80);
-  const unitPrice = roundCurrency(Math.max(0, Number(input.unitPrice)));
+  const rawPrice = Number(input.unitPrice);
 
   if (!name) {
     throw new Error('Informe o nome do produto.');
   }
-  if (!Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 10000) {
+  if (!Number.isFinite(rawPrice) || rawPrice < 0 || rawPrice > MAX_PRODUCT_MONEY_VALUE) {
     throw new Error('Informe um preço válido para o produto.');
   }
 
-  return {
+  const basePayload: ReturnType<typeof buildProductPayloadForSupabase> = {
     name,
-    category: String(input.category || 'Outro').trim() || 'Outro',
-    unit_price: unitPrice,
+    category: String(input.category || 'Outro').trim().slice(0, 60) || 'Outro',
+    unit_price: roundCurrency(rawPrice),
     counts_as_x_salada: Boolean(input.countsAsXSalada),
     active: Boolean(input.active),
     image_url: String(input.imageUrl || '').trim(),
     image_path: String(input.imagePath || '').trim(),
   };
+
+  if (!hasExplicitUniversalProductFields(input)) {
+    return basePayload;
+  }
+
+  if (input.description !== undefined) {
+    basePayload.description = input.description.trim().slice(0, 400);
+  }
+  if (input.internalCode !== undefined) {
+    const cleanCode = (input.internalCode || '').trim().slice(0, 40);
+    basePayload.internal_code = cleanCode || null;
+  }
+  if (input.costPrice !== undefined) {
+    const rawCost = Number(input.costPrice);
+    if (!Number.isFinite(rawCost) || rawCost < 0 || rawCost > MAX_PRODUCT_MONEY_VALUE) {
+      throw new Error('Informe um custo de aquisição válido (maior ou igual a zero).');
+    }
+    basePayload.cost_price = roundCurrency(rawCost);
+  }
+  if (input.brand !== undefined) {
+    basePayload.brand = input.brand.trim().slice(0, 80);
+  }
+  if (input.notes !== undefined) {
+    basePayload.notes = input.notes.trim().slice(0, 400);
+  }
+  if (input.barcode !== undefined) {
+    const cleanBarcode = normalizeBarcodeInput(input.barcode);
+    if (cleanBarcode !== null && !isValidBarcodeFormat(cleanBarcode)) {
+      throw new Error('Código de barras inválido. Use de 8 a 14 dígitos numéricos.');
+    }
+    basePayload.barcode = cleanBarcode;
+  }
+  if (input.volumeValue !== undefined || input.volumeUnit !== undefined) {
+    const volVal =
+      input.volumeValue === null || input.volumeValue === undefined
+        ? null
+        : Number(input.volumeValue);
+    const volUnit = normalizeVolumeUnit(input.volumeUnit) ?? null;
+
+    if ((volVal === null) !== (volUnit === null)) {
+      throw new Error('Informe o volume/quantidade junto com a unidade de medida.');
+    }
+    if (volVal !== null && (!Number.isFinite(volVal) || volVal <= 0 || volVal > MAX_PRODUCT_VOLUME_VALUE)) {
+      throw new Error('O volume ou quantidade deve ser maior que zero.');
+    }
+    basePayload.volume_value = volVal !== null ? Number(volVal.toFixed(3)) : null;
+    basePayload.volume_unit = volUnit;
+  }
+  if (input.saleUnit !== undefined) {
+    basePayload.sale_unit = normalizeSaleUnit(input.saleUnit);
+  }
+  if (input.packageType !== undefined) {
+    basePayload.package_type = normalizePackageType(input.packageType);
+  }
+  if (input.unitsPerPackage !== undefined) {
+    const units = Number(input.unitsPerPackage);
+    if (!Number.isInteger(units) || units < 1 || units > MAX_UNITS_PER_PACKAGE) {
+      throw new Error('Unidades por embalagem deve ser um número inteiro maior ou igual a 1.');
+    }
+    basePayload.units_per_package = units;
+  }
+
+  return basePayload;
 }
 
 export function buildComboPayloadForSupabase(input: ComboInput): {
@@ -770,6 +969,8 @@ export function buildComboPayloadForSupabase(input: ComboInput): {
   active: boolean;
   image_url: string;
   image_path: string;
+  category?: string;
+  notes?: string;
 } {
   const name = input.name.trim().slice(0, 80);
   const description = input.description.trim().slice(0, 240);
@@ -795,7 +996,18 @@ export function buildComboPayloadForSupabase(input: ComboInput): {
     throw new Error('Informe um preço de venda válido para o combo.');
   }
 
-  return {
+  const payload: {
+    name: string;
+    description: string;
+    items: ComboProductItem[];
+    sale_price: number;
+    estimated_cost: number;
+    active: boolean;
+    image_url: string;
+    image_path: string;
+    category?: string;
+    notes?: string;
+  } = {
     name,
     description,
     items: cleanItems,
@@ -805,6 +1017,15 @@ export function buildComboPayloadForSupabase(input: ComboInput): {
     image_url: String(input.imageUrl || '').trim(),
     image_path: String(input.imagePath || '').trim(),
   };
+
+  if (input.category !== undefined) {
+    payload.category = String(input.category || '').trim().slice(0, 60);
+  }
+  if (input.notes !== undefined) {
+    payload.notes = String(input.notes || '').trim().slice(0, 600);
+  }
+
+  return payload;
 }
 
 export function buildSettingsPayloadForSupabase(input: Omit<ShopSettings, 'ownerId'>): {
@@ -1019,6 +1240,7 @@ export function buildTenantContextFromRows(
     retentionEndsAt: subscription?.retention_ends_at ?? null,
     retentionStatus: access.retentionStatus,
     onboardingCompleted: tenantRaw.onboarding_completed !== false,
+    businessSegment: normalizeBusinessSegment(tenantRaw.business_segment),
     accessAllowed: access.allowed,
     accessBlockReason: access.reason,
   };
@@ -1334,7 +1556,7 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
     };
   }
   const st = obj.store as Record<string, unknown>;
-  const store: DigitalMenuSettingsInput & { timezone?: string } = {
+  const store: DigitalMenuSettingsInput & { timezone?: string; businessSegment?: ReturnType<typeof normalizeBusinessSegment> } = {
     slug: sanitizeMenuSlug(String(st.slug || 'mgw_lanches')),
     isActive: Boolean(st.isActive),
     isOpen: Boolean(st.isOpen),
@@ -1354,6 +1576,7 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
       typeof st.timezone === 'string' && st.timezone.trim()
         ? st.timezone.trim()
         : DEFAULT_SHOP_TIMEZONE,
+    businessSegment: normalizeBusinessSegment(st.businessSegment ?? st.business_segment),
   };
 
   const products: PublicCatalogProduct[] = Array.isArray(obj.products)
@@ -1378,14 +1601,29 @@ export function mapPublicDigitalMenuRpcResponse(raw: unknown): PublicDigitalMenu
   const combos: PublicCatalogCombo[] = Array.isArray(obj.combos)
     ? obj.combos
         .filter((c): c is Record<string, unknown> => Boolean(c && typeof c === 'object'))
-        .map((c) => ({
-          id: String(c.id || ''),
-          name: String(c.name || ''),
-          description: String(c.description || ''),
-          items: parseComboItemsSafe(c.items),
-          salePrice: roundCurrency(Math.max(0, Number(c.salePrice) || 0)),
-          imageUrl: typeof c.imageUrl === 'string' ? c.imageUrl : '',
-        }))
+        .map((c) => {
+          const combo: PublicCatalogCombo = {
+            id: String(c.id || ''),
+            name: String(c.name || ''),
+            description: String(c.description || ''),
+            items: parseComboItemsSafe(c.items),
+            salePrice: roundCurrency(Math.max(0, Number(c.salePrice) || 0)),
+            imageUrl: typeof c.imageUrl === 'string' ? c.imageUrl : '',
+          };
+          if (typeof c.category === 'string' && c.category.trim()) {
+            combo.category = c.category.trim();
+          }
+          if (typeof c.isAvailable === 'boolean') {
+            combo.isAvailable = c.isAvailable;
+          }
+          if (c.maxAvailableQty !== undefined) {
+            combo.maxAvailableQty =
+              c.maxAvailableQty === null
+                ? null
+                : Math.max(0, Math.trunc(Number(c.maxAvailableQty) || 0));
+          }
+          return combo;
+        })
     : [];
 
   let deliveryPricing: PublicDeliveryPricingSettings | null = null;
@@ -2082,7 +2320,672 @@ export function buildDeliveryPricingSettingsPayloadForSupabase(
   };
 }
 
+// ==================== ETAPA 4 — ESTOQUE PROFISSIONAL (ADEGA) ====================
 
+export interface SupabaseInventoryBalanceRow {
+  id: string;
+  tenant_id: string;
+  product_id: string;
+  available_qty: number | string;
+  reserved_qty: number | string;
+  min_stock_qty: number | string;
+  average_unit_cost: number | string;
+  last_cost_price: number | string;
+  allow_negative_stock: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
+export interface SupabaseInventoryPackagingConversionRow {
+  id: string;
+  tenant_id: string;
+  product_id: string;
+  package_label: string;
+  package_type: string;
+  factor_to_base: number | string;
+  is_default_purchase: boolean;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseInventoryMovementRow {
+  id: string;
+  tenant_id: string;
+  product_id: string;
+  movement_type: string;
+  direction: string;
+  input_quantity: number | string;
+  input_unit: string;
+  conversion_factor_used: number | string;
+  base_quantity: number | string;
+  previous_balance: number | string;
+  new_balance: number | string;
+  unit_cost: number | string;
+  total_cost: number | string;
+  previous_avg_cost: number | string;
+  new_avg_cost: number | string;
+  reason: string;
+  notes: string;
+  origin_type: string;
+  origin_id: string | null;
+  supplier_id: string | null;
+  packaging_conversion_id: string | null;
+  idempotency_key: string;
+  actor_user_id: string | null;
+  actor_email: string;
+  created_at: string;
+}
+
+export interface SupabaseSupplierRow {
+  id: string;
+  tenant_id: string;
+  name: string;
+  trade_name: string;
+  document: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  address: string;
+  notes: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseProductSupplierRow {
+  id: string;
+  tenant_id: string;
+  product_id: string;
+  supplier_id: string;
+  supplier_sku: string;
+  last_unit_cost: number | string;
+  is_preferred: boolean;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabasePurchaseOrderRow {
+  id: string;
+  tenant_id: string;
+  order_number: number | string;
+  supplier_id: string;
+  status: string;
+  payment_terms: string;
+  expected_delivery_date: string | null;
+  discount_amount: number | string;
+  additional_expenses: number | string;
+  items_subtotal: number | string;
+  total_amount: number | string;
+  notes: string;
+  idempotency_key: string;
+  cancelled_reason: string;
+  cancelled_at: string | null;
+  created_by_email: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabasePurchaseOrderItemRow {
+  id: string;
+  tenant_id: string;
+  purchase_order_id: string;
+  product_id: string;
+  packaging_conversion_id: string | null;
+  unit_label: string;
+  conversion_factor: number | string;
+  ordered_qty: number | string;
+  ordered_base_qty: number | string;
+  received_base_qty: number | string;
+  unit_cost: number | string;
+  total_cost: number | string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabasePurchaseReceiptRow {
+  id: string;
+  tenant_id: string;
+  purchase_order_id: string;
+  receipt_number: number | string;
+  notes: string;
+  idempotency_key: string;
+  received_by_email: string;
+  received_at: string;
+}
+
+export interface SupabasePurchaseReceiptItemRow {
+  id: string;
+  tenant_id: string;
+  receipt_id: string;
+  purchase_order_item_id: string;
+  product_id: string;
+  received_qty: number | string;
+  unit_label: string;
+  conversion_factor: number | string;
+  received_base_qty: number | string;
+  unit_cost: number | string;
+  total_cost: number | string;
+  movement_id: string;
+  created_at: string;
+}
+
+export interface SupabaseInventoryCountRow {
+  id: string;
+  tenant_id: string;
+  count_number: number | string;
+  title: string;
+  status: string;
+  notes: string;
+  started_by_email: string;
+  finalized_by_email: string;
+  finalized_at: string | null;
+  idempotency_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseInventoryCountItemRow {
+  id: string;
+  tenant_id: string;
+  count_id: string;
+  product_id: string;
+  expected_qty: number | string;
+  counted_qty: number | string | null;
+  difference_qty: number | string;
+  unit_cost_snapshot: number | string;
+  estimated_difference_value: number | string;
+  adjustment_movement_id: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function roundQtyMapper(v: unknown): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round((n + Number.EPSILON) * 1000) / 1000;
+}
+
+function roundUnitCostMapper(v: unknown): number {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
+}
+
+export function mapInventoryBalanceRow(
+  row: SupabaseInventoryBalanceRow,
+): InventoryBalanceRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    productId: row.product_id,
+    availableQty: roundQtyMapper(row.available_qty),
+    reservedQty: Math.max(0, roundQtyMapper(row.reserved_qty)),
+    minStockQty: Math.max(0, roundQtyMapper(row.min_stock_qty)),
+    averageUnitCost: roundUnitCostMapper(row.average_unit_cost),
+    lastCostPrice: roundUnitCostMapper(row.last_cost_price),
+    allowNegativeStock: Boolean(row.allow_negative_stock),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function mapInventoryPackagingConversionRow(
+  row: SupabaseInventoryPackagingConversionRow,
+): InventoryPackagingConversionRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    productId: row.product_id,
+    packageLabel: String(row.package_label || ''),
+    packageType: normalizeSaleUnit(row.package_type),
+    factorToBase: Math.max(0.001, roundQtyMapper(row.factor_to_base)),
+    isDefaultPurchase: Boolean(row.is_default_purchase),
+    active: Boolean(row.active),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function buildInventoryPackagingConversionPayloadForSupabase(
+  input: InventoryPackagingConversionInput,
+): {
+  product_id: string;
+  package_label: string;
+  package_type: ProductSaleUnit;
+  factor_to_base: number;
+  is_default_purchase: boolean;
+  active: boolean;
+} {
+  const label = String(input.packageLabel || '').trim().slice(0, 60);
+  if (!label) {
+    throw new Error('Informe o nome da embalagem (ex.: Caixa c/ 12).');
+  }
+  const factor = roundQtyMapper(input.factorToBase);
+  if (factor <= 0 || factor > 10000) {
+    throw new Error('Fator de conversão deve ser maior que zero e até 10.000.');
+  }
+  return {
+    product_id: input.productId,
+    package_label: label,
+    package_type: normalizeSaleUnit(input.packageType),
+    factor_to_base: factor,
+    is_default_purchase: Boolean(input.isDefaultPurchase),
+    active: input.active !== false,
+  };
+}
+
+export function mapInventoryMovementRow(
+  row: SupabaseInventoryMovementRow,
+): InventoryMovementRecord {
+  const rawType = String(row.movement_type || 'manual_entry');
+  const movementType: InventoryMovementType =
+    rawType === 'manual_entry' ||
+    rawType === 'purchase_receipt' ||
+    rawType === 'manual_exit' ||
+    rawType === 'loss' ||
+    rawType === 'damage' ||
+    rawType === 'expiry' ||
+    rawType === 'internal_consumption' ||
+    rawType === 'adjustment_in' ||
+    rawType === 'adjustment_out' ||
+    rawType === 'inventory_adjustment' ||
+    rawType === 'return_in' ||
+    rawType === 'combo_consumption'
+      ? rawType
+      : 'manual_entry';
+
+  const direction: InventoryMovementDirection =
+    row.direction === 'out' ? 'out' : 'in';
+
+  const rawOrigin = String(row.origin_type || 'manual');
+  const originType: InventoryMovementOriginType =
+    rawOrigin === 'purchase_receipt' ||
+    rawOrigin === 'inventory_count' ||
+    rawOrigin === 'adjustment' ||
+    rawOrigin === 'return' ||
+    rawOrigin === 'combo_consumption' ||
+    rawOrigin === 'sale' ||
+    rawOrigin === 'online_order'
+      ? rawOrigin
+      : 'manual';
+
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    productId: row.product_id,
+    movementType,
+    direction,
+    inputQuantity: roundQtyMapper(row.input_quantity),
+    inputUnit: String(row.input_unit || 'unidade'),
+    conversionFactorUsed: Math.max(0.001, roundQtyMapper(row.conversion_factor_used)),
+    baseQuantity: roundQtyMapper(row.base_quantity),
+    previousBalance: roundQtyMapper(row.previous_balance),
+    newBalance: roundQtyMapper(row.new_balance),
+    unitCost: roundUnitCostMapper(row.unit_cost),
+    totalCost: roundCurrency(Math.max(0, Number(row.total_cost) || 0)),
+    previousAvgCost: roundUnitCostMapper(row.previous_avg_cost),
+    newAvgCost: roundUnitCostMapper(row.new_avg_cost),
+    reason: String(row.reason || ''),
+    notes: String(row.notes || ''),
+    originType,
+    originId: row.origin_id || null,
+    supplierId: row.supplier_id || null,
+    packagingConversionId: row.packaging_conversion_id || null,
+    idempotencyKey: String(row.idempotency_key || ''),
+    actorUserId: row.actor_user_id || null,
+    actorEmail: String(row.actor_email || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+  };
+}
+
+export function mapSupplierRow(row: SupabaseSupplierRow): SupplierRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    name: String(row.name || ''),
+    tradeName: String(row.trade_name || ''),
+    document: String(row.document || ''),
+    phone: String(row.phone || ''),
+    whatsapp: String(row.whatsapp || ''),
+    email: String(row.email || ''),
+    address: String(row.address || ''),
+    notes: String(row.notes || ''),
+    active: row.active !== false,
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function buildSupplierPayloadForSupabase(input: SupplierInput): {
+  name: string;
+  trade_name: string;
+  document: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  address: string;
+  notes: string;
+  active: boolean;
+} {
+  const name = String(input.name || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+  if (name.length < 2) {
+    throw new Error('Informe o nome do fornecedor (mínimo 2 caracteres).');
+  }
+  return {
+    name,
+    trade_name: String(input.tradeName || '').trim().slice(0, 120),
+    document: String(input.document || '').trim().slice(0, 32),
+    phone: String(input.phone || '').trim().slice(0, 32),
+    whatsapp: String(input.whatsapp || '').trim().slice(0, 32),
+    email: String(input.email || '').trim().slice(0, 120),
+    address: String(input.address || '').trim().slice(0, 300),
+    notes: String(input.notes || '').trim().slice(0, 600),
+    active: input.active !== false,
+  };
+}
+
+export function mapProductSupplierRow(
+  row: SupabaseProductSupplierRow,
+): ProductSupplierLinkRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    productId: row.product_id,
+    supplierId: row.supplier_id,
+    supplierSku: String(row.supplier_sku || ''),
+    lastUnitCost: roundUnitCostMapper(row.last_unit_cost),
+    isPreferred: Boolean(row.is_preferred),
+    notes: String(row.notes || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function buildProductSupplierPayloadForSupabase(
+  input: ProductSupplierLinkInput,
+): {
+  product_id: string;
+  supplier_id: string;
+  supplier_sku: string;
+  last_unit_cost: number;
+  is_preferred: boolean;
+  notes: string;
+} {
+  return {
+    product_id: input.productId,
+    supplier_id: input.supplierId,
+    supplier_sku: String(input.supplierSku || '').trim().slice(0, 60),
+    last_unit_cost: roundUnitCostMapper(input.lastUnitCost ?? 0),
+    is_preferred: Boolean(input.isPreferred),
+    notes: String(input.notes || '').trim().slice(0, 300),
+  };
+}
+
+export function mapPurchaseOrderRow(
+  row: SupabasePurchaseOrderRow,
+): PurchaseOrderRecord {
+  const rawStatus = String(row.status || 'pending');
+  const status: PurchaseOrderStatus =
+    rawStatus === 'draft' ||
+    rawStatus === 'pending' ||
+    rawStatus === 'partially_received' ||
+    rawStatus === 'received' ||
+    rawStatus === 'cancelled'
+      ? rawStatus
+      : 'pending';
+
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    orderNumber: Math.max(1, Number(row.order_number) || 1),
+    supplierId: row.supplier_id,
+    status,
+    paymentTerms: String(row.payment_terms || ''),
+    expectedDeliveryDate: row.expected_delivery_date || null,
+    discountAmount: roundCurrency(Math.max(0, Number(row.discount_amount) || 0)),
+    additionalExpenses: roundCurrency(
+      Math.max(0, Number(row.additional_expenses) || 0),
+    ),
+    itemsSubtotal: roundCurrency(Math.max(0, Number(row.items_subtotal) || 0)),
+    totalAmount: roundCurrency(Math.max(0, Number(row.total_amount) || 0)),
+    notes: String(row.notes || ''),
+    idempotencyKey: String(row.idempotency_key || ''),
+    cancelledReason: String(row.cancelled_reason || ''),
+    cancelledAtMs: row.cancelled_at ? isoTimestampToMs(row.cancelled_at) : null,
+    createdByEmail: String(row.created_by_email || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function mapPurchaseOrderItemRow(
+  row: SupabasePurchaseOrderItemRow,
+): PurchaseOrderItemRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    purchaseOrderId: row.purchase_order_id,
+    productId: row.product_id,
+    packagingConversionId: row.packaging_conversion_id || null,
+    unitLabel: String(row.unit_label || 'unidade'),
+    conversionFactor: Math.max(0.001, roundQtyMapper(row.conversion_factor)),
+    orderedQty: roundQtyMapper(row.ordered_qty),
+    orderedBaseQty: roundQtyMapper(row.ordered_base_qty),
+    receivedBaseQty: Math.max(0, roundQtyMapper(row.received_base_qty)),
+    unitCost: roundUnitCostMapper(row.unit_cost),
+    totalCost: roundCurrency(Math.max(0, Number(row.total_cost) || 0)),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function mapPurchaseReceiptRow(
+  row: SupabasePurchaseReceiptRow,
+): PurchaseReceiptRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    purchaseOrderId: row.purchase_order_id,
+    receiptNumber: Math.max(1, Number(row.receipt_number) || 1),
+    notes: String(row.notes || ''),
+    idempotencyKey: String(row.idempotency_key || ''),
+    receivedByEmail: String(row.received_by_email || ''),
+    receivedAtMs: isoTimestampToMs(row.received_at),
+  };
+}
+
+export function mapPurchaseReceiptItemRow(
+  row: SupabasePurchaseReceiptItemRow,
+): PurchaseReceiptItemRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    receiptId: row.receipt_id,
+    purchaseOrderItemId: row.purchase_order_item_id,
+    productId: row.product_id,
+    receivedQty: roundQtyMapper(row.received_qty),
+    unitLabel: String(row.unit_label || 'unidade'),
+    conversionFactor: Math.max(0.001, roundQtyMapper(row.conversion_factor)),
+    receivedBaseQty: roundQtyMapper(row.received_base_qty),
+    unitCost: roundUnitCostMapper(row.unit_cost),
+    totalCost: roundCurrency(Math.max(0, Number(row.total_cost) || 0)),
+    movementId: row.movement_id,
+    createdAtMs: isoTimestampToMs(row.created_at),
+  };
+}
+
+export function mapInventoryCountRow(
+  row: SupabaseInventoryCountRow,
+): InventoryCountRecord {
+  const rawStatus = String(row.status || 'open');
+  const status: InventoryCountStatus =
+    rawStatus === 'finalized' || rawStatus === 'cancelled' ? rawStatus : 'open';
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    countNumber: Math.max(1, Number(row.count_number) || 1),
+    title: String(row.title || ''),
+    status,
+    notes: String(row.notes || ''),
+    startedByEmail: String(row.started_by_email || ''),
+    finalizedByEmail: String(row.finalized_by_email || ''),
+    finalizedAtMs: row.finalized_at ? isoTimestampToMs(row.finalized_at) : null,
+    idempotencyKey: String(row.idempotency_key || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function mapInventoryCountItemRow(
+  row: SupabaseInventoryCountItemRow,
+): InventoryCountItemRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    countId: row.count_id,
+    productId: row.product_id,
+    expectedQty: roundQtyMapper(row.expected_qty),
+    countedQty:
+      row.counted_qty !== null && row.counted_qty !== undefined
+        ? roundQtyMapper(row.counted_qty)
+        : null,
+    differenceQty: roundQtyMapper(row.difference_qty),
+    unitCostSnapshot: roundUnitCostMapper(row.unit_cost_snapshot),
+    estimatedDifferenceValue: roundCurrency(
+      Number(row.estimated_difference_value) || 0,
+    ),
+    adjustmentMovementId: row.adjustment_movement_id || null,
+    notes: String(row.notes || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+// ==================== ETAPA 5 — COMPOSICAO E CONSUMO DE COMBOS (ADEGA) ====================
+
+export interface SupabaseComboComponentRow {
+  id: string;
+  tenant_id: string;
+  combo_id: string;
+  product_id: string;
+  quantity: number | string;
+  unit_label: string;
+  conversion_factor: number | string;
+  packaging_conversion_id: string | null;
+  base_quantity: number | string;
+  unit_cost_snapshot: number | string;
+  total_cost_snapshot: number | string;
+  sort_order: number | string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupabaseComboConsumptionRow {
+  id: string;
+  tenant_id: string;
+  combo_id: string | null;
+  combo_name_snapshot: string;
+  combo_quantity: number | string;
+  sale_price_snapshot: number | string;
+  total_cost_snapshot: number | string;
+  origin_type: string;
+  origin_id: string | null;
+  notes: string;
+  idempotency_key: string;
+  actor_user_id: string | null;
+  actor_email: string;
+  created_at: string;
+}
+
+export interface SupabaseComboConsumptionItemRow {
+  id: string;
+  tenant_id: string;
+  consumption_id: string;
+  product_id: string | null;
+  product_name_snapshot: string;
+  component_qty_per_combo: number | string;
+  unit_label: string;
+  conversion_factor: number | string;
+  base_qty_per_combo: number | string;
+  total_base_qty_deducted: number | string;
+  unit_cost_snapshot: number | string;
+  total_cost_snapshot: number | string;
+  movement_id: string;
+  created_at: string;
+}
+
+export function mapComboComponentRow(
+  row: SupabaseComboComponentRow,
+): ComboComponentRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    comboId: row.combo_id,
+    productId: row.product_id,
+    quantity: Math.max(0.001, roundQtyMapper(row.quantity)),
+    unitLabel: String(row.unit_label || 'unidade'),
+    conversionFactor: Math.max(0.001, roundQtyMapper(row.conversion_factor)),
+    packagingConversionId: row.packaging_conversion_id || null,
+    baseQuantity: Math.max(0.001, roundQtyMapper(row.base_quantity)),
+    unitCostSnapshot: roundUnitCostMapper(row.unit_cost_snapshot),
+    totalCostSnapshot: roundCurrency(Math.max(0, Number(row.total_cost_snapshot) || 0)),
+    sortOrder: Math.max(0, Math.trunc(Number(row.sort_order) || 0)),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    updatedAtMs: isoTimestampToMs(row.updated_at),
+  };
+}
+
+export function mapComboConsumptionItemRow(
+  row: SupabaseComboConsumptionItemRow,
+): ComboConsumptionItemSnapshot {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    consumptionId: row.consumption_id,
+    productId: row.product_id || null,
+    productNameSnapshot: String(row.product_name_snapshot || ''),
+    componentQtyPerCombo: roundQtyMapper(row.component_qty_per_combo),
+    unitLabel: String(row.unit_label || 'unidade'),
+    conversionFactor: Math.max(0.001, roundQtyMapper(row.conversion_factor)),
+    baseQtyPerCombo: roundQtyMapper(row.base_qty_per_combo),
+    totalBaseQtyDeducted: roundQtyMapper(row.total_base_qty_deducted),
+    unitCostSnapshot: roundUnitCostMapper(row.unit_cost_snapshot),
+    totalCostSnapshot: roundCurrency(Math.max(0, Number(row.total_cost_snapshot) || 0)),
+    movementId: row.movement_id,
+    createdAtMs: isoTimestampToMs(row.created_at),
+  };
+}
+
+export function mapComboConsumptionRow(
+  row: SupabaseComboConsumptionRow,
+  items: ComboConsumptionItemSnapshot[] = [],
+): ComboConsumptionRecord {
+  const rawOrigin = String(row.origin_type || 'combo_consumption');
+  const originType: ComboConsumptionOriginType =
+    rawOrigin === 'sale' || rawOrigin === 'online_order'
+      ? rawOrigin
+      : 'combo_consumption';
+
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    comboId: row.combo_id || null,
+    comboNameSnapshot: String(row.combo_name_snapshot || ''),
+    comboQuantity: Math.max(0.001, roundQtyMapper(row.combo_quantity)),
+    salePriceSnapshot: roundCurrency(Math.max(0, Number(row.sale_price_snapshot) || 0)),
+    totalCostSnapshot: roundCurrency(Math.max(0, Number(row.total_cost_snapshot) || 0)),
+    originType,
+    originId: row.origin_id || null,
+    notes: String(row.notes || ''),
+    idempotencyKey: String(row.idempotency_key || ''),
+    actorUserId: row.actor_user_id || null,
+    actorEmail: String(row.actor_email || ''),
+    createdAtMs: isoTimestampToMs(row.created_at),
+    items,
+  };
+}
 
 

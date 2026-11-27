@@ -16,11 +16,19 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useNetworkConnectionStatus } from './OfflineIndicator';
+import { getSegmentConfig, getSignupSegmentOptions } from '../services/segmentEngine';
+import { BUSINESS_SEGMENTS, type BusinessSegment } from '../types/segments';
 
 interface LoginScreenProps {
   onGoogleLogin: () => Promise<void>;
   onEmailLogin?: (email: string, password: string) => Promise<void>;
-  onRegister?: (name: string, storeName: string, email: string, password: string) => Promise<void>;
+  onRegister?: (
+    name: string,
+    storeName: string,
+    email: string,
+    password: string,
+    businessSegment?: BusinessSegment,
+  ) => Promise<void>;
   onPasswordReset?: (email: string) => Promise<void>;
   supportsEmailAuth?: boolean;
   isSigningIn: boolean;
@@ -118,6 +126,9 @@ export function LoginScreen({
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [businessSegment, setBusinessSegment] = useState<BusinessSegment>(
+    BUSINESS_SEGMENTS.LANCHONETE,
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -250,7 +261,7 @@ export function LoginScreen({
     setMessage(null);
     setSubmitting(true);
     try {
-      await onRegister(cleanName, cleanStore, cleanEmail, password);
+      await onRegister(cleanName, cleanStore, cleanEmail, password, businessSegment);
       setMessage(
         'Cadastro recebido! Confira seu e-mail para confirmar a conta. Depois, entre com seu e-mail e senha.',
       );
@@ -589,6 +600,41 @@ export function LoginScreen({
                 </div>
 
                 <div>
+                  <span className={labelClass}>Tipo de estabelecimento</span>
+                  <div
+                    role="group"
+                    aria-label="Tipo de estabelecimento"
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    {getSignupSegmentOptions().map((option) => {
+                      const selected = businessSegment === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          disabled={busy}
+                          aria-pressed={selected}
+                          data-segment-option={option.id}
+                          onClick={() => setBusinessSegment(option.id)}
+                          className={`text-left rounded-xl border px-3 py-2.5 transition-all cursor-pointer disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172033] ${
+                            selected
+                              ? 'border-[#F5B900] bg-[#FFFBEB] shadow-xs'
+                              : 'border-[#E8EAF0] bg-[#F8F9FC] hover:bg-white'
+                          }`}
+                        >
+                          <span className="block text-xs font-bold text-[#172033]">
+                            {option.label}
+                          </span>
+                          <span className="block text-[11px] text-[#778094] leading-snug mt-0.5">
+                            {option.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
                   <label htmlFor="reg-store" className={labelClass}>
                     Nome do estabelecimento
                   </label>
@@ -608,7 +654,10 @@ export function LoginScreen({
                       }}
                       required
                       maxLength={80}
-                      placeholder="Minha Lanchonete"
+                      placeholder={
+                        getSegmentConfig(businessSegment).commercialIdentity
+                          .establishmentPlaceholder
+                      }
                       className={`${getInputClass(Boolean(fieldErrors.storeName))} pl-10`}
                     />
                   </div>

@@ -41,6 +41,14 @@ import {
   type ShopSettings,
   type TenantContext,
   type WorkspaceAccess,
+  type CreatePurchaseOrderInput,
+  type InventoryDataBundle,
+  type InventoryMovementRecord,
+  type InventoryPackagingConversionInput,
+  type ProductSupplierLinkInput,
+  type ReceivePurchaseItemInput,
+  type RecordInventoryMovementInput,
+  type SupplierInput,
 } from '../types/finance';
 import {
   DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG,
@@ -49,6 +57,10 @@ import {
 import { DEFAULT_DELIVERY_PRICING_SETTINGS } from '../utils/deliveryRegions';
 import { roundCurrency } from '../utils/finance';
 import {
+  createInventoryIdempotencyKey,
+  EMPTY_INVENTORY_BUNDLE,
+} from '../utils/inventory';
+import {
   DEFAULT_DIGITAL_MENU_SETTINGS,
   isTerminalOrderStatus,
   sanitizeMenuSlug,
@@ -56,6 +68,14 @@ import {
 import { demoMutations, isDemoSandboxActive, subscribeDemoAdminState } from './demoSandbox';
 import { getSupabaseClient } from '../lib/supabase';
 import { hasTenantPermission } from './rbacPolicy';
+import {
+  normalizeBusinessSegment,
+  parseStrictBusinessSegment,
+} from './segmentEngine';
+import {
+  BUSINESS_SEGMENTS,
+  type BusinessSegment,
+} from '../types/segments';
 import {
   buildComboPayloadForSupabase,
   buildDeliveryCourierPayloadForSupabase,
@@ -66,9 +86,12 @@ import {
   buildDeliveryRegionPayloadForSupabase,
   buildDigitalMenuSettingsPayloadForSupabase,
   buildExpensePayloadForSupabase,
+  buildInventoryPackagingConversionPayloadForSupabase,
   buildProductPayloadForSupabase,
+  buildProductSupplierPayloadForSupabase,
   buildSalePayloadForSupabase,
   buildSettingsPayloadForSupabase,
+  buildSupplierPayloadForSupabase,
   buildTenantContextFromRows,
   mapComboRow,
   mapDeliveryCourierRow,
@@ -81,15 +104,26 @@ import {
   mapDeliveryRegionRow,
   mapDigitalMenuSettingsRow,
   mapExpenseRow,
+  mapInventoryBalanceRow,
+  mapInventoryCountItemRow,
+  mapInventoryCountRow,
+  mapInventoryMovementRow,
+  mapInventoryPackagingConversionRow,
   mapOnlineOrderItemRow,
   mapOnlineOrderRow,
   mapOnlineOrderStatusHistoryRow,
   mapProductRow,
+  mapProductSupplierRow,
   mapPublicDigitalMenuRpcResponse,
   mapPublicOrderTrackingRpcResponse,
+  mapPurchaseOrderItemRow,
+  mapPurchaseOrderRow,
+  mapPurchaseReceiptItemRow,
+  mapPurchaseReceiptRow,
   mapSaleRow,
   mapShopSettingsRow,
   mapSupabaseAuthErrorMessage,
+  mapSupplierRow,
   type SupabaseComboRow,
   type SupabaseDeliveryCourierRow,
   type SupabaseDeliveryCustomerAddressRow,
@@ -101,13 +135,24 @@ import {
   type SupabaseDeliveryRegionRow,
   type SupabaseDigitalMenuSettingsRow,
   type SupabaseExpenseRow,
+  type SupabaseInventoryBalanceRow,
+  type SupabaseInventoryCountItemRow,
+  type SupabaseInventoryCountRow,
+  type SupabaseInventoryMovementRow,
+  type SupabaseInventoryPackagingConversionRow,
   type SupabaseOnlineOrderItemRow,
   type SupabaseOnlineOrderRow,
   type SupabaseOnlineOrderStatusHistoryRow,
   type SupabaseProductRow,
+  type SupabaseProductSupplierRow,
+  type SupabasePurchaseOrderItemRow,
+  type SupabasePurchaseOrderRow,
+  type SupabasePurchaseReceiptItemRow,
+  type SupabasePurchaseReceiptRow,
   type SupabaseSaleRow,
   type SupabaseShopSettingsRow,
   type SupabaseSubscriptionRow,
+  type SupabaseSupplierRow,
   type SupabaseTenantMemberRow,
 } from './supabaseMappers';
 
@@ -133,6 +178,7 @@ export interface DataSubscriptionsCallbacks {
   onDeliveryDispatchHistory?: (history: DeliveryDispatchHistoryRecord[]) => void;
   onDeliveryRegions?: (regions: DeliveryRegionRecord[]) => void;
   onDeliveryPricingSettings?: (settings: DeliveryPricingSettings) => void;
+  onInventory?: (bundle: InventoryDataBundle) => void;
   onReady: () => void;
   onError: (err: Error) => void;
 }
@@ -271,7 +317,7 @@ async function resolveSupabaseAuthenticatedContext(
   const { data: memberRows, error: memberError } = await supabase
     .from('tenant_members')
     .select(
-      'id, tenant_id, user_id, email, role, is_founder, active, tenants ( id, slug, name, is_founder_account, billing_exempt, status, onboarding_completed )',
+      'id, tenant_id, user_id, email, role, is_founder, active, tenants ( id, slug, name, is_founder_account, billing_exempt, status, onboarding_completed, business_segment )',
     )
     .eq('user_id', userId)
     .eq('active', true);
@@ -355,6 +401,7 @@ export function subscribeAuthSession(
           graceUntil: null,
           retentionStatus: 'none',
           onboardingCompleted: true,
+          businessSegment: BUSINESS_SEGMENTS.LANCHONETE,
           accessAllowed: true,
           accessBlockReason: null,
         },
@@ -520,10 +567,15 @@ export async function registerWithEmailPassword(
   storeName: string,
   email: string,
   password: string,
+  businessSegment: BusinessSegment = BUSINESS_SEGMENTS.LANCHONETE,
 ): Promise<void> {
   const cleanName = name.trim().slice(0, 80);
   const cleanStoreName = storeName.trim().slice(0, 80);
   const cleanEmail = email.trim().toLowerCase();
+  const safeSegment = parseStrictBusinessSegment(businessSegment);
+  if (!safeSegment) {
+    throw new Error('Segmento do estabelecimento inválido. Escolha Lanchonete ou Adega.');
+  }
   if (!cleanName || !cleanStoreName || !cleanEmail || !cleanEmail.includes('@')) {
     throw new Error('Preencha seu nome, o nome do estabelecimento e um e-mail válido.');
   }
@@ -544,6 +596,7 @@ export async function registerWithEmailPassword(
       data: {
         full_name: cleanName,
         shop_name: cleanStoreName,
+        business_segment: safeSegment,
         ...(typeof window !== 'undefined' && /^[A-Z0-9]{8,16}$/i.test(new URLSearchParams(window.location.search).get('ref') || '')
           ? { referral_code: (new URLSearchParams(window.location.search).get('ref') || '').trim().toUpperCase() }
           : {}),
@@ -663,17 +716,26 @@ export async function completeTenantOnboarding(params: {
   tenantId: string;
   storeName: string;
   ownerName?: string;
+  businessSegment?: BusinessSegment;
 }): Promise<{
   tenantId: string;
   slug: string;
   name: string;
   onboardingCompleted: boolean;
+  businessSegment: BusinessSegment;
 }> {
-  
   const cleanStoreName = params.storeName.trim().slice(0, 80);
   const cleanOwnerName = (params.ownerName || '').trim().slice(0, 120);
   if (cleanStoreName.length < 2) {
     throw new Error('Informe o nome do estabelecimento (mínimo 2 caracteres).');
+  }
+
+  let safeSegment: BusinessSegment | null = null;
+  if (params.businessSegment !== undefined) {
+    safeSegment = parseStrictBusinessSegment(params.businessSegment);
+    if (!safeSegment) {
+      throw new Error('Segmento do estabelecimento inválido. Escolha Lanchonete ou Adega.');
+    }
   }
 
   const supabase = getSupabaseClient();
@@ -681,6 +743,7 @@ export async function completeTenantOnboarding(params: {
     p_tenant_id: params.tenantId,
     p_store_name: cleanStoreName,
     p_owner_name: cleanOwnerName,
+    ...(safeSegment ? { p_business_segment: safeSegment } : {}),
   });
   if (error) {
     throw new Error(error.message);
@@ -692,6 +755,7 @@ export async function completeTenantOnboarding(params: {
     slug: String(res.slug || ''),
     name: String(res.name || cleanStoreName),
     onboardingCompleted: res.onboardingCompleted !== false,
+    businessSegment: normalizeBusinessSegment(res.businessSegment),
   };
 }
 
@@ -718,6 +782,7 @@ export function subscribeAllTenantData(
       onDeliveryDispatchHistory: (history) => callbacks.onDeliveryDispatchHistory?.(history),
       onDeliveryRegions: (regions) => callbacks.onDeliveryRegions?.(regions),
       onDeliveryPricingSettings: (settings) => callbacks.onDeliveryPricingSettings?.(settings),
+      onInventory: (bundle) => callbacks.onInventory?.(bundle),
       onReady: callbacks.onReady,
     });
   }
@@ -738,6 +803,9 @@ export function subscribeAllTenantData(
   const canReadExpenses = hasTenantPermission(ctx.tenant.role, 'expenses:read');
   const canAccessDelivery =
     hasTenantPermission(ctx.tenant.role, 'delivery:view') && canReadSales;
+  const canAccessInventory =
+    normalizeBusinessSegment(ctx.tenant.businessSegment) === 'adega' &&
+    hasTenantPermission(ctx.tenant.role, 'inventory:read');
   let active = true;
 
   const fetchSettings = async () => {
@@ -1170,6 +1238,140 @@ export function subscribeAllTenantData(
     );
   };
 
+  const fetchInventoryData = async () => {
+    if (!callbacks.onInventory) return;
+    if (!canAccessInventory) {
+      if (active) callbacks.onInventory({ ...EMPTY_INVENTORY_BUNDLE });
+      return;
+    }
+
+    const [
+      balancesRes,
+      pkgRes,
+      movementsRes,
+      suppliersRes,
+      productSuppliersRes,
+      poRes,
+      poItemsRes,
+      receiptsRes,
+      receiptItemsRes,
+      countsRes,
+      countItemsRes,
+    ] = await Promise.all([
+      supabase.from('inventory_balances').select('*').eq('tenant_id', tenantId),
+      supabase
+        .from('inventory_packaging_conversions')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('package_label', { ascending: true }),
+      supabase
+        .from('inventory_movements')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(500),
+      supabase
+        .from('suppliers')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('name', { ascending: true }),
+      supabase.from('product_suppliers').select('*').eq('tenant_id', tenantId),
+      supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('order_number', { ascending: false }),
+      supabase
+        .from('purchase_order_items')
+        .select('*')
+        .eq('tenant_id', tenantId),
+      supabase
+        .from('purchase_receipts')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('received_at', { ascending: false }),
+      supabase
+        .from('purchase_receipt_items')
+        .select('*')
+        .eq('tenant_id', tenantId),
+      supabase
+        .from('inventory_counts')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('count_number', { ascending: false }),
+      supabase
+        .from('inventory_count_items')
+        .select('*')
+        .eq('tenant_id', tenantId),
+    ]);
+
+    if (balancesRes.error) {
+      if (balancesRes.error.message.toLowerCase().includes('does not exist')) {
+        if (active) callbacks.onInventory({ ...EMPTY_INVENTORY_BUNDLE });
+        return;
+      }
+      throw new Error(balancesRes.error.message);
+    }
+
+    if (!active) return;
+
+    callbacks.onInventory({
+      balances: (
+        (balancesRes.data ?? []) as SupabaseInventoryBalanceRow[]
+      ).map(mapInventoryBalanceRow),
+      packagingConversions: pkgRes.error
+        ? []
+        : (
+            (pkgRes.data ?? []) as SupabaseInventoryPackagingConversionRow[]
+          ).map(mapInventoryPackagingConversionRow),
+      movements: movementsRes.error
+        ? []
+        : ((movementsRes.data ?? []) as SupabaseInventoryMovementRow[]).map(
+            mapInventoryMovementRow,
+          ),
+      suppliers: suppliersRes.error
+        ? []
+        : ((suppliersRes.data ?? []) as SupabaseSupplierRow[]).map(
+            mapSupplierRow,
+          ),
+      productSuppliers: productSuppliersRes.error
+        ? []
+        : (
+            (productSuppliersRes.data ?? []) as SupabaseProductSupplierRow[]
+          ).map(mapProductSupplierRow),
+      purchaseOrders: poRes.error
+        ? []
+        : ((poRes.data ?? []) as SupabasePurchaseOrderRow[]).map(
+            mapPurchaseOrderRow,
+          ),
+      purchaseOrderItems: poItemsRes.error
+        ? []
+        : ((poItemsRes.data ?? []) as SupabasePurchaseOrderItemRow[]).map(
+            mapPurchaseOrderItemRow,
+          ),
+      purchaseReceipts: receiptsRes.error
+        ? []
+        : ((receiptsRes.data ?? []) as SupabasePurchaseReceiptRow[]).map(
+            mapPurchaseReceiptRow,
+          ),
+      purchaseReceiptItems: receiptItemsRes.error
+        ? []
+        : ((receiptItemsRes.data ?? []) as SupabasePurchaseReceiptItemRow[]).map(
+            mapPurchaseReceiptItemRow,
+          ),
+      inventoryCounts: countsRes.error
+        ? []
+        : ((countsRes.data ?? []) as SupabaseInventoryCountRow[]).map(
+            mapInventoryCountRow,
+          ),
+      inventoryCountItems: countItemsRes.error
+        ? []
+        : ((countItemsRes.data ?? []) as SupabaseInventoryCountItemRow[]).map(
+            mapInventoryCountItemRow,
+          ),
+    });
+  };
+
   const fetchAll = async () => {
     try {
       await Promise.all([
@@ -1184,6 +1386,7 @@ export function subscribeAllTenantData(
         fetchDeliveryCouriersData(),
         fetchDeliveryDispatchesData(),
         fetchDeliveryRegionsData(),
+        fetchInventoryData(),
       ]);
       if (active) callbacks.onReady();
     } catch (err) {
@@ -1337,6 +1540,30 @@ export function subscribeAllTenantData(
     );
   }
 
+  if (canAccessInventory) {
+    const refreshInv = () =>
+      void fetchInventoryData().catch((e) => active && callbacks.onError(e as Error));
+    for (const invTable of [
+      'inventory_balances',
+      'inventory_packaging_conversions',
+      'inventory_movements',
+      'suppliers',
+      'product_suppliers',
+      'purchase_orders',
+      'purchase_order_items',
+      'purchase_receipts',
+      'purchase_receipt_items',
+      'inventory_counts',
+      'inventory_count_items',
+    ]) {
+      channel = channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: invTable, filter: `tenant_id=eq.${tenantId}` },
+        refreshInv,
+      );
+    }
+  }
+
   channel.subscribe();
 
   return () => {
@@ -1397,6 +1624,20 @@ export async function saveDigitalMenuSettings(
   notifyTenantRefresh(ctx.tenant.tenantId);
 }
 
+function mapProductMutationErrorMessage(error: {
+  code?: string;
+  message: string;
+}): string {
+  const msg = error.message || '';
+  if (
+    error.code === '23505' &&
+    (msg.includes('uq_products_tenant_barcode') || msg.toLowerCase().includes('barcode'))
+  ) {
+    return 'Este código de barras já está cadastrado em outro produto deste estabelecimento.';
+  }
+  return msg;
+}
+
 export async function addProduct(
   ctx: DataExecutionContext,
   input: ProductInput,
@@ -1416,7 +1657,7 @@ export async function addProduct(
     })
     .select('id')
     .single();
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(mapProductMutationErrorMessage(error));
   notifyTenantRefresh(ctx.tenant.tenantId);
   return String((data as { id: string }).id);
 }
@@ -1438,7 +1679,7 @@ export async function updateProduct(
     .update(payload)
     .eq('id', productId)
     .eq('tenant_id', ctx.tenant.tenantId);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(mapProductMutationErrorMessage(error));
   notifyTenantRefresh(ctx.tenant.tenantId);
 }
 
@@ -2678,5 +2919,422 @@ export async function saveDeliveryPricingSettings(
   notifyTenantRefresh(ctx.tenant.tenantId);
 }
 
+// ==================== ETAPA 4 — ESTOQUE PROFISSIONAL (SEGMENTO ADEGA) ====================
 
+function assertAdegaInventoryRead(ctx: DataExecutionContext): void {
+  if (normalizeBusinessSegment(ctx.tenant.businessSegment) !== 'adega') {
+    throw new Error('O módulo de estoque profissional é exclusivo do segmento Adega.');
+  }
+  if (!hasTenantPermission(ctx.tenant.role, 'inventory:read')) {
+    throw new Error('Permissão insuficiente para consultar o estoque.');
+  }
+}
 
+function assertAdegaInventoryWrite(ctx: DataExecutionContext): void {
+  assertAdegaInventoryRead(ctx);
+  if (!hasTenantPermission(ctx.tenant.role, 'inventory:write')) {
+    throw new Error('Permissão insuficiente para alterar ou movimentar o estoque.');
+  }
+}
+
+export async function upsertInventoryProductConfig(
+  ctx: DataExecutionContext,
+  productId: string,
+  minStockQty: number,
+  allowNegativeStock: boolean,
+): Promise<void> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.upsertInventoryProductConfig(
+      productId,
+      minStockQty,
+      allowNegativeStock,
+    );
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('inventory_upsert_product_config', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_product_id: productId,
+    p_min_stock_qty: Math.max(0, Number(minStockQty) || 0),
+    p_allow_negative_stock: Boolean(allowNegativeStock),
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function saveInventoryPackagingConversion(
+  ctx: DataExecutionContext,
+  input: InventoryPackagingConversionInput,
+  conversionId?: string,
+): Promise<string> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    return demoMutations.upsertInventoryPackagingConversion(input, conversionId);
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildInventoryPackagingConversionPayloadForSupabase(input);
+  if (conversionId) {
+    const { error } = await supabase
+      .from('inventory_packaging_conversions')
+      .update(payload)
+      .eq('id', conversionId)
+      .eq('tenant_id', ctx.tenant.tenantId);
+    if (error) throw new Error(error.message);
+    notifyTenantRefresh(ctx.tenant.tenantId);
+    return conversionId;
+  }
+
+  const { data, error } = await supabase
+    .from('inventory_packaging_conversions')
+    .insert({
+      tenant_id: ctx.tenant.tenantId,
+      ...payload,
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  return String((data as { id: string }).id);
+}
+
+export async function deleteInventoryPackagingConversion(
+  ctx: DataExecutionContext,
+  conversionId: string,
+): Promise<void> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.deleteInventoryPackagingConversion(conversionId);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('inventory_packaging_conversions')
+    .delete()
+    .eq('id', conversionId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function recordInventoryMovement(
+  ctx: DataExecutionContext,
+  input: RecordInventoryMovementInput,
+): Promise<{ movementId: string; newBalance: number }> {
+  assertAdegaInventoryWrite(ctx);
+  const idempotencyKey =
+    input.idempotencyKey?.trim() || createInventoryIdempotencyKey('mov');
+
+  if (isDemoSandboxActive()) {
+    const mov = demoMutations.recordInventoryMovement(
+      { ...input, idempotencyKey },
+      ctx.user.email,
+    );
+    return { movementId: mov.id, newBalance: mov.newBalance };
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('inventory_record_movement', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_product_id: input.productId,
+    p_movement_type: input.movementType,
+    p_input_quantity: input.inputQuantity,
+    p_input_unit: input.inputUnit || 'unidade',
+    p_conversion_factor: input.conversionFactor ?? 1,
+    p_total_cost: input.totalCost ?? null,
+    p_reason: input.reason ?? '',
+    p_notes: input.notes ?? '',
+    p_supplier_id: input.supplierId ?? null,
+    p_packaging_conversion_id: input.packagingConversionId ?? null,
+    p_idempotency_key: idempotencyKey,
+    p_allow_negative_override: Boolean(input.allowNegativeOverride),
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  const res = (data ?? {}) as Record<string, unknown>;
+  return {
+    movementId: String(res.movementId || ''),
+    newBalance: Number(res.newBalance ?? 0),
+  };
+}
+
+export async function saveInventorySupplier(
+  ctx: DataExecutionContext,
+  input: SupplierInput,
+  supplierId?: string,
+): Promise<string> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    return demoMutations.saveSupplier(input, supplierId);
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildSupplierPayloadForSupabase(input);
+  if (supplierId) {
+    const { error } = await supabase
+      .from('suppliers')
+      .update(payload)
+      .eq('id', supplierId)
+      .eq('tenant_id', ctx.tenant.tenantId);
+    if (error) throw new Error(error.message);
+    notifyTenantRefresh(ctx.tenant.tenantId);
+    return supplierId;
+  }
+
+  const { data, error } = await supabase
+    .from('suppliers')
+    .insert({
+      tenant_id: ctx.tenant.tenantId,
+      ...payload,
+    })
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  return String((data as { id: string }).id);
+}
+
+export async function upsertProductSupplierLink(
+  ctx: DataExecutionContext,
+  input: ProductSupplierLinkInput,
+): Promise<string> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    return demoMutations.upsertProductSupplierLink(input);
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = buildProductSupplierPayloadForSupabase(input);
+  const { data, error } = await supabase
+    .from('product_suppliers')
+    .upsert(
+      {
+        tenant_id: ctx.tenant.tenantId,
+        ...payload,
+      },
+      { onConflict: 'tenant_id,product_id,supplier_id' },
+    )
+    .select('id')
+    .single();
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  return String((data as { id: string }).id);
+}
+
+export async function deleteProductSupplierLink(
+  ctx: DataExecutionContext,
+  linkId: string,
+): Promise<void> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.deleteProductSupplierLink(linkId);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('product_suppliers')
+    .delete()
+    .eq('id', linkId)
+    .eq('tenant_id', ctx.tenant.tenantId);
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function createInventoryPurchaseOrder(
+  ctx: DataExecutionContext,
+  input: CreatePurchaseOrderInput,
+): Promise<string> {
+  assertAdegaInventoryWrite(ctx);
+  const idempotencyKey =
+    input.idempotencyKey?.trim() || createInventoryIdempotencyKey('po');
+
+  if (isDemoSandboxActive()) {
+    return demoMutations.createPurchaseOrder(
+      { ...input, idempotencyKey },
+      ctx.user.email,
+    );
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('inventory_create_purchase_order', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_supplier_id: input.supplierId,
+    p_status: input.status === 'draft' ? 'draft' : 'pending',
+    p_payment_terms: input.paymentTerms ?? '',
+    p_expected_delivery_date: input.expectedDeliveryDate || null,
+    p_discount_amount: Math.max(0, Number(input.discountAmount) || 0),
+    p_additional_expenses: Math.max(0, Number(input.additionalExpenses) || 0),
+    p_notes: input.notes ?? '',
+    p_items: input.items.map((item) => ({
+      productId: item.productId,
+      packagingConversionId: item.packagingConversionId ?? null,
+      unitLabel: item.unitLabel,
+      conversionFactor: item.conversionFactor,
+      orderedQty: item.orderedQty,
+      unitCost: item.unitCost,
+    })),
+    p_idempotency_key: idempotencyKey,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  const res = (data ?? {}) as Record<string, unknown>;
+  return String(res.purchaseOrderId || '');
+}
+
+export async function updateInventoryPurchaseOrderStatus(
+  ctx: DataExecutionContext,
+  purchaseOrderId: string,
+  nextStatus: 'pending' | 'cancelled',
+  reason = '',
+): Promise<void> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.updatePurchaseOrderStatus(purchaseOrderId, nextStatus, reason);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('inventory_update_purchase_order_status', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_purchase_order_id: purchaseOrderId,
+    p_next_status: nextStatus,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function receiveInventoryPurchaseItems(
+  ctx: DataExecutionContext,
+  purchaseOrderId: string,
+  items: ReceivePurchaseItemInput[],
+  notes = '',
+  idempotencyKey?: string,
+): Promise<string> {
+  assertAdegaInventoryWrite(ctx);
+  const key = idempotencyKey?.trim() || createInventoryIdempotencyKey('rec');
+
+  if (isDemoSandboxActive()) {
+    return demoMutations.receivePurchaseItems(
+      purchaseOrderId,
+      items,
+      notes,
+      key,
+      ctx.user.email,
+    );
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('inventory_receive_purchase_items', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_purchase_order_id: purchaseOrderId,
+    p_items: items,
+    p_notes: notes,
+    p_idempotency_key: key,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  const res = (data ?? {}) as Record<string, unknown>;
+  return String(res.receiptId || '');
+}
+
+export async function startInventoryCount(
+  ctx: DataExecutionContext,
+  title: string,
+  productIds: string[] | null,
+  notes = '',
+  idempotencyKey?: string,
+): Promise<string> {
+  assertAdegaInventoryWrite(ctx);
+  const key = idempotencyKey?.trim() || createInventoryIdempotencyKey('cnt');
+
+  if (isDemoSandboxActive()) {
+    return demoMutations.startInventoryCount(
+      title,
+      productIds,
+      notes,
+      key,
+      ctx.user.email,
+    );
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('inventory_start_count', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_title: title,
+    p_product_ids: productIds,
+    p_notes: notes,
+    p_idempotency_key: key,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+  const res = (data ?? {}) as Record<string, unknown>;
+  return String(res.countId || '');
+}
+
+export async function saveInventoryCountItems(
+  ctx: DataExecutionContext,
+  countId: string,
+  items: Array<{ countItemId: string; countedQty: number | null; notes?: string }>,
+): Promise<void> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.saveInventoryCountItems(countId, items);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('inventory_save_count_items', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_count_id: countId,
+    p_items: items,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function finalizeInventoryCount(
+  ctx: DataExecutionContext,
+  countId: string,
+  idempotencyKey?: string,
+): Promise<void> {
+  assertAdegaInventoryWrite(ctx);
+  const key = idempotencyKey?.trim() || createInventoryIdempotencyKey('fincnt');
+
+  if (isDemoSandboxActive()) {
+    demoMutations.finalizeInventoryCount(countId, ctx.user.email);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('inventory_finalize_count', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_count_id: countId,
+    p_idempotency_key: key,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}
+
+export async function cancelInventoryCount(
+  ctx: DataExecutionContext,
+  countId: string,
+): Promise<void> {
+  assertAdegaInventoryWrite(ctx);
+  if (isDemoSandboxActive()) {
+    demoMutations.cancelInventoryCount(countId);
+    return;
+  }
+
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('inventory_cancel_count', {
+    p_tenant_id: ctx.tenant.tenantId,
+    p_count_id: countId,
+  });
+  if (error) throw new Error(error.message);
+  notifyTenantRefresh(ctx.tenant.tenantId);
+}

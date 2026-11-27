@@ -41,6 +41,7 @@ import {
   fetchPublicDigitalMenu,
   fetchPublicOrderByToken,
 } from '../services/dataService';
+import { resolvePublicStoreSegmentConfig } from '../services/segmentEngine';
 import type {
   OnlineOrderCartItem,
   OnlineOrderFulfillment,
@@ -323,6 +324,11 @@ export function PublicMenuView({
   const store = payload?.store ?? null;
   const products = payload?.products ?? [];
   const combos = payload?.combos ?? [];
+  const storeSegmentConfig = useMemo(
+    () => resolvePublicStoreSegmentConfig(store),
+    [store],
+  );
+  const storeSegment = storeSegmentConfig.id;
 
   useEffect(() => {
     if (!store || initialPayload !== undefined || typeof document === 'undefined') {
@@ -1664,7 +1670,10 @@ export function PublicMenuView({
   );
 
   return (
-    <div className="min-h-screen w-full overflow-x-clip bg-[#0A0C10] text-[#F3F4F6] pb-28 lg:pb-14">
+    <div
+      data-store-segment={storeSegment}
+      className="min-h-screen w-full overflow-x-clip bg-[#0A0C10] text-[#F3F4F6] pb-28 lg:pb-14"
+    >
       {/* Dark Premium Multi-Tenant Storefront Header */}
       <header className="relative overflow-hidden bg-[#0E1117]">
         {hasUsableImage(store.bannerUrl) ? (
@@ -1998,10 +2007,22 @@ export function PublicMenuView({
             <div className="bg-[#14171F] border border-[#242936] rounded-2xl p-8 text-center space-y-2.5">
               <Search className="w-6 h-6 text-[#7B8396] mx-auto" />
               <p className="text-sm font-semibold text-white">
-                Nenhum item encontrado neste filtro
+                {products.length === 0 &&
+                combos.length === 0 &&
+                !searchTerm &&
+                categoryFilter === 'all' &&
+                storeSegment === 'adega'
+                  ? storeSegmentConfig.digitalMenuConfig.emptyCatalogTitle
+                  : 'Nenhum item encontrado neste filtro'}
               </p>
               <p className="text-xs text-[#9CA3AF]">
-                Tente buscar outro nome ou selecione a aba &quot;Todos&quot;.
+                {products.length === 0 &&
+                combos.length === 0 &&
+                !searchTerm &&
+                categoryFilter === 'all' &&
+                storeSegment === 'adega'
+                  ? storeSegmentConfig.digitalMenuConfig.emptyCatalogDescription
+                  : 'Tente buscar outro nome ou selecione a aba "Todos".'}
               </p>
               {(searchTerm || categoryFilter !== 'all') && (
                 <button

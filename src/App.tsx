@@ -18,10 +18,12 @@ import {
   advanceDeliveryDispatchStatus,
   assignDeliveryCourier,
   cancelDeliveryDispatch,
+  cancelInventoryCount,
   completeTenantOnboarding,
   createDeliveryCourier,
   createDeliveryCustomer,
   createDeliveryRegion,
+  createInventoryPurchaseOrder,
   DEFAULT_PLATFORM_RUNTIME_STATUS,
   fetchPlatformRuntimeStatus,
   type DataExecutionContext,
@@ -30,12 +32,17 @@ import {
   deleteDeliveryCustomerAddress,
   deleteDeliveryRegion,
   deleteExpense,
+  deleteInventoryPackagingConversion,
+  deleteProductSupplierLink,
   deleteSale,
+  finalizeInventoryCount,
   loginWithEmailPassword,
   loginWithGoogle,
   logoutSession,
   markOnlineOrderViewed,
   reassignDeliveryCourier,
+  receiveInventoryPurchaseItems,
+  recordInventoryMovement,
   requestPasswordReset,
   respondDeliveryDispatch,
   updateAccountPassword,
@@ -46,9 +53,13 @@ import {
   saveDeliveryCustomerAddress,
   saveDeliveryPricingSettings,
   saveDigitalMenuSettings,
+  saveInventoryPackagingConversion,
+  saveInventorySupplier,
   saveSettings,
   seedDefaultCatalog,
   setPrimaryDeliveryCustomerAddress,
+  startInventoryCount,
+  saveInventoryCountItems,
   subscribeAllTenantData,
   subscribeAuthSession,
   toggleDeliveryRegionStatus,
@@ -61,15 +72,21 @@ import {
   updateDeliveryCustomer,
   updateDeliveryRegion,
   updateExpense,
+  updateInventoryPurchaseOrderStatus,
   updateProduct,
   updateSale,
+  upsertInventoryProductConfig,
+  upsertProductSupplierLink,
 } from './services/dataService';
+import type { BusinessSegment } from './types/segments';
+import { normalizeBusinessSegment } from './services/segmentEngine';
 import { hasTenantPermission, selectAuthorizedTenant } from './services/rbacPolicy';
 import {
   type AppRoute,
   type AuthSessionUser,
   type ComboInput,
   type ComboRecord,
+  type CreatePurchaseOrderInput,
   type DeliveryCourierInput,
   type DeliveryCourierRecord,
   type DeliveryCustomerAddressInput,
@@ -90,17 +107,24 @@ import {
   type DigitalMenuSettingsInput,
   type ExpenseInput,
   type ExpenseRecord,
+  type InventoryDataBundle,
+  type InventoryPackagingConversionInput,
   type OnlineOrderRecord,
   type OnlineOrderStatus,
   type ProductInput,
   type ProductRecord,
+  type ProductSupplierLinkInput,
+  type ReceivePurchaseItemInput,
+  type RecordInventoryMovementInput,
   type SaleInput,
   type SaleRecord,
   type ShopSettings,
+  type SupplierInput,
   type TenantContext,
   type WorkspaceAccess,
 } from './types/finance';
 import { DEFAULT_CUSTOMER_CLASSIFICATION_CONFIG } from './utils/deliveryCustomers';
+import { EMPTY_INVENTORY_BUNDLE } from './utils/inventory';
 import { DISPATCH_STATUS_LABELS } from './utils/deliveryDispatch';
 import { DEFAULT_DELIVERY_PRICING_SETTINGS } from './utils/deliveryRegions';
 import {
@@ -153,6 +177,7 @@ import { PasswordRecoveryScreen } from './components/PasswordRecoveryScreen';
 import { ReportsView } from './components/ReportsView';
 import { SaleModal } from './components/SaleModal';
 import { SalesView } from './components/SalesView';
+import { InventoryView } from './components/InventoryView';
 import { OrderPrintModal } from './components/OrderPrintModal';
 import { fromSaleRecord, type PrintPaperFormat } from './utils/orderPrint';
 import { SettingsView } from './components/SettingsView';
@@ -341,6 +366,9 @@ export default function App() {
       tenantId: '',
       ...DEFAULT_DIGITAL_MENU_SETTINGS,
     });
+  const [inventory, setInventory] = useState<InventoryDataBundle>(() => ({
+    ...EMPTY_INVENTORY_BUNDLE,
+  }));
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -737,6 +765,7 @@ export default function App() {
         tenantId: '',
         ...DEFAULT_DIGITAL_MENU_SETTINGS,
       });
+      setInventory({ ...EMPTY_INVENTORY_BUNDLE });
       knownOrderIdsRef.current = new Set();
       ordersInitializedRef.current = false;
       setDataLoading(false);
@@ -777,6 +806,7 @@ export default function App() {
         slug: dataContext.tenant.slug,
         storeName: dataContext.tenant.name,
       });
+      setInventory({ ...EMPTY_INVENTORY_BUNDLE });
       knownOrderIdsRef.current = new Set();
       ordersInitializedRef.current = false;
       setDataLoading(true);
@@ -799,6 +829,7 @@ export default function App() {
       onDeliveryRegions: setDeliveryRegions,
       onDeliveryPricingSettings: setDeliveryPricingSettings,
       onCustomerClassificationConfig: setCustomerClassificationConfig,
+      onInventory: setInventory,
       onReady: () => {
         setDataLoading(false);
         const pending = ordersRefreshPromiseRef.current;
@@ -1012,9 +1043,15 @@ export default function App() {
     await loginWithEmailPassword(email, password);
   }
 
-  async function handleRegister(name: string, storeName: string, email: string, password: string) {
+  async function handleRegister(
+    name: string,
+    storeName: string,
+    email: string,
+    password: string,
+    businessSegment?: BusinessSegment,
+  ) {
     setAuthError(null);
-    await registerWithEmailPassword(name, storeName, email, password);
+    await registerWithEmailPassword(name, storeName, email, password, businessSegment);
   }
 
   async function handlePartnerRegister(name: string, email: string, password: string) {
@@ -1089,12 +1126,17 @@ export default function App() {
     }
   }
 
-  async function handleCompleteOnboarding(storeName: string, ownerName: string) {
+  async function handleCompleteOnboarding(
+    storeName: string,
+    ownerName: string,
+    businessSegment?: BusinessSegment,
+  ) {
     if (!activeTenant) return;
     const updated = await completeTenantOnboarding({
       tenantId: activeTenant.tenantId,
       storeName,
       ownerName,
+      businessSegment,
     });
     setTenants((prev) =>
       prev.map((t) =>
@@ -1104,6 +1146,7 @@ export default function App() {
               name: updated.name,
               slug: updated.slug || t.slug,
               onboardingCompleted: true,
+              businessSegment: updated.businessSegment,
             }
           : t,
       ),
@@ -1493,6 +1536,155 @@ export default function App() {
     showToast('Regras gerais de entrega salvas com sucesso.');
   }
 
+  async function handleRecordInventoryMovement(
+    input: RecordInventoryMovementInput,
+  ): Promise<{ movementId: string; newBalance: number }> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    const res = await recordInventoryMovement(dataContext, input);
+    showToast('Movimentação de estoque registrada.');
+    return res;
+  }
+
+  async function handleSaveInventoryProductConfig(
+    productId: string,
+    minStockQty: number,
+    allowNegativeStock: boolean,
+  ): Promise<void> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    await upsertInventoryProductConfig(
+      dataContext,
+      productId,
+      minStockQty,
+      allowNegativeStock,
+    );
+    showToast('Configuração de estoque do produto atualizada.');
+  }
+
+  async function handleSaveInventoryPackagingConversion(
+    input: InventoryPackagingConversionInput,
+    conversionId?: string,
+  ): Promise<string> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    const id = await saveInventoryPackagingConversion(dataContext, input, conversionId);
+    showToast(conversionId ? 'Conversão atualizada.' : 'Conversão cadastrada.');
+    return id;
+  }
+
+  async function handleDeleteInventoryPackagingConversion(
+    conversionId: string,
+  ): Promise<void> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    await deleteInventoryPackagingConversion(dataContext, conversionId);
+    showToast('Conversão removida.');
+  }
+
+  async function handleSaveInventorySupplier(
+    input: SupplierInput,
+    supplierId?: string,
+  ): Promise<string> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    const id = await saveInventorySupplier(dataContext, input, supplierId);
+    showToast(supplierId ? 'Fornecedor atualizado.' : 'Fornecedor cadastrado.');
+    return id;
+  }
+
+  async function handleUpsertProductSupplierLink(
+    input: ProductSupplierLinkInput,
+  ): Promise<string> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    const id = await upsertProductSupplierLink(dataContext, input);
+    showToast('Vínculo produto-fornecedor salvo.');
+    return id;
+  }
+
+  async function handleDeleteProductSupplierLink(linkId: string): Promise<void> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    await deleteProductSupplierLink(dataContext, linkId);
+    showToast('Vínculo removido.');
+  }
+
+  async function handleCreateInventoryPurchaseOrder(
+    input: CreatePurchaseOrderInput,
+  ): Promise<string> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    const id = await createInventoryPurchaseOrder(dataContext, input);
+    showToast(
+      input.status === 'draft'
+        ? 'Rascunho de compra criado.'
+        : 'Pedido de compra criado.',
+    );
+    return id;
+  }
+
+  async function handleUpdateInventoryPurchaseOrderStatus(
+    purchaseOrderId: string,
+    nextStatus: 'pending' | 'cancelled',
+    reason?: string,
+  ): Promise<void> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    await updateInventoryPurchaseOrderStatus(
+      dataContext,
+      purchaseOrderId,
+      nextStatus,
+      reason,
+    );
+    showToast(
+      nextStatus === 'pending'
+        ? 'Compra enviada para pendente.'
+        : 'Pedido de compra cancelado.',
+    );
+  }
+
+  async function handleReceiveInventoryPurchaseItems(
+    purchaseOrderId: string,
+    items: ReceivePurchaseItemInput[],
+    notes: string,
+    idempotencyKey: string,
+  ): Promise<string> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    const receiptId = await receiveInventoryPurchaseItems(
+      dataContext,
+      purchaseOrderId,
+      items,
+      notes,
+      idempotencyKey,
+    );
+    showToast('Recebimento conferido e estoque atualizado.');
+    return receiptId;
+  }
+
+  async function handleStartInventoryCount(
+    title: string,
+    productIds: string[] | null,
+    notes: string,
+  ): Promise<string> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    const id = await startInventoryCount(dataContext, title, productIds, notes);
+    showToast('Inventário físico aberto.');
+    return id;
+  }
+
+  async function handleSaveInventoryCountItems(
+    countId: string,
+    items: Array<{ countItemId: string; countedQty: number | null; notes?: string }>,
+  ): Promise<void> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    await saveInventoryCountItems(dataContext, countId, items);
+    showToast('Contagens salvas em rascunho.');
+  }
+
+  async function handleFinalizeInventoryCount(countId: string): Promise<void> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    await finalizeInventoryCount(dataContext, countId);
+    showToast('Inventário finalizado e saldos ajustados.');
+  }
+
+  async function handleCancelInventoryCount(countId: string): Promise<void> {
+    if (!dataContext) throw new Error('Sessão não inicializada.');
+    await cancelInventoryCount(dataContext, countId);
+    showToast('Inventário cancelado sem alterações no estoque.');
+  }
+
   if (publicRoute.kind === 'institutional') {
     return (
       <InstitutionalPageView
@@ -1717,6 +1909,7 @@ export default function App() {
       <StoreOnboardingScreen
         accountEmail={user.email}
         initialStoreName={activeTenant.name}
+        initialBusinessSegment={activeTenant.businessSegment}
         tenantId={activeTenant.tenantId}
         onComplete={handleCompleteOnboarding}
         onLogout={handleLogout}
@@ -1726,10 +1919,17 @@ export default function App() {
     );
   }
 
+  const activeSegment = normalizeBusinessSegment(activeTenant.businessSegment);
   const canViewDashboard = hasTenantPermission(activeTenant.role, 'dashboard:view');
   const canReadSales = hasTenantPermission(activeTenant.role, 'sales:read');
   const canAccessDelivery =
     hasTenantPermission(activeTenant.role, 'delivery:view') && canReadSales;
+  const canReadInventory =
+    activeSegment === 'adega' &&
+    hasTenantPermission(activeTenant.role, 'inventory:read');
+  const canWriteInventory =
+    activeSegment === 'adega' &&
+    hasTenantPermission(activeTenant.role, 'inventory:write');
   const canCreateSales = hasTenantPermission(activeTenant.role, 'sales:create');
   const canEditSales = hasTenantPermission(activeTenant.role, 'sales:update');
   const canDeleteSales = hasTenantPermission(activeTenant.role, 'sales:delete');
@@ -1757,6 +1957,7 @@ export default function App() {
   if (canReadSales || canCreateSales) visibleRouteIds.push('sales');
   if (canReadExpenses) visibleRouteIds.push('expenses');
   if (canViewReports) visibleRouteIds.push('reports');
+  if (canReadInventory) visibleRouteIds.push('inventory');
   if (canAccessSettingsRoute) visibleRouteIds.push('settings');
 
   const effectiveRoute: AppRoute = visibleRouteIds.includes(route)
@@ -1922,6 +2123,7 @@ export default function App() {
       }}
       canViewDashboard={canViewDashboard}
       canAccessDelivery={canAccessDelivery}
+      canReadInventory={canReadInventory}
       canReadSales={canReadSales}
       canCreateSales={canCreateSales}
       canReadExpenses={canReadExpenses}
@@ -1964,7 +2166,8 @@ export default function App() {
       effectiveRoute !== 'delivery_regions' &&
       effectiveRoute !== 'delivery_reports' &&
       effectiveRoute !== 'sales' &&
-      effectiveRoute !== 'expenses' ? (
+      effectiveRoute !== 'expenses' &&
+      effectiveRoute !== 'inventory' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="mgw-skeleton h-32" />
@@ -2256,6 +2459,34 @@ export default function App() {
               sales={sales}
               expenses={expenses}
               settings={settings}
+            />
+          )}
+
+          {effectiveRoute === 'inventory' && canReadInventory && (
+            <InventoryView
+              establishmentName={
+                digitalMenuSettings.storeName ||
+                settings.establishmentName ||
+                activeTenant.name
+              }
+              products={products}
+              inventory={inventory}
+              canWrite={canWriteInventory}
+              isLoading={dataLoading}
+              onRecordMovement={handleRecordInventoryMovement}
+              onSaveProductConfig={handleSaveInventoryProductConfig}
+              onSavePackagingConversion={handleSaveInventoryPackagingConversion}
+              onDeletePackagingConversion={handleDeleteInventoryPackagingConversion}
+              onSaveSupplier={handleSaveInventorySupplier}
+              onUpsertProductSupplierLink={handleUpsertProductSupplierLink}
+              onDeleteProductSupplierLink={handleDeleteProductSupplierLink}
+              onCreatePurchaseOrder={handleCreateInventoryPurchaseOrder}
+              onUpdatePurchaseOrderStatus={handleUpdateInventoryPurchaseOrderStatus}
+              onReceivePurchaseItems={handleReceiveInventoryPurchaseItems}
+              onStartInventoryCount={handleStartInventoryCount}
+              onSaveInventoryCountItems={handleSaveInventoryCountItems}
+              onFinalizeInventoryCount={handleFinalizeInventoryCount}
+              onCancelInventoryCount={handleCancelInventoryCount}
             />
           )}
 

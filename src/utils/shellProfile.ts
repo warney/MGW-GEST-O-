@@ -70,6 +70,8 @@ export function resolveShellPageTitle(
       return 'Financeiro · MGW Delivery';
     case 'delivery_reports':
       return 'Relatórios · MGW Delivery';
+    case 'inventory':
+      return 'Estoque';
     case 'sales':
       return 'Vendas';
     case 'expenses':

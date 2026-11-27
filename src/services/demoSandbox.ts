@@ -37,7 +37,49 @@ import type {
   SaleInput,
   SaleRecord,
   ShopSettings,
+  InventoryBalanceRecord,
+  InventoryCountItemRecord,
+  InventoryCountRecord,
+  InventoryDataBundle,
+  InventoryMovementRecord,
+  InventoryPackagingConversionInput,
+  InventoryPackagingConversionRecord,
+  ProductSupplierLinkInput,
+  ProductSupplierLinkRecord,
+  PurchaseOrderItemRecord,
+  PurchaseOrderRecord,
+  PurchaseReceiptItemRecord,
+  PurchaseReceiptRecord,
+  ReceivePurchaseItemInput,
+  RecordInventoryMovementInput,
+  SupplierInput,
+  SupplierRecord,
+  CreatePurchaseOrderInput,
+  ComboAvailabilityResult,
+  ComboConsumptionItemSnapshot,
+  ComboConsumptionRecord,
+  ConsumeComboInput,
+  ConsumeComboResult,
 } from '../types/finance';
+import type { BusinessSegment } from '../types/segments';
+import {
+  buildComboComponentRowsFromDraft,
+  createComboConsumptionIdempotencyKey,
+  evaluateComboStockAvailability,
+  resolveComponentUnitCost,
+  validateAdegaComboInput,
+} from '../utils/combosComposition';
+import {
+  calculatePurchaseOrderTotals,
+  computeWeightedAverageCost,
+  convertPackagingQuantity,
+  createInventoryIdempotencyKey,
+  EMPTY_INVENTORY_BUNDLE,
+  getMovementDirection,
+  roundQty,
+  roundUnitCost,
+  validateMovementQuantityAndStockGuard,
+} from '../utils/inventory';
 import {
   normalizeCourierPlateForStorage,
   normalizeCourierType,
@@ -62,6 +104,11 @@ import {
   validateDeliveryPricingSettingsInput,
   validateDeliveryRegionInput,
 } from '../utils/deliveryRegions';
+import {
+  findProductByBarcode,
+  isValidBarcodeFormat,
+  normalizeBarcodeInput,
+} from '../utils/universalProducts';
 import {
   calculateSaleTotal,
   DEFAULT_SHOP_TIMEZONE,
@@ -103,6 +150,8 @@ interface DemoState {
   dispatchHistory: DeliveryDispatchHistoryRecord[];
   deliveryRegions: DeliveryRegionRecord[];
   deliveryPricingSettings: DeliveryPricingSettings;
+  inventory: InventoryDataBundle;
+  businessSegment?: BusinessSegment;
   nextOrderSeq: number;
   tokensByHash: Record<string, string>;
 }
@@ -114,6 +163,7 @@ function ensureBroadcast(): void {
   if (broadcast || typeof BroadcastChannel === 'undefined') return;
   try {
     broadcast = new BroadcastChannel(DEMO_CHANNEL_NAME);
+    (broadcast as unknown as { unref?: () => void }).unref?.();
     broadcast.onmessage = () => {
       for (const fn of listeners) fn();
     };
@@ -325,6 +375,10 @@ function createInitialDemoState(): DemoState {
       defaultMinimumOrderAmount: 15,
       updatedAtMs: now,
     },
+    inventory: {
+      ...EMPTY_INVENTORY_BUNDLE,
+    },
+    businessSegment: 'lanchonete',
     nextOrderSeq: 1,
     tokensByHash: {},
   };
@@ -375,6 +429,17 @@ function readDemoState(): DemoState {
         ...parsed.digitalMenu,
         pixKey: normalizePixKeyInput(parsed.digitalMenu?.pixKey || ''),
       },
+      inventory: parsed.inventory
+        ? {
+            ...EMPTY_INVENTORY_BUNDLE,
+            ...parsed.inventory,
+            comboConsumptions: Array.isArray(parsed.inventory.comboConsumptions)
+              ? parsed.inventory.comboConsumptions
+              : [],
+          }
+        : { ...EMPTY_INVENTORY_BUNDLE },
+      businessSegment:
+        parsed.businessSegment === 'adega' ? 'adega' : 'lanchonete',
     };
   } catch {
     return createInitialDemoState();
@@ -493,6 +558,7 @@ export function subscribeDemoAdminState(
     onDeliveryDispatchHistory?: (history: DeliveryDispatchHistoryRecord[]) => void;
     onDeliveryRegions?: (regions: DeliveryRegionRecord[]) => void;
     onDeliveryPricingSettings?: (settings: DeliveryPricingSettings) => void;
+    onInventory?: (bundle: InventoryDataBundle) => void;
     onReady: () => void;
   },
 ): () => void {
@@ -514,6 +580,7 @@ export function subscribeDemoAdminState(
     callbacks.onDeliveryDispatchHistory?.(st.dispatchHistory);
     callbacks.onDeliveryRegions?.(st.deliveryRegions);
     callbacks.onDeliveryPricingSettings?.(st.deliveryPricingSettings);
+    callbacks.onInventory?.(st.inventory);
     callbacks.onReady();
   };
   listeners.add(emit);
@@ -552,13 +619,35 @@ export const demoMutations = {
   addProduct(input: ProductInput): string {
     const st = readDemoState();
     const { preferredId, ...rest } = input;
-    const id = preferredId && preferredId.trim() ? preferredId.trim() : `demo_prod_${Date.now()}`;
+    const cleanBarcode = normalizeBarcodeInput(rest.barcode);
+    if (cleanBarcode !== null) {
+      if (!isValidBarcodeFormat(cleanBarcode)) {
+        throw new Error('Código de barras inválido. Use de 8 a 14 dígitos numéricos.');
+      }
+      const dup = findProductByBarcode(st.products, cleanBarcode);
+      if (dup) {
+        throw new Error(
+          `Este código de barras já está cadastrado em "${dup.name}" neste estabelecimento.`,
+        );
+      }
+    }
+    const id =
+      preferredId && preferredId.trim()
+        ? preferredId.trim()
+        : `demo_prod_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const now = Date.now();
     writeDemoState({
       ...st,
       products: [
         ...st.products,
-        { id, ownerId: 'demo-owner', ...rest, createdAtMs: now, updatedAtMs: now },
+        {
+          id,
+          ownerId: 'demo-owner',
+          ...rest,
+          ...(rest.barcode !== undefined ? { barcode: cleanBarcode } : {}),
+          createdAtMs: now,
+          updatedAtMs: now,
+        },
       ],
     });
     return id;
@@ -566,17 +655,39 @@ export const demoMutations = {
   updateProduct(id: string, input: ProductInput) {
     const st = readDemoState();
     const { preferredId: _ignored, ...rest } = input;
+    const cleanBarcode = normalizeBarcodeInput(rest.barcode);
+    if (rest.barcode !== undefined && cleanBarcode !== null) {
+      if (!isValidBarcodeFormat(cleanBarcode)) {
+        throw new Error('Código de barras inválido. Use de 8 a 14 dígitos numéricos.');
+      }
+      const dup = findProductByBarcode(st.products, cleanBarcode, id);
+      if (dup) {
+        throw new Error(
+          `Este código de barras já está cadastrado em "${dup.name}" neste estabelecimento.`,
+        );
+      }
+    }
     writeDemoState({
       ...st,
       products: st.products.map((p) =>
-        p.id === id ? { ...p, ...rest, updatedAtMs: Date.now() } : p,
+        p.id === id
+          ? {
+              ...p,
+              ...rest,
+              ...(rest.barcode !== undefined ? { barcode: cleanBarcode } : {}),
+              updatedAtMs: Date.now(),
+            }
+          : p,
       ),
     });
   },
   addCombo(input: ComboInput): string {
     const st = readDemoState();
     const { preferredId, ...rest } = input;
-    const id = preferredId && preferredId.trim() ? preferredId.trim() : `demo_combo_${Date.now()}`;
+    const id =
+      preferredId && preferredId.trim()
+        ? preferredId.trim()
+        : `demo_combo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const now = Date.now();
     writeDemoState({
       ...st,
@@ -704,6 +815,8 @@ export const demoMutations = {
         deliveryRegions: [],
       };
     }
+    const segment: BusinessSegment =
+      st.businessSegment === 'adega' ? 'adega' : 'lanchonete';
     const products: PublicCatalogProduct[] = st.digitalMenu.isActive
       ? st.products.filter((p) => p.active).map((p) => ({
           id: p.id,
@@ -715,14 +828,35 @@ export const demoMutations = {
         }))
       : [];
     const combos: PublicCatalogCombo[] = st.digitalMenu.isActive
-      ? st.combos.filter((c) => c.active).map((c) => ({
-          id: c.id,
-          name: c.name,
-          description: c.description,
-          items: c.items,
-          salePrice: c.salePrice,
-          imageUrl: c.imageUrl,
-        }))
+      ? st.combos.filter((c) => c.active).map((c) => {
+          if (segment !== 'adega') {
+            return {
+              id: c.id,
+              name: c.name,
+              description: c.description,
+              items: c.items,
+              salePrice: c.salePrice,
+              imageUrl: c.imageUrl,
+            };
+          }
+          const availability = evaluateComboStockAvailability({
+            combo: c,
+            products: st.products,
+            balances: st.inventory.balances,
+            requestedQuantity: 1,
+          });
+          return {
+            id: c.id,
+            name: c.name,
+            description: c.description,
+            category: c.category || undefined,
+            items: c.items,
+            salePrice: c.salePrice,
+            imageUrl: c.imageUrl,
+            isAvailable: availability.available,
+            maxAvailableQty: availability.maxProducibleQty,
+          };
+        })
       : [];
     const deliveryRegions: PublicDeliveryRegion[] = st.deliveryRegions.map((r) => ({
       id: r.id,
@@ -746,6 +880,7 @@ export const demoMutations = {
       store: {
         ...st.digitalMenu,
         timezone: st.settings.timezone || DEFAULT_SHOP_TIMEZONE,
+        businessSegment: segment,
       },
       products,
       combos,
@@ -2232,5 +2367,1112 @@ export const demoMutations = {
       },
     });
   },
+  upsertInventoryProductConfig(
+    productId: string,
+    minStockQty: number,
+    allowNegativeStock: boolean,
+  ) {
+    const st = readDemoState();
+    const now = Date.now();
+    const cleanMin = Math.max(0, roundQty(minStockQty));
+    const existing = st.inventory.balances.find((b) => b.productId === productId);
+    const product = st.products.find((p) => p.id === productId);
+    if (!product) throw new Error('Produto não encontrado.');
+    const nextBalances: InventoryBalanceRecord[] = existing
+      ? st.inventory.balances.map((b) =>
+          b.productId === productId
+            ? {
+                ...b,
+                minStockQty: cleanMin,
+                allowNegativeStock: Boolean(allowNegativeStock),
+                updatedAtMs: now,
+              }
+            : b,
+        )
+      : [
+          ...st.inventory.balances,
+          {
+            id: `demo_bal_${productId}`,
+            tenantId: 'demo-tenant',
+            productId,
+            availableQty: 0,
+            reservedQty: 0,
+            minStockQty: cleanMin,
+            averageUnitCost: roundUnitCost(product.costPrice || 0),
+            lastCostPrice: roundUnitCost(product.costPrice || 0),
+            allowNegativeStock: Boolean(allowNegativeStock),
+            createdAtMs: now,
+            updatedAtMs: now,
+          },
+        ];
+    writeDemoState({
+      ...st,
+      inventory: { ...st.inventory, balances: nextBalances },
+    });
+  },
+  upsertInventoryPackagingConversion(
+    input: InventoryPackagingConversionInput,
+    conversionId?: string,
+  ): string {
+    const st = readDemoState();
+    const now = Date.now();
+    const id =
+      conversionId || `demo_pkg_${now}_${Math.random().toString(36).slice(2, 7)}`;
+    const label = input.packageLabel.trim().slice(0, 60);
+    if (!label) throw new Error('Informe o nome da embalagem.');
+    const factor = roundQty(input.factorToBase);
+    if (factor <= 0) throw new Error('Fator de conversão deve ser maior que zero.');
+    const existing = st.inventory.packagingConversions.find((c) => c.id === id);
+    const nextList: InventoryPackagingConversionRecord[] = existing
+      ? st.inventory.packagingConversions.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                packageLabel: label,
+                packageType: input.packageType,
+                factorToBase: factor,
+                isDefaultPurchase: Boolean(input.isDefaultPurchase),
+                active: input.active !== false,
+                updatedAtMs: now,
+              }
+            : c,
+        )
+      : [
+          ...st.inventory.packagingConversions,
+          {
+            id,
+            tenantId: 'demo-tenant',
+            productId: input.productId,
+            packageLabel: label,
+            packageType: input.packageType,
+            factorToBase: factor,
+            isDefaultPurchase: Boolean(input.isDefaultPurchase),
+            active: input.active !== false,
+            createdAtMs: now,
+            updatedAtMs: now,
+          },
+        ];
+    writeDemoState({
+      ...st,
+      inventory: { ...st.inventory, packagingConversions: nextList },
+    });
+    return id;
+  },
+  deleteInventoryPackagingConversion(conversionId: string) {
+    const st = readDemoState();
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        packagingConversions: st.inventory.packagingConversions.filter(
+          (c) => c.id !== conversionId,
+        ),
+      },
+    });
+  },
+  recordInventoryMovement(
+    input: RecordInventoryMovementInput,
+    actorEmail: string,
+  ): InventoryMovementRecord {
+    const st = readDemoState();
+    const now = Date.now();
+    const key =
+      input.idempotencyKey?.trim() || createInventoryIdempotencyKey('mov');
+    const existing = st.inventory.movements.find((m) => m.idempotencyKey === key);
+    if (existing) return existing;
+
+    const product = st.products.find((p) => p.id === input.productId);
+    if (!product) throw new Error('Produto não encontrado.');
+    const existingBal = st.inventory.balances.find(
+      (b) => b.productId === input.productId,
+    );
+    const currentBal: InventoryBalanceRecord = existingBal ?? {
+      id: `demo_bal_${product.id}`,
+      tenantId: 'demo-tenant',
+      productId: product.id,
+      availableQty: 0,
+      reservedQty: 0,
+      minStockQty: 0,
+      averageUnitCost: roundUnitCost(product.costPrice || 0),
+      lastCostPrice: roundUnitCost(product.costPrice || 0),
+      allowNegativeStock: false,
+      createdAtMs: now,
+      updatedAtMs: now,
+    };
+
+    const pkg = input.packagingConversionId
+      ? st.inventory.packagingConversions.find(
+          (c) => c.id === input.packagingConversionId && c.productId === product.id,
+        )
+      : undefined;
+    const factor = pkg ? pkg.factorToBase : input.conversionFactor ?? 1;
+    const conv = convertPackagingQuantity({
+      inputQuantity: input.inputQuantity,
+      conversionFactor: factor,
+      inputUnitTotalCost: input.totalCost,
+    });
+    const direction = getMovementDirection(input.movementType);
+    const guard = validateMovementQuantityAndStockGuard({
+      direction,
+      currentAvailableQty: currentBal.availableQty,
+      baseQuantity: conv.baseQuantity,
+      allowNegativeStock: currentBal.allowNegativeStock,
+      allowNegativeOverride: input.allowNegativeOverride,
+      productName: product.name,
+    });
+    if (!guard.allowed) {
+      throw new Error(guard.message || 'Movimentação bloqueada.');
+    }
+
+    let newAvg = currentBal.averageUnitCost;
+    let lastCost = currentBal.lastCostPrice;
+    let unitCost = currentBal.averageUnitCost;
+    let totalCost = roundCurrency(conv.baseQuantity * unitCost);
+
+    if (direction === 'in' && input.totalCost !== null && input.totalCost !== undefined) {
+      const avgCalc = computeWeightedAverageCost({
+        currentQty: currentBal.availableQty,
+        currentAvgCost: currentBal.averageUnitCost,
+        entryBaseQty: conv.baseQuantity,
+        entryTotalCost: conv.totalCost,
+      });
+      newAvg = avgCalc.newAverageUnitCost;
+      unitCost = avgCalc.entryUnitCost;
+      lastCost = avgCalc.entryUnitCost;
+      totalCost = conv.totalCost;
+    }
+
+    const updatedBal: InventoryBalanceRecord = {
+      ...currentBal,
+      availableQty: guard.nextBalance,
+      averageUnitCost: newAvg,
+      lastCostPrice: lastCost,
+      updatedAtMs: now,
+    };
+
+    const mov: InventoryMovementRecord = {
+      id: `demo_mov_${now}_${Math.random().toString(36).slice(2, 6)}`,
+      tenantId: 'demo-tenant',
+      productId: product.id,
+      movementType: input.movementType,
+      direction,
+      inputQuantity: roundQty(input.inputQuantity),
+      inputUnit: input.inputUnit || pkg?.packageLabel || product.saleUnit || 'unidade',
+      conversionFactorUsed: factor,
+      baseQuantity: conv.baseQuantity,
+      previousBalance: currentBal.availableQty,
+      newBalance: guard.nextBalance,
+      unitCost,
+      totalCost,
+      previousAvgCost: currentBal.averageUnitCost,
+      newAvgCost: newAvg,
+      reason: (input.reason || '').trim().slice(0, 300),
+      notes: (input.notes || '').trim().slice(0, 600),
+      originType:
+        input.movementType === 'adjustment_in' ||
+        input.movementType === 'adjustment_out'
+          ? 'adjustment'
+          : input.movementType === 'return_in'
+            ? 'return'
+            : 'manual',
+      originId: null,
+      supplierId: input.supplierId ?? null,
+      packagingConversionId: input.packagingConversionId ?? null,
+      idempotencyKey: key,
+      actorUserId: 'demo-owner',
+      actorEmail,
+      createdAtMs: now,
+    };
+
+    const nextBalances = existingBal
+      ? st.inventory.balances.map((b) =>
+          b.productId === product.id ? updatedBal : b,
+        )
+      : [...st.inventory.balances, updatedBal];
+
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        balances: nextBalances,
+        movements: [mov, ...st.inventory.movements],
+      },
+    });
+    return mov;
+  },
+  saveSupplier(input: SupplierInput, supplierId?: string): string {
+    const st = readDemoState();
+    const now = Date.now();
+    const name = input.name.trim().replace(/\s+/g, ' ').slice(0, 120);
+    if (name.length < 2) throw new Error('Informe o nome do fornecedor.');
+    const id =
+      supplierId || `demo_sup_${now}_${Math.random().toString(36).slice(2, 7)}`;
+    const existing = st.inventory.suppliers.find((s) => s.id === id);
+    const record: SupplierRecord = {
+      id,
+      tenantId: 'demo-tenant',
+      name,
+      tradeName: (input.tradeName || '').trim().slice(0, 120),
+      document: (input.document || '').trim().slice(0, 32),
+      phone: (input.phone || '').trim().slice(0, 32),
+      whatsapp: (input.whatsapp || '').trim().slice(0, 32),
+      email: (input.email || '').trim().slice(0, 120),
+      address: (input.address || '').trim().slice(0, 300),
+      notes: (input.notes || '').trim().slice(0, 600),
+      active: input.active !== false,
+      createdAtMs: existing?.createdAtMs ?? now,
+      updatedAtMs: now,
+    };
+    const nextSuppliers = existing
+      ? st.inventory.suppliers.map((s) => (s.id === id ? record : s))
+      : [...st.inventory.suppliers, record];
+    writeDemoState({
+      ...st,
+      inventory: { ...st.inventory, suppliers: nextSuppliers },
+    });
+    return id;
+  },
+  upsertProductSupplierLink(input: ProductSupplierLinkInput): string {
+    const st = readDemoState();
+    const now = Date.now();
+    const existing = st.inventory.productSuppliers.find(
+      (ps) =>
+        ps.productId === input.productId && ps.supplierId === input.supplierId,
+    );
+    const id =
+      existing?.id || `demo_ps_${now}_${Math.random().toString(36).slice(2, 7)}`;
+    const rec: ProductSupplierLinkRecord = {
+      id,
+      tenantId: 'demo-tenant',
+      productId: input.productId,
+      supplierId: input.supplierId,
+      supplierSku: (input.supplierSku || '').trim().slice(0, 60),
+      lastUnitCost: roundUnitCost(input.lastUnitCost ?? existing?.lastUnitCost ?? 0),
+      isPreferred: Boolean(input.isPreferred),
+      notes: (input.notes || '').trim().slice(0, 300),
+      createdAtMs: existing?.createdAtMs ?? now,
+      updatedAtMs: now,
+    };
+    const nextList = existing
+      ? st.inventory.productSuppliers.map((ps) => (ps.id === id ? rec : ps))
+      : [...st.inventory.productSuppliers, rec];
+    writeDemoState({
+      ...st,
+      inventory: { ...st.inventory, productSuppliers: nextList },
+    });
+    return id;
+  },
+  deleteProductSupplierLink(linkId: string) {
+    const st = readDemoState();
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        productSuppliers: st.inventory.productSuppliers.filter(
+          (ps) => ps.id !== linkId,
+        ),
+      },
+    });
+  },
+  createPurchaseOrder(
+    input: CreatePurchaseOrderInput,
+    actorEmail: string,
+  ): string {
+    const st = readDemoState();
+    const now = Date.now();
+    const key = input.idempotencyKey || createInventoryIdempotencyKey('po');
+    const existing = st.inventory.purchaseOrders.find(
+      (po) => po.idempotencyKey === key,
+    );
+    if (existing) return existing.id;
+
+    if (!input.items.length) throw new Error('Inclua ao menos um item na compra.');
+    const totals = calculatePurchaseOrderTotals({
+      items: input.items,
+      discountAmount: input.discountAmount,
+      additionalExpenses: input.additionalExpenses,
+    });
+    const nextNum =
+      st.inventory.purchaseOrders.reduce(
+        (m, po) => Math.max(m, po.orderNumber),
+        0,
+      ) + 1;
+    const poId = `demo_po_${now}_${Math.random().toString(36).slice(2, 7)}`;
+    const po: PurchaseOrderRecord = {
+      id: poId,
+      tenantId: 'demo-tenant',
+      orderNumber: nextNum,
+      supplierId: input.supplierId,
+      status: input.status === 'draft' ? 'draft' : 'pending',
+      paymentTerms: (input.paymentTerms || '').trim(),
+      expectedDeliveryDate: input.expectedDeliveryDate || null,
+      discountAmount: totals.discountAmount,
+      additionalExpenses: totals.additionalExpenses,
+      itemsSubtotal: totals.itemsSubtotal,
+      totalAmount: totals.totalAmount,
+      notes: (input.notes || '').trim(),
+      idempotencyKey: key,
+      cancelledReason: '',
+      cancelledAtMs: null,
+      createdByEmail: actorEmail,
+      createdAtMs: now,
+      updatedAtMs: now,
+    };
+    const items: PurchaseOrderItemRecord[] = input.items.map((item, idx) => ({
+      id: `demo_poi_${now}_${idx}`,
+      tenantId: 'demo-tenant',
+      purchaseOrderId: poId,
+      productId: item.productId,
+      packagingConversionId: item.packagingConversionId ?? null,
+      unitLabel: item.unitLabel || 'unidade',
+      conversionFactor: Math.max(0.001, roundQty(item.conversionFactor)),
+      orderedQty: roundQty(item.orderedQty),
+      orderedBaseQty: roundQty(item.orderedQty * item.conversionFactor),
+      receivedBaseQty: 0,
+      unitCost: roundUnitCost(item.unitCost),
+      totalCost: roundCurrency(item.orderedQty * item.unitCost),
+      createdAtMs: now,
+      updatedAtMs: now,
+    }));
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        purchaseOrders: [po, ...st.inventory.purchaseOrders],
+        purchaseOrderItems: [...st.inventory.purchaseOrderItems, ...items],
+      },
+    });
+    return poId;
+  },
+  updatePurchaseOrderStatus(
+    purchaseOrderId: string,
+    nextStatus: 'pending' | 'cancelled',
+    reason = '',
+  ) {
+    const st = readDemoState();
+    const now = Date.now();
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        purchaseOrders: st.inventory.purchaseOrders.map((po) =>
+          po.id === purchaseOrderId
+            ? {
+                ...po,
+                status: nextStatus,
+                cancelledReason:
+                  nextStatus === 'cancelled' ? reason.trim().slice(0, 300) : '',
+                cancelledAtMs: nextStatus === 'cancelled' ? now : po.cancelledAtMs,
+                updatedAtMs: now,
+              }
+            : po,
+        ),
+      },
+    });
+  },
+  receivePurchaseItems(
+    purchaseOrderId: string,
+    items: ReceivePurchaseItemInput[],
+    notes: string,
+    idempotencyKey: string,
+    actorEmail: string,
+  ): string {
+    const st = readDemoState();
+    const now = Date.now();
+    const existingRec = st.inventory.purchaseReceipts.find(
+      (r) => r.idempotencyKey === idempotencyKey,
+    );
+    if (existingRec) return existingRec.id;
+
+    const po = st.inventory.purchaseOrders.find((p) => p.id === purchaseOrderId);
+    if (!po || (po.status !== 'pending' && po.status !== 'partially_received')) {
+      throw new Error('Pedido de compra não está disponível para recebimento.');
+    }
+
+    const receiptNum =
+      st.inventory.purchaseReceipts
+        .filter((r) => r.purchaseOrderId === po.id)
+        .reduce((m, r) => Math.max(m, r.receiptNumber), 0) + 1;
+    const receiptId = `demo_rec_${now}_${Math.random().toString(36).slice(2, 7)}`;
+    const receipt: PurchaseReceiptRecord = {
+      id: receiptId,
+      tenantId: 'demo-tenant',
+      purchaseOrderId: po.id,
+      receiptNumber: receiptNum,
+      notes: notes.trim(),
+      idempotencyKey,
+      receivedByEmail: actorEmail,
+      receivedAtMs: now,
+    };
+
+    let nextBalances = [...st.inventory.balances];
+    const newMovements: InventoryMovementRecord[] = [];
+    const newReceiptItems: PurchaseReceiptItemRecord[] = [];
+    let nextPoItems = [...st.inventory.purchaseOrderItems];
+
+    for (const req of items) {
+      if (req.receivedQty <= 0) continue;
+      const poItem = nextPoItems.find((i) => i.id === req.purchaseOrderItemId);
+      if (!poItem) continue;
+      let recBase = roundQty(req.receivedQty * poItem.conversionFactor);
+      if (poItem.receivedBaseQty + recBase > poItem.orderedBaseQty + 0.001) {
+        throw new Error('Quantidade recebida excede o saldo pendente do item.');
+      }
+      if (Math.abs(poItem.receivedBaseQty + recBase - poItem.orderedBaseQty) <= 0.001) {
+        recBase = roundQty(poItem.orderedBaseQty - poItem.receivedBaseQty);
+      }
+      const unitCostPkg = roundUnitCost(req.unitCost ?? poItem.unitCost);
+      const totalCost = roundCurrency(req.receivedQty * unitCostPkg);
+      const baseUnitCost = roundUnitCost(totalCost / Math.max(0.001, recBase));
+
+      const existingBal = nextBalances.find((b) => b.productId === poItem.productId);
+      const prevQty = existingBal?.availableQty ?? 0;
+      const prevAvg = existingBal?.averageUnitCost ?? 0;
+      const avgCalc = computeWeightedAverageCost({
+        currentQty: prevQty,
+        currentAvgCost: prevAvg,
+        entryBaseQty: recBase,
+        entryTotalCost: totalCost,
+      });
+      const newQty = roundQty(prevQty + recBase);
+      const updatedBal: InventoryBalanceRecord = existingBal
+        ? {
+            ...existingBal,
+            availableQty: newQty,
+            averageUnitCost: avgCalc.newAverageUnitCost,
+            lastCostPrice: baseUnitCost,
+            updatedAtMs: now,
+          }
+        : {
+            id: `demo_bal_${poItem.productId}`,
+            tenantId: 'demo-tenant',
+            productId: poItem.productId,
+            availableQty: newQty,
+            reservedQty: 0,
+            minStockQty: 0,
+            averageUnitCost: avgCalc.newAverageUnitCost,
+            lastCostPrice: baseUnitCost,
+            allowNegativeStock: false,
+            createdAtMs: now,
+            updatedAtMs: now,
+          };
+      nextBalances = existingBal
+        ? nextBalances.map((b) =>
+            b.productId === poItem.productId ? updatedBal : b,
+          )
+        : [...nextBalances, updatedBal];
+
+      const movId = `demo_mov_rec_${now}_${poItem.id}`;
+      newMovements.push({
+        id: movId,
+        tenantId: 'demo-tenant',
+        productId: poItem.productId,
+        movementType: 'purchase_receipt',
+        direction: 'in',
+        inputQuantity: roundQty(req.receivedQty),
+        inputUnit: poItem.unitLabel,
+        conversionFactorUsed: poItem.conversionFactor,
+        baseQuantity: recBase,
+        previousBalance: prevQty,
+        newBalance: newQty,
+        unitCost: baseUnitCost,
+        totalCost,
+        previousAvgCost: prevAvg,
+        newAvgCost: avgCalc.newAverageUnitCost,
+        reason: `Recebimento Compra #${po.orderNumber} (Rec. #${receiptNum})`,
+        notes: notes.trim(),
+        originType: 'purchase_receipt',
+        originId: receiptId,
+        supplierId: po.supplierId,
+        packagingConversionId: poItem.packagingConversionId,
+        idempotencyKey: `${idempotencyKey}:${poItem.id}`,
+        actorUserId: 'demo-owner',
+        actorEmail,
+        createdAtMs: now,
+      });
+      newReceiptItems.push({
+        id: `demo_reci_${now}_${poItem.id}`,
+        tenantId: 'demo-tenant',
+        receiptId,
+        purchaseOrderItemId: poItem.id,
+        productId: poItem.productId,
+        receivedQty: roundQty(req.receivedQty),
+        unitLabel: poItem.unitLabel,
+        conversionFactor: poItem.conversionFactor,
+        receivedBaseQty: recBase,
+        unitCost: baseUnitCost,
+        totalCost,
+        movementId: movId,
+        createdAtMs: now,
+      });
+      nextPoItems = nextPoItems.map((i) =>
+        i.id === poItem.id
+          ? { ...i, receivedBaseQty: roundQty(i.receivedBaseQty + recBase), updatedAtMs: now }
+          : i,
+      );
+    }
+
+    if (newReceiptItems.length === 0) {
+      throw new Error('Informe ao menos uma quantidade recebida maior que zero.');
+    }
+
+    const poItemsAfter = nextPoItems.filter((i) => i.purchaseOrderId === po.id);
+    const allDone = poItemsAfter.every(
+      (i) => i.receivedBaseQty >= i.orderedBaseQty - 0.001,
+    );
+    const nextOrderStatus = allDone ? 'received' : 'partially_received';
+
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        balances: nextBalances,
+        movements: [...newMovements, ...st.inventory.movements],
+        purchaseOrders: st.inventory.purchaseOrders.map((p) =>
+          p.id === po.id ? { ...p, status: nextOrderStatus, updatedAtMs: now } : p,
+        ),
+        purchaseOrderItems: nextPoItems,
+        purchaseReceipts: [receipt, ...st.inventory.purchaseReceipts],
+        purchaseReceiptItems: [...st.inventory.purchaseReceiptItems, ...newReceiptItems],
+      },
+    });
+    return receiptId;
+  },
+  startInventoryCount(
+    title: string,
+    productIds: string[] | null,
+    notes: string,
+    idempotencyKey: string,
+    actorEmail: string,
+  ): string {
+    const st = readDemoState();
+    const now = Date.now();
+    const existing = st.inventory.inventoryCounts.find(
+      (c) => c.idempotencyKey === idempotencyKey,
+    );
+    if (existing) return existing.id;
+
+    const targetProducts = productIds
+      ? st.products.filter((p) => productIds.includes(p.id))
+      : st.products.filter((p) => p.active);
+    if (targetProducts.length === 0) {
+      throw new Error('Nenhum produto elegível para iniciar inventário.');
+    }
+    const nextNum =
+      st.inventory.inventoryCounts.reduce(
+        (m, c) => Math.max(m, c.countNumber),
+        0,
+      ) + 1;
+    const countId = `demo_cnt_${now}_${Math.random().toString(36).slice(2, 7)}`;
+    const count: InventoryCountRecord = {
+      id: countId,
+      tenantId: 'demo-tenant',
+      countNumber: nextNum,
+      title: title.trim(),
+      status: 'open',
+      notes: notes.trim(),
+      startedByEmail: actorEmail,
+      finalizedByEmail: '',
+      finalizedAtMs: null,
+      idempotencyKey,
+      createdAtMs: now,
+      updatedAtMs: now,
+    };
+    const items: InventoryCountItemRecord[] = targetProducts.map((p, idx) => {
+      const bal = st.inventory.balances.find((b) => b.productId === p.id);
+      return {
+        id: `demo_cnti_${now}_${idx}`,
+        tenantId: 'demo-tenant',
+        countId,
+        productId: p.id,
+        expectedQty: bal?.availableQty ?? 0,
+        countedQty: null,
+        differenceQty: 0,
+        unitCostSnapshot: roundUnitCost(bal?.averageUnitCost ?? p.costPrice ?? 0),
+        estimatedDifferenceValue: 0,
+        adjustmentMovementId: null,
+        notes: '',
+        createdAtMs: now,
+        updatedAtMs: now,
+      };
+    });
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        inventoryCounts: [count, ...st.inventory.inventoryCounts],
+        inventoryCountItems: [...st.inventory.inventoryCountItems, ...items],
+      },
+    });
+    return countId;
+  },
+  saveInventoryCountItems(
+    countId: string,
+    updates: Array<{ countItemId: string; countedQty: number | null; notes?: string }>,
+  ) {
+    const st = readDemoState();
+    const now = Date.now();
+    const updateMap = new Map(updates.map((u) => [u.countItemId, u]));
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        inventoryCountItems: st.inventory.inventoryCountItems.map((item) => {
+          if (item.countId !== countId) return item;
+          const u = updateMap.get(item.id);
+          if (!u) return item;
+          const counted =
+            u.countedQty !== null ? Math.max(0, roundQty(u.countedQty)) : null;
+          const diff =
+            counted !== null ? roundQty(counted - item.expectedQty) : 0;
+          return {
+            ...item,
+            countedQty: counted,
+            differenceQty: diff,
+            estimatedDifferenceValue:
+              counted !== null
+                ? roundCurrency(diff * item.unitCostSnapshot)
+                : 0,
+            notes: u.notes !== undefined ? u.notes.trim() : item.notes,
+            updatedAtMs: now,
+          };
+        }),
+      },
+    });
+  },
+  finalizeInventoryCount(countId: string, actorEmail: string) {
+    const st = readDemoState();
+    const now = Date.now();
+    const count = st.inventory.inventoryCounts.find((c) => c.id === countId);
+    if (!count || count.status !== 'open') {
+      throw new Error('Inventário não encontrado ou já encerrado.');
+    }
+    const items = st.inventory.inventoryCountItems.filter(
+      (i) => i.countId === countId && i.countedQty !== null,
+    );
+    if (items.length === 0) {
+      throw new Error('Informe ao menos uma quantidade contada antes de finalizar.');
+    }
+
+    let nextBalances = [...st.inventory.balances];
+    const newMovs: InventoryMovementRecord[] = [];
+    const movByItemId = new Map<string, string | null>();
+
+    for (const item of items) {
+      const counted = item.countedQty!;
+      const bal = nextBalances.find((b) => b.productId === item.productId);
+      const currentQty = bal?.availableQty ?? 0;
+      const avgCost = bal?.averageUnitCost ?? item.unitCostSnapshot;
+      const delta = roundQty(counted - currentQty);
+      const product = st.products.find((p) => p.id === item.productId);
+
+      if (delta !== 0) {
+        const movId = `demo_mov_cnt_${now}_${item.id}`;
+        movByItemId.set(item.id, movId);
+        newMovs.push({
+          id: movId,
+          tenantId: 'demo-tenant',
+          productId: item.productId,
+          movementType: 'inventory_adjustment',
+          direction: delta > 0 ? 'in' : 'out',
+          inputQuantity: Math.abs(delta),
+          inputUnit: product?.saleUnit || 'unidade',
+          conversionFactorUsed: 1,
+          baseQuantity: Math.abs(delta),
+          previousBalance: currentQty,
+          newBalance: counted,
+          unitCost: avgCost,
+          totalCost: roundCurrency(Math.abs(delta) * avgCost),
+          previousAvgCost: avgCost,
+          newAvgCost: avgCost,
+          reason: `Inventário #${count.countNumber} — ${count.title}`,
+          notes: item.notes,
+          originType: 'inventory_count',
+          originId: count.id,
+          supplierId: null,
+          packagingConversionId: null,
+          idempotencyKey: `fincnt_${count.id}:${item.id}`,
+          actorUserId: 'demo-owner',
+          actorEmail,
+          createdAtMs: now,
+        });
+        const nextBal: InventoryBalanceRecord = bal
+          ? { ...bal, availableQty: counted, updatedAtMs: now }
+          : {
+              id: `demo_bal_${item.productId}`,
+              tenantId: 'demo-tenant',
+              productId: item.productId,
+              availableQty: counted,
+              reservedQty: 0,
+              minStockQty: 0,
+              averageUnitCost: avgCost,
+              lastCostPrice: avgCost,
+              allowNegativeStock: false,
+              createdAtMs: now,
+              updatedAtMs: now,
+            };
+        nextBalances = bal
+          ? nextBalances.map((b) => (b.productId === item.productId ? nextBal : b))
+          : [...nextBalances, nextBal];
+      }
+    }
+
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        balances: nextBalances,
+        movements: [...newMovs, ...st.inventory.movements],
+        inventoryCounts: st.inventory.inventoryCounts.map((c) =>
+          c.id === countId
+            ? {
+                ...c,
+                status: 'finalized',
+                finalizedByEmail: actorEmail,
+                finalizedAtMs: now,
+                updatedAtMs: now,
+              }
+            : c,
+        ),
+        inventoryCountItems: st.inventory.inventoryCountItems.map((i) =>
+          movByItemId.has(i.id)
+            ? { ...i, adjustmentMovementId: movByItemId.get(i.id) ?? null, updatedAtMs: now }
+            : i,
+        ),
+      },
+    });
+  },
+  cancelInventoryCount(countId: string) {
+    const st = readDemoState();
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        inventoryCounts: st.inventory.inventoryCounts.map((c) =>
+          c.id === countId ? { ...c, status: 'cancelled', updatedAtMs: Date.now() } : c,
+        ),
+      },
+    });
+  },
+  setBusinessSegment(segment: BusinessSegment) {
+    const st = readDemoState();
+    writeDemoState({
+      ...st,
+      businessSegment: segment === 'adega' ? 'adega' : 'lanchonete',
+    });
+  },
+  saveAdegaComboWithComposition(
+    input: ComboInput,
+    comboId?: string,
+    tenantId = 'demo-tenant',
+  ): string {
+    const st = readDemoState();
+    const editingIds = new Set(st.combos.map((c) => c.id));
+    const rawComponents =
+      input.components && input.components.length > 0
+        ? input.components
+        : (input.items || []).map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            conversionFactor: 1,
+          }));
+
+    const { comboInput } = validateAdegaComboInput({
+      name: input.name,
+      description: input.description,
+      category: input.category,
+      notes: input.notes,
+      salePrice: input.salePrice,
+      active: input.active,
+      imageUrl: input.imageUrl,
+      imagePath: input.imagePath,
+      components: rawComponents,
+      products: st.products,
+      balances: st.inventory.balances,
+      packagingConversions: st.inventory.packagingConversions,
+      editingComboIds: editingIds,
+    });
+
+    const now = Date.now();
+    const targetId =
+      comboId?.trim() ||
+      input.preferredId?.trim() ||
+      `demo_combo_${now}_${Math.random().toString(36).slice(2, 7)}`;
+
+    const componentRows = buildComboComponentRowsFromDraft(
+      tenantId,
+      targetId,
+      comboInput.components || [],
+      st.products,
+      st.inventory.balances,
+      st.inventory.packagingConversions,
+    );
+
+    const existing = st.combos.find((c) => c.id === targetId);
+    if (existing) {
+      writeDemoState({
+        ...st,
+        combos: st.combos.map((c) =>
+          c.id === targetId
+            ? {
+                ...c,
+                name: comboInput.name,
+                description: comboInput.description,
+                category: comboInput.category || '',
+                notes: comboInput.notes || '',
+                items: comboInput.items,
+                components: componentRows,
+                salePrice: comboInput.salePrice,
+                estimatedCost: comboInput.estimatedCost,
+                active: comboInput.active,
+                imageUrl: comboInput.imageUrl || '',
+                imagePath: comboInput.imagePath || '',
+                updatedAtMs: now,
+              }
+            : c,
+        ),
+      });
+      return targetId;
+    }
+
+    const newRecord: ComboRecord = {
+      id: targetId,
+      ownerId: 'demo-owner',
+      name: comboInput.name,
+      description: comboInput.description,
+      category: comboInput.category || '',
+      notes: comboInput.notes || '',
+      items: comboInput.items,
+      components: componentRows,
+      salePrice: comboInput.salePrice,
+      estimatedCost: comboInput.estimatedCost,
+      active: comboInput.active,
+      imageUrl: comboInput.imageUrl || '',
+      imagePath: comboInput.imagePath || '',
+      createdAtMs: now,
+      updatedAtMs: now,
+    };
+    writeDemoState({
+      ...st,
+      combos: [...st.combos, newRecord],
+    });
+    return targetId;
+  },
+  checkComboAvailability(comboId: string, comboQuantity = 1): ComboAvailabilityResult {
+    const st = readDemoState();
+    const combo = st.combos.find((c) => c.id === comboId);
+    if (!combo) {
+      throw new Error('Combo não encontrado neste estabelecimento.');
+    }
+    return evaluateComboStockAvailability({
+      combo,
+      products: st.products,
+      balances: st.inventory.balances,
+      requestedQuantity: comboQuantity,
+    });
+  },
+  consumeComboComponents(
+    input: ConsumeComboInput,
+    actorEmail: string,
+  ): ConsumeComboResult {
+    const st = readDemoState();
+    const now = Date.now();
+    const qty = roundQty(Number(input.comboQuantity) || 1);
+    if (!Number.isFinite(qty) || qty <= 0 || qty > 10000) {
+      throw new Error('Quantidade de combos para consumo deve ser maior que zero.');
+    }
+
+    const key =
+      input.idempotencyKey?.trim() ||
+      createComboConsumptionIdempotencyKey('cmb');
+
+    const existingList = st.inventory.comboConsumptions || [];
+    const existing = existingList.find((c) => c.idempotencyKey === key);
+    if (existing) {
+      return {
+        consumptionId: existing.id,
+        comboId: existing.comboId || input.comboId,
+        comboQuantity: existing.comboQuantity,
+        totalCost: existing.totalCostSnapshot,
+        idempotentReplay: true,
+        movements: [],
+      };
+    }
+
+    const combo = st.combos.find((c) => c.id === input.comboId);
+    if (!combo) {
+      throw new Error('Combo não encontrado neste estabelecimento.');
+    }
+
+    const availability = evaluateComboStockAvailability({
+      combo,
+      products: st.products,
+      balances: st.inventory.balances,
+      requestedQuantity: qty,
+    });
+
+    if (availability.components.length === 0) {
+      throw new Error(
+        'Este combo não possui componentes configurados para baixa de estoque.',
+      );
+    }
+
+    // Pre-validacao ALL-OR-NOTHING antes de deduzir qualquer saldo
+    const shortage = availability.components.find((comp) => !comp.sufficient);
+    if (shortage) {
+      throw new Error(
+        `Estoque insuficiente para "${shortage.productName}" ao consumir o combo "${combo.name}" (disponível: ${shortage.availableQty}, necessário: ${shortage.requiredTotalBase}).`,
+      );
+    }
+
+    const consumptionId = `demo_cmb_cons_${now}_${Math.random().toString(36).slice(2, 7)}`;
+    const originType = input.originType || 'combo_consumption';
+    const originId = input.originId ?? null;
+    const cleanNotes = String(input.notes || '').trim().slice(0, 600);
+
+    const productMap = new Map(st.products.map((p) => [p.id, p]));
+    let nextBalances = [...st.inventory.balances];
+    const createdMovements: InventoryMovementRecord[] = [];
+    const createdItems: ComboConsumptionItemSnapshot[] = [];
+    const resultMovements: ConsumeComboResult['movements'] = [];
+    let totalCostSnapshot = 0;
+
+    // Ordenado deterministicamente por productId como na RPC SQL
+    const sortedComps = [...availability.components].sort((a, b) =>
+      a.productId.localeCompare(b.productId),
+    );
+
+    const originalCompByProd = new Map(
+      (combo.components || []).map((cc) => [cc.productId, cc]),
+    );
+
+    for (const comp of sortedComps) {
+      const prod = productMap.get(comp.productId);
+      const origComp = originalCompByProd.get(comp.productId);
+      const bal = nextBalances.find((b) => b.productId === comp.productId);
+      const prevQty = roundQty(bal?.availableQty ?? 0);
+      const nextQty = roundQty(prevQty - comp.requiredTotalBase);
+      const unitCost = resolveComponentUnitCost(
+        prod || { costPrice: origComp?.unitCostSnapshot ?? 0 },
+        bal,
+      );
+      const lineCost = roundCurrency(comp.requiredTotalBase * unitCost);
+      totalCostSnapshot = roundCurrency(totalCostSnapshot + lineCost);
+
+      const movId = `demo_mov_cmb_${now}_${comp.productId}_${Math.random().toString(36).slice(2, 6)}`;
+      const avgCost = bal?.averageUnitCost ?? unitCost;
+      const inputDeducted = roundQty(comp.requiredPerComboInput * qty);
+
+      createdMovements.push({
+        id: movId,
+        tenantId: 'demo-tenant',
+        productId: comp.productId,
+        movementType: 'combo_consumption',
+        direction: 'out',
+        inputQuantity: inputDeducted,
+        inputUnit: comp.unitLabel,
+        conversionFactorUsed: comp.conversionFactor,
+        baseQuantity: comp.requiredTotalBase,
+        previousBalance: prevQty,
+        newBalance: nextQty,
+        unitCost,
+        totalCost: lineCost,
+        previousAvgCost: avgCost,
+        newAvgCost: avgCost,
+        reason: `Consumo de combo: ${combo.name} (${qty}x)`,
+        notes: cleanNotes,
+        originType,
+        originId: originId || consumptionId,
+        supplierId: null,
+        packagingConversionId: origComp?.packagingConversionId ?? null,
+        idempotencyKey: `${key}:${comp.productId}`,
+        actorUserId: 'demo-owner',
+        actorEmail,
+        createdAtMs: now,
+      });
+
+      const updatedBal: InventoryBalanceRecord = bal
+        ? { ...bal, availableQty: nextQty, updatedAtMs: now }
+        : {
+            id: `demo_bal_${comp.productId}`,
+            tenantId: 'demo-tenant',
+            productId: comp.productId,
+            availableQty: nextQty,
+            reservedQty: 0,
+            minStockQty: 0,
+            averageUnitCost: unitCost,
+            lastCostPrice: unitCost,
+            allowNegativeStock: false,
+            createdAtMs: now,
+            updatedAtMs: now,
+          };
+
+      nextBalances = bal
+        ? nextBalances.map((b) => (b.productId === comp.productId ? updatedBal : b))
+        : [...nextBalances, updatedBal];
+
+      createdItems.push({
+        id: `demo_cmb_item_${now}_${comp.productId}`,
+        tenantId: 'demo-tenant',
+        consumptionId,
+        productId: comp.productId,
+        productNameSnapshot: comp.productName,
+        componentQtyPerCombo: comp.requiredPerComboInput,
+        unitLabel: comp.unitLabel,
+        conversionFactor: comp.conversionFactor,
+        baseQtyPerCombo: comp.requiredPerComboBase,
+        totalBaseQtyDeducted: comp.requiredTotalBase,
+        unitCostSnapshot: unitCost,
+        totalCostSnapshot: lineCost,
+        movementId: movId,
+        createdAtMs: now,
+      });
+
+      resultMovements.push({
+        productId: comp.productId,
+        movementId: movId,
+        deductedBaseQty: comp.requiredTotalBase,
+        newBalance: nextQty,
+      });
+    }
+
+    const consumptionRecord: ComboConsumptionRecord = {
+      id: consumptionId,
+      tenantId: 'demo-tenant',
+      comboId: combo.id,
+      comboNameSnapshot: combo.name,
+      comboQuantity: qty,
+      salePriceSnapshot: combo.salePrice,
+      totalCostSnapshot,
+      originType,
+      originId,
+      notes: cleanNotes,
+      idempotencyKey: key,
+      actorUserId: 'demo-owner',
+      actorEmail,
+      createdAtMs: now,
+      items: createdItems,
+    };
+
+    writeDemoState({
+      ...st,
+      inventory: {
+        ...st.inventory,
+        balances: nextBalances,
+        movements: [...createdMovements, ...st.inventory.movements],
+        comboConsumptions: [consumptionRecord, ...existingList],
+      },
+    });
+
+    return {
+      consumptionId,
+      comboId: combo.id,
+      comboQuantity: qty,
+      totalCost: totalCostSnapshot,
+      idempotentReplay: false,
+      movements: resultMovements,
+    };
+  },
 };
+
 

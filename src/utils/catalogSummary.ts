@@ -148,7 +148,9 @@ export function filterProductsForCatalog(
       return false;
     }
     if (query) {
-      const hay = `${p.name} ${p.category} ${p.unitPrice.toFixed(2)}`.toLowerCase();
+      const volumeText =
+        p.volumeValue && p.volumeUnit ? `${p.volumeValue}${p.volumeUnit} ${p.volumeValue} ${p.volumeUnit}` : '';
+      const hay = `${p.name} ${p.category} ${p.unitPrice.toFixed(2)} ${p.brand || ''} ${p.barcode || ''} ${p.internalCode || ''} ${p.description || ''} ${volumeText}`.toLowerCase();
       if (!hay.includes(query)) return false;
     }
     return true;
@@ -160,15 +162,21 @@ export function filterCombosForCatalog(
   filters: {
     search: string;
     status: CatalogStatusFilter;
+    category?: string;
   },
 ): ComboRecord[] {
   const query = filters.search.trim().toLowerCase();
+  const catFilter = (filters.category || 'all').trim().toLowerCase();
   return combos.filter((c) => {
     if (filters.status === 'active' && !c.active) return false;
     if (filters.status === 'inactive' && c.active) return false;
+    if (catFilter !== 'all') {
+      const comboCat = (c.category || '').trim().toLowerCase();
+      if (comboCat !== catFilter) return false;
+    }
     if (query) {
       const itemsText = c.items.map((i) => i.productName).join(' ');
-      const hay = `${c.name} ${c.description} ${itemsText}`.toLowerCase();
+      const hay = `${c.name} ${c.description} ${c.category || ''} ${itemsText}`.toLowerCase();
       if (!hay.includes(query)) return false;
     }
     return true;

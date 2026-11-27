@@ -12,6 +12,7 @@ import type {
 import { DigitalMenuSettingsPanel } from './DigitalMenuSettingsPanel';
 import { SettingsAccountCenter } from './SettingsAccountCenter';
 import type { TenantContext } from '../types/finance';
+import { resolveTenantSegment } from '../services/segmentEngine';
 import { ProductsCombosManager } from './ProductsCombosManager';
 
 interface SettingsViewProps {
@@ -463,6 +464,7 @@ export function SettingsView({
       ) : (
         <ProductsCombosManager
           workspaceId={workspaceId}
+          businessSegment={resolveTenantSegment(tenant)}
           products={products}
           combos={combos}
           defaultXSaladaPrice={settings.xSaladaPrice}

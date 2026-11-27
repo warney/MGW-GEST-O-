@@ -12,11 +12,22 @@ import {
   Store,
   User,
 } from 'lucide-react';
+import {
+  getSegmentConfig,
+  getSignupSegmentOptions,
+  normalizeBusinessSegment,
+} from '../services/segmentEngine';
+import type { BusinessSegment } from '../types/segments';
 
 interface StoreOnboardingScreenProps {
   accountEmail: string;
   initialStoreName?: string;
-  onComplete: (storeName: string, ownerName: string) => Promise<void>;
+  initialBusinessSegment?: BusinessSegment;
+  onComplete: (
+    storeName: string,
+    ownerName: string,
+    businessSegment?: BusinessSegment,
+  ) => Promise<void>;
   onLogout: () => Promise<void>;
   onSubscribe: (tenantId: string) => Promise<void>;
   onSubscribePix: (tenantId: string) => Promise<{ paymentId: string; amountCents: number; qrCode: string; qrCodeBase64: string; ticketUrl: string; expiresAt: string | null }>;
@@ -44,6 +55,7 @@ const ONBOARDING_ROADMAP_ITEMS = [
 export function StoreOnboardingScreen({
   accountEmail,
   initialStoreName = '',
+  initialBusinessSegment,
   onComplete,
   onLogout,
   onSubscribe,
@@ -56,6 +68,9 @@ export function StoreOnboardingScreen({
       : '';
   const [storeName, setStoreName] = useState(defaultDraft);
   const [ownerName, setOwnerName] = useState('');
+  const [businessSegment, setBusinessSegment] = useState<BusinessSegment>(() =>
+    normalizeBusinessSegment(initialBusinessSegment),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +132,7 @@ export function StoreOnboardingScreen({
 
     setSubmitting(true);
     try {
-      await onComplete(cleanStoreName, ownerName.trim());
+      await onComplete(cleanStoreName, ownerName.trim(), businessSegment);
     } catch (err) {
       setError(
         err instanceof Error
@@ -328,6 +343,43 @@ export function StoreOnboardingScreen({
               className="space-y-3.5"
             >
               <div>
+                <span className="block text-xs font-semibold text-[#172033] mb-1.5">
+                  Tipo de estabelecimento *
+                </span>
+                <div
+                  role="group"
+                  aria-label="Tipo de estabelecimento"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                >
+                  {getSignupSegmentOptions().map((option) => {
+                    const selected = businessSegment === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        disabled={submitting}
+                        aria-pressed={selected}
+                        data-segment-option={option.id}
+                        onClick={() => setBusinessSegment(option.id)}
+                        className={`text-left rounded-xl border px-3 py-2.5 transition-all cursor-pointer disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172033] ${
+                          selected
+                            ? 'border-[#F5B900] bg-[#FFFBEB] shadow-xs'
+                            : 'border-[#E8EAF0] bg-[#F8F9FC] hover:bg-white'
+                        }`}
+                      >
+                        <span className="block text-xs font-bold text-[#172033]">
+                          {option.label}
+                        </span>
+                        <span className="block text-[11px] text-[#778094] leading-snug mt-0.5">
+                          {option.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
                 <label
                   htmlFor="onboarding-store-name"
                   className="block text-xs font-semibold text-[#172033] mb-1.5"
@@ -351,7 +403,13 @@ export function StoreOnboardingScreen({
                       setStoreName(e.target.value);
                       if (error) setError(null);
                     }}
-                    placeholder="Ex: Lanchonete do Centro"
+                    placeholder={
+                      businessSegment === 'adega'
+                        ? 'Ex: Adega Central'
+                        : getSegmentConfig(businessSegment).commercialIdentity.establishmentPlaceholder === 'Minha Lanchonete'
+                          ? 'Ex: Lanchonete do Centro'
+                          : getSegmentConfig(businessSegment).commercialIdentity.establishmentPlaceholder
+                    }
                     className="w-full min-h-[46px] pl-10 pr-3.5 rounded-xl bg-[#F8F9FC] border border-[#E8EAF0] focus:bg-white focus:border-[#F5B900] focus:outline-none focus:ring-4 focus:ring-[#F5B900]/15 text-sm text-[#172033] placeholder:text-[#9AA3B5] transition-colors"
                   />
                 </div>

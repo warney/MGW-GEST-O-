@@ -349,7 +349,7 @@ export function computeCartSummary(
       });
     } else {
       const combo = comboMap.get(raw.id);
-      if (!combo) {
+      if (!combo || combo.isAvailable === false) {
         missingItems.push(raw);
         continue;
       }

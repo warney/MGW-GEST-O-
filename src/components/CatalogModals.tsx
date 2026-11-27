@@ -13,8 +13,11 @@ import type {
   ComboProductItem,
   ComboRecord,
   ProductCategory,
+  ProductPackageType,
   ProductRecord,
+  ProductSaleUnit,
 } from '../types/finance';
+import type { BusinessSegment } from '../types/segments';
 import type {
   AddonGroupRuleInput,
   CatalogAddonGroup,
@@ -22,6 +25,18 @@ import type {
   CatalogCategoryRecord,
 } from '../utils/catalogSummary';
 import { formatCurrencyBRL } from '../utils/finance';
+import {
+  calculateProductFinancials,
+  isValidBarcodeFormat,
+  normalizeBarcodeInput,
+  parseLocaleDecimalInput,
+  PRODUCT_PACKAGE_TYPES,
+  PRODUCT_PACKAGE_TYPE_LABELS,
+  PRODUCT_SALE_UNITS,
+  PRODUCT_SALE_UNIT_LABELS,
+  PRODUCT_VOLUME_UNITS,
+  PRODUCT_VOLUME_UNIT_LABELS,
+} from '../utils/universalProducts';
 import { ImageUploadField } from './ImageUploadField';
 
 function useEscapeClose(open: boolean, onClose: () => void) {
@@ -37,6 +52,7 @@ function useEscapeClose(open: boolean, onClose: () => void) {
 
 interface ProductFormModalProps {
   open: boolean;
+  businessSegment?: BusinessSegment;
   editingProduct: ProductRecord | null;
   draftProductId: string;
   workspaceId: string;
@@ -63,10 +79,36 @@ interface ProductFormModalProps {
   errorMessage: string | null;
   onClose: () => void;
   onSubmit: (e: React.FormEvent) => void;
+  // Campos universais (renderizados no segmento Adega sem afetar Lanchonete)
+  prodDescription?: string;
+  onProdDescriptionChange?: (val: string) => void;
+  prodInternalCode?: string;
+  onProdInternalCodeChange?: (val: string) => void;
+  prodCostPrice?: string;
+  onProdCostPriceChange?: (val: string) => void;
+  prodBrand?: string;
+  onProdBrandChange?: (val: string) => void;
+  availableBrands?: string[];
+  prodNotes?: string;
+  onProdNotesChange?: (val: string) => void;
+  prodBarcode?: string;
+  onProdBarcodeChange?: (val: string) => void;
+  barcodeDuplicateProductName?: string | null;
+  prodVolumeValue?: string;
+  onProdVolumeValueChange?: (val: string) => void;
+  prodVolumeUnit?: string;
+  onProdVolumeUnitChange?: (val: string) => void;
+  prodSaleUnit?: ProductSaleUnit;
+  onProdSaleUnitChange?: (val: ProductSaleUnit) => void;
+  prodPackageType?: ProductPackageType;
+  onProdPackageTypeChange?: (val: ProductPackageType) => void;
+  prodUnitsPerPackage?: string;
+  onProdUnitsPerPackageChange?: (val: string) => void;
 }
 
 export function ProductFormModal({
   open,
+  businessSegment = 'lanchonete',
   editingProduct,
   draftProductId,
   workspaceId,
@@ -93,12 +135,38 @@ export function ProductFormModal({
   errorMessage,
   onClose,
   onSubmit,
+  prodDescription = '',
+  onProdDescriptionChange,
+  prodInternalCode = '',
+  onProdInternalCodeChange,
+  prodCostPrice = '',
+  onProdCostPriceChange,
+  prodBrand = '',
+  onProdBrandChange,
+  availableBrands = [],
+  prodNotes = '',
+  onProdNotesChange,
+  prodBarcode = '',
+  onProdBarcodeChange,
+  barcodeDuplicateProductName = null,
+  prodVolumeValue = '',
+  onProdVolumeValueChange,
+  prodVolumeUnit = '',
+  onProdVolumeUnitChange,
+  prodSaleUnit = 'unidade',
+  onProdSaleUnitChange,
+  prodPackageType = 'individual',
+  onProdPackageTypeChange,
+  prodUnitsPerPackage = '1',
+  onProdUnitsPerPackageChange,
 }: ProductFormModalProps) {
   useEscapeClose(open, () => {
     if (!saving) onClose();
   });
 
   if (!open || typeof document === 'undefined') return null;
+
+  const isAdega = businessSegment === 'adega';
 
   const categoryOptions = selectableCategories.some(
     (c) => c.toLowerCase() === prodCategory.trim().toLowerCase(),
@@ -107,6 +175,19 @@ export function ProductFormModal({
     : prodCategory.trim()
       ? [prodCategory.trim(), ...selectableCategories]
       : selectableCategories;
+
+  const parsedPricePreview = parseLocaleDecimalInput(prodPrice);
+  const parsedCostPreview = prodCostPrice.trim()
+    ? parseLocaleDecimalInput(prodCostPrice)
+    : 0;
+  const financialsPreview = calculateProductFinancials({
+    unitPrice: Number.isFinite(parsedPricePreview) ? parsedPricePreview : 0,
+    costPrice: Number.isFinite(parsedCostPreview) ? parsedCostPreview : 0,
+  });
+  const normalizedBarcodePreview = normalizeBarcodeInput(prodBarcode);
+  const hasInvalidBarcodePreview =
+    normalizedBarcodePreview !== null &&
+    !isValidBarcodeFormat(normalizedBarcodePreview);
 
   return createPortal(
     <div
@@ -133,7 +214,9 @@ export function ProductFormModal({
                 : 'Cadastrar Novo Produto'}
             </h3>
             <p className="text-xs text-[#778094] mt-0.5">
-              Defina nome, categoria, preço, foto e grupos de adicionais.
+              {isAdega
+                ? 'Segmento Adega · Configure identificação, preços, custos, volume, embalagem e código de barras.'
+                : 'Defina nome, categoria, preço, foto e grupos de adicionais.'}
             </p>
           </div>
           <button
@@ -158,93 +241,530 @@ export function ProductFormModal({
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-2">
-              <label
-                htmlFor="prod-name"
-                className="block text-xs font-semibold text-[#172033] mb-1.5"
-              >
-                Nome do produto
-              </label>
-              <input
-                id="prod-name"
-                type="text"
-                maxLength={80}
-                placeholder="Ex: X-Salada, Refrigerante Tuchaua 250 ml"
-                value={prodName}
-                onChange={(e) => onProdNameChange(e.target.value)}
-                required
-                className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
-              />
-            </div>
+          {isAdega ? (
+            <>
+              {/* 1. Informações básicas */}
+              <section className="rounded-xl border border-[#E8EAF0] bg-white p-4 space-y-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-xs font-bold text-[#172033]">
+                      1. Informações básicas
+                    </h4>
+                    <p className="text-[11px] text-[#778094]">
+                      Identificação principal, categoria e disponibilidade do produto.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-lg bg-[#FFFBEB] border border-[#FDE68A] text-[11px] font-semibold text-[#92400E]">
+                    Segmento: Adega
+                  </span>
+                </div>
 
-            <div>
-              <label
-                htmlFor="prod-cat"
-                className="block text-xs font-semibold text-[#172033] mb-1.5"
-              >
-                Categoria
-              </label>
-              <select
-                id="prod-cat"
-                value={prodCategory}
-                onChange={(e) =>
-                  onProdCategoryChange(e.target.value as ProductCategory)
-                }
-                className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
-              >
-                {categoryOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label
+                      htmlFor="prod-name"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Nome do produto
+                    </label>
+                    <input
+                      id="prod-name"
+                      type="text"
+                      maxLength={80}
+                      placeholder="Ex: Cerveja Heineken Long Neck, Gin Tanqueray"
+                      value={prodName}
+                      onChange={(e) => onProdNameChange(e.target.value)}
+                      required
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                    />
+                  </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-            <div>
-              <label
-                htmlFor="prod-price"
-                className="block text-xs font-semibold text-[#172033] mb-1.5"
-              >
-                Preço de venda individual (R$)
-              </label>
-              <input
-                id="prod-price"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={prodPrice}
-                onChange={(e) => onProdPriceChange(e.target.value)}
-                required
-                className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033] font-mono tabular-nums"
-              />
-            </div>
+                  <div>
+                    <label
+                      htmlFor="prod-cat"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Categoria
+                    </label>
+                    <select
+                      id="prod-cat"
+                      value={prodCategory}
+                      onChange={(e) =>
+                        onProdCategoryChange(e.target.value as ProductCategory)
+                      }
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                    >
+                      {categoryOptions.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-            <div className="space-y-2.5 sm:pt-6">
-              <label className="flex items-center gap-2.5 text-xs font-medium text-[#172033] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={prodCountsXSalada}
-                  onChange={(e) => onProdCountsXSaladaChange(e.target.checked)}
-                  className="w-4 h-4 accent-[#F5B900] rounded"
-                />
-                <span>Contabiliza como X-Salada nos indicadores</span>
-              </label>
-              <label className="flex items-center gap-2.5 text-xs font-medium text-[#172033] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={prodActive}
-                  onChange={(e) => onProdActiveChange(e.target.checked)}
-                  className="w-4 h-4 accent-[#F5B900] rounded"
-                />
-                <span>Produto ativo e disponível no cardápio</span>
-              </label>
-            </div>
-          </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label
+                      htmlFor="prod-internal-code"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Código interno (opcional)
+                    </label>
+                    <input
+                      id="prod-internal-code"
+                      type="text"
+                      maxLength={40}
+                      placeholder="Ex: ADG-001"
+                      value={prodInternalCode}
+                      onChange={(e) => onProdInternalCodeChange?.(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033] font-mono"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label
+                      htmlFor="prod-description"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Descrição (opcional)
+                    </label>
+                    <input
+                      id="prod-description"
+                      type="text"
+                      maxLength={400}
+                      placeholder="Ex: Garrafa gelada, ideal para combos ou consumo direto"
+                      value={prodDescription}
+                      onChange={(e) => onProdDescriptionChange?.(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2.5 text-xs font-medium text-[#172033] cursor-pointer pt-1">
+                  <input
+                    type="checkbox"
+                    checked={prodActive}
+                    onChange={(e) => onProdActiveChange(e.target.checked)}
+                    className="w-4 h-4 accent-[#F5B900] rounded"
+                  />
+                  <span>Produto ativo e disponível para venda e cardápio</span>
+                </label>
+              </section>
+
+              {/* 2. Informações comerciais */}
+              <section className="rounded-xl border border-[#E8EAF0] bg-white p-4 space-y-3.5">
+                <div>
+                  <h4 className="text-xs font-bold text-[#172033]">
+                    2. Informações comerciais e margem
+                  </h4>
+                  <p className="text-[11px] text-[#778094]">
+                    Defina preço de venda, custo de aquisição, marca e observações internas.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label
+                      htmlFor="prod-price"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Preço de venda (R$)
+                    </label>
+                    <input
+                      id="prod-price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                      value={prodPrice}
+                      onChange={(e) => onProdPriceChange(e.target.value)}
+                      required
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033] font-mono tabular-nums"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="prod-cost-price"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Custo de aquisição (R$) (opcional)
+                    </label>
+                    <input
+                      id="prod-cost-price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                      value={prodCostPrice}
+                      onChange={(e) => onProdCostPriceChange?.(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033] font-mono tabular-nums"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  className={`rounded-xl border p-3 text-xs ${
+                    financialsPreview.hasValidCost &&
+                    financialsPreview.grossProfitPerUnit !== null &&
+                    financialsPreview.grossProfitPerUnit < 0
+                      ? 'bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]'
+                      : financialsPreview.hasValidCost
+                        ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]'
+                        : 'bg-[#F7F8FC] border-[#E8EAF0] text-[#778094]'
+                  }`}
+                >
+                  {financialsPreview.hasValidCost &&
+                  financialsPreview.grossProfitPerUnit !== null ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="font-semibold">Lucro bruto unitário: </span>
+                        <span className="font-mono font-bold tabular-nums">
+                          {formatCurrencyBRL(financialsPreview.grossProfitPerUnit)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Margem bruta sobre venda: </span>
+                        <span className="font-mono font-bold tabular-nums">
+                          {financialsPreview.marginPercent !== null
+                            ? `${financialsPreview.marginPercent.toFixed(2).replace('.', ',')}%`
+                            : '—'}
+                        </span>
+                      </div>
+                      <p className="w-full text-[11px] opacity-80">
+                        Estimativa unitária (venda - custo de aquisição). Não representa lucro líquido.
+                      </p>
+                    </div>
+                  ) : (
+                    <p>
+                      Informe o custo de aquisição acima de R$ 0,00 para calcular margem e lucro bruto unitário.
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label
+                      htmlFor="prod-brand"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Marca (opcional)
+                    </label>
+                    <input
+                      id="prod-brand"
+                      type="text"
+                      maxLength={80}
+                      list="adega-product-brands"
+                      placeholder="Ex: Heineken, Red Bull, Smirnoff"
+                      value={prodBrand}
+                      onChange={(e) => onProdBrandChange?.(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                    />
+                    <datalist id="adega-product-brands">
+                      {availableBrands.map((brandName) => (
+                        <option key={brandName} value={brandName} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="prod-notes"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Observações internas (opcional)
+                    </label>
+                    <input
+                      id="prod-notes"
+                      type="text"
+                      maxLength={400}
+                      placeholder="Ex: Vender gelada, embalagem retornável..."
+                      value={prodNotes}
+                      onChange={(e) => onProdNotesChange?.(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* 3. Identificação, volume e embalagem */}
+              <section className="rounded-xl border border-[#E8EAF0] bg-white p-4 space-y-3.5">
+                <div>
+                  <h4 className="text-xs font-bold text-[#172033]">
+                    3. Código de barras, volume e embalagem
+                  </h4>
+                  <p className="text-[11px] text-[#778094]">
+                    Campos opcionais e padronizados para leitura por código de barras, volume e estrutura de pacotes/fardos.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="prod-barcode"
+                    className="block text-xs font-semibold text-[#172033] mb-1.5"
+                  >
+                    Código de barras (EAN / GTIN opcional)
+                  </label>
+                  <input
+                    id="prod-barcode"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={18}
+                    placeholder="Digite ou utilize o leitor USB (8 a 14 dígitos)"
+                    value={prodBarcode}
+                    onChange={(e) => onProdBarcodeChange?.(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                      }
+                    }}
+                    className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033] font-mono tabular-nums"
+                  />
+                  {barcodeDuplicateProductName ? (
+                    <p className="text-[11px] font-medium text-[#B91C1C] mt-1">
+                      Este código de barras já está cadastrado em &ldquo;{barcodeDuplicateProductName}&rdquo; neste estabelecimento.
+                    </p>
+                  ) : hasInvalidBarcodePreview ? (
+                    <p className="text-[11px] font-medium text-[#B45309] mt-1">
+                      Informe de 8 a 14 dígitos numéricos para o código de barras.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-[#778094] mt-1">
+                      Compatível com leitores de código de barras em modo teclado (Enter automático protegido).
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label
+                      htmlFor="prod-volume-value"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Volume / Quantidade
+                    </label>
+                    <input
+                      id="prod-volume-value"
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      placeholder="Ex: 350, 473, 1, 2"
+                      value={prodVolumeValue}
+                      onChange={(e) => onProdVolumeValueChange?.(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033] font-mono tabular-nums"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="prod-volume-unit"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Unidade de medida
+                    </label>
+                    <select
+                      id="prod-volume-unit"
+                      value={prodVolumeUnit}
+                      onChange={(e) => onProdVolumeUnitChange?.(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                    >
+                      <option value="">Não informar</option>
+                      {PRODUCT_VOLUME_UNITS.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {PRODUCT_VOLUME_UNIT_LABELS[unit]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="prod-sale-unit"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Unidade de venda
+                    </label>
+                    <select
+                      id="prod-sale-unit"
+                      value={prodSaleUnit}
+                      onChange={(e) =>
+                        onProdSaleUnitChange?.(e.target.value as ProductSaleUnit)
+                      }
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                    >
+                      {PRODUCT_SALE_UNITS.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {PRODUCT_SALE_UNIT_LABELS[unit]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                  <div>
+                    <label
+                      htmlFor="prod-package-type"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Tipo de embalagem
+                    </label>
+                    <select
+                      id="prod-package-type"
+                      value={prodPackageType}
+                      onChange={(e) => {
+                        const nextPkg = e.target.value as ProductPackageType;
+                        onProdPackageTypeChange?.(nextPkg);
+                        if (nextPkg === 'individual') {
+                          onProdUnitsPerPackageChange?.('1');
+                        }
+                      }}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                    >
+                      {PRODUCT_PACKAGE_TYPES.map((pkg) => (
+                        <option key={pkg} value={pkg}>
+                          {PRODUCT_PACKAGE_TYPE_LABELS[pkg]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="prod-units-per-package"
+                      className="block text-xs font-semibold text-[#172033] mb-1.5"
+                    >
+                      Unidades por embalagem
+                    </label>
+                    <input
+                      id="prod-units-per-package"
+                      type="number"
+                      min="1"
+                      max="1000"
+                      step="1"
+                      inputMode="numeric"
+                      value={prodUnitsPerPackage}
+                      onChange={(e) => onProdUnitsPerPackageChange?.(e.target.value)}
+                      className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033] font-mono tabular-nums"
+                    />
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {[1, 6, 12, 24].map((presetQty) => (
+                        <button
+                          key={presetQty}
+                          type="button"
+                          onClick={() =>
+                            onProdUnitsPerPackageChange?.(String(presetQty))
+                          }
+                          className={`px-2 py-0.5 rounded-md border text-[11px] font-mono cursor-pointer transition-colors ${
+                            prodUnitsPerPackage === String(presetQty)
+                              ? 'bg-[#FFF2BE] border-[#F5B900] text-[#172033] font-bold'
+                              : 'bg-[#F7F8FC] border-[#E8EAF0] text-[#778094] hover:text-[#172033]'
+                          }`}
+                        >
+                          {presetQty === 1 ? '1 un' : `c/ ${presetQty}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label
+                    htmlFor="prod-name"
+                    className="block text-xs font-semibold text-[#172033] mb-1.5"
+                  >
+                    Nome do produto
+                  </label>
+                  <input
+                    id="prod-name"
+                    type="text"
+                    maxLength={80}
+                    placeholder="Ex: X-Salada, Refrigerante Tuchaua 250 ml"
+                    value={prodName}
+                    onChange={(e) => onProdNameChange(e.target.value)}
+                    required
+                    className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="prod-cat"
+                    className="block text-xs font-semibold text-[#172033] mb-1.5"
+                  >
+                    Categoria
+                  </label>
+                  <select
+                    id="prod-cat"
+                    value={prodCategory}
+                    onChange={(e) =>
+                      onProdCategoryChange(e.target.value as ProductCategory)
+                    }
+                    className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033]"
+                  >
+                    {categoryOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                <div>
+                  <label
+                    htmlFor="prod-price"
+                    className="block text-xs font-semibold text-[#172033] mb-1.5"
+                  >
+                    Preço de venda individual (R$)
+                  </label>
+                  <input
+                    id="prod-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={prodPrice}
+                    onChange={(e) => onProdPriceChange(e.target.value)}
+                    required
+                    className="w-full min-h-[42px] px-3.5 rounded-xl bg-white border border-[#E8EAF0] focus:border-[#F5B900] focus:outline-none text-sm text-[#172033] font-mono tabular-nums"
+                  />
+                </div>
+
+                <div className="space-y-2.5 sm:pt-6">
+                  <label className="flex items-center gap-2.5 text-xs font-medium text-[#172033] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={prodCountsXSalada}
+                      onChange={(e) => onProdCountsXSaladaChange(e.target.checked)}
+                      className="w-4 h-4 accent-[#F5B900] rounded"
+                    />
+                    <span>Contabiliza como X-Salada nos indicadores</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 text-xs font-medium text-[#172033] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={prodActive}
+                      onChange={(e) => onProdActiveChange(e.target.checked)}
+                      className="w-4 h-4 accent-[#F5B900] rounded"
+                    />
+                    <span>Produto ativo e disponível no cardápio</span>
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
 
           <section className="rounded-xl border border-[#E8EAF0] bg-white p-3.5 space-y-2.5">
             <div>

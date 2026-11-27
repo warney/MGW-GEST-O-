@@ -19,6 +19,8 @@ export const ROLE_LABELS_PT: Record<TenantRole, string> = {
 export type TenantPermission =
   | 'dashboard:view'
   | 'delivery:view'
+  | 'inventory:read'
+  | 'inventory:write'
   | 'sales:read'
   | 'sales:create'
   | 'sales:update'
@@ -42,6 +44,8 @@ export const ROLE_PERMISSIONS: Record<TenantRole, ReadonlySet<TenantPermission>>
   owner: new Set<TenantPermission>([
     'dashboard:view',
     'delivery:view',
+    'inventory:read',
+    'inventory:write',
     'sales:read',
     'sales:create',
     'sales:update',
@@ -64,6 +68,8 @@ export const ROLE_PERMISSIONS: Record<TenantRole, ReadonlySet<TenantPermission>>
   admin: new Set<TenantPermission>([
     'dashboard:view',
     'delivery:view',
+    'inventory:read',
+    'inventory:write',
     'sales:read',
     'sales:create',
     'sales:update',
@@ -84,6 +90,8 @@ export const ROLE_PERMISSIONS: Record<TenantRole, ReadonlySet<TenantPermission>>
   manager: new Set<TenantPermission>([
     'dashboard:view',
     'delivery:view',
+    'inventory:read',
+    'inventory:write',
     'sales:read',
     'sales:create',
     'sales:update',

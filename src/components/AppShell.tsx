@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   Bike,
+  Boxes,
   Building2,
   ChevronDown,
   ClipboardList,
@@ -36,6 +37,7 @@ import {
 } from '../utils/shellProfile';
 import { OfflineIndicator } from './OfflineIndicator';
 import { PWAInstallButton } from './PWAInstallButton';
+import { useSegmentConfig } from '../hooks/useSegmentConfig';
 
 const SIDEBAR_COLLAPSE_KEY = 'mgw_sidebar_collapsed';
 
@@ -55,6 +57,7 @@ interface AppShellProps {
   onNavigate: (route: AppRoute, settingsTab?: SettingsTabKind) => void;
   canViewDashboard: boolean;
   canAccessDelivery?: boolean;
+  canReadInventory?: boolean;
   canReadSales: boolean;
   canCreateSales: boolean;
   canReadExpenses: boolean;
@@ -126,6 +129,7 @@ export function AppShell({
   onNavigate,
   canViewDashboard,
   canAccessDelivery = false,
+  canReadInventory = false,
   canReadSales,
   canCreateSales,
   canReadExpenses,
@@ -148,6 +152,7 @@ export function AppShell({
   children,
   overlaysSlot,
 }: AppShellProps) {
+  const { segment: activeSegment } = useSegmentConfig(activeTenant);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     try {
       return window.localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === '1';
@@ -245,6 +250,16 @@ export function AppShell({
         icon: BarChart3,
       });
     }
+    if (activeSegment === 'adega' && canReadInventory) {
+      items.push({
+        id: 'inventory',
+        route: 'inventory',
+        section: 'main',
+        label: 'Estoque',
+        mobileLabel: 'Estoque',
+        icon: Boxes,
+      });
+    }
     if (canAccessDelivery) {
       items.push({
         id: 'delivery',
@@ -338,8 +353,10 @@ export function AppShell({
     }
     return items;
   }, [
+    activeSegment,
     canViewDashboard,
     canAccessDelivery,
+    canReadInventory,
     canReadSales,
     canCreateSales,
     canReadExpenses,
@@ -565,7 +582,10 @@ export function AppShell({
   }
 
   return (
-    <div className="mgw-app-theme min-h-screen bg-[#F5F6FA] text-[#172033] flex flex-col lg:flex-row">
+    <div
+      data-tenant-segment={activeSegment}
+      className="mgw-app-theme min-h-screen bg-[#F5F6FA] text-[#172033] flex flex-col lg:flex-row"
+    >
       {/* Desktop Sidebar */}
       <aside
         aria-label="Barra lateral"

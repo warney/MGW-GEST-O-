@@ -22,14 +22,18 @@ import {
   Trash2,
 } from 'lucide-react';
 import { deleteTenantMenuImage } from '../services/storageService';
+import { normalizeBusinessSegment } from '../services/segmentEngine';
 import type {
   ComboInput,
   ComboProductItem,
   ComboRecord,
   ProductCategory,
   ProductInput,
+  ProductPackageType,
   ProductRecord,
+  ProductSaleUnit,
 } from '../types/finance';
+import type { BusinessSegment } from '../types/segments';
 import {
   buildCatalogCategories,
   buildSelectableCategoryNames,
@@ -49,6 +53,17 @@ import {
 import { formatCurrencyBRL } from '../utils/finance';
 import { generateDraftEntityId } from '../utils/imageUpload';
 import {
+  buildProductInputFromRecord,
+  calculateProductFinancials,
+  collectTenantBrands,
+  findProductByBarcode,
+  formatProductPackagingLabel,
+  formatProductVolumeLabel,
+  normalizePackageType,
+  normalizeSaleUnit,
+  validateUniversalProductInput,
+} from '../utils/universalProducts';
+import {
   AddonGroupFormModal,
   AddonOptionEditModal,
   CatalogConfirmDeleteModal,
@@ -59,6 +74,7 @@ import {
 
 interface ProductsCombosManagerProps {
   workspaceId: string;
+  businessSegment?: BusinessSegment;
   products: ProductRecord[];
   combos: ComboRecord[];
   defaultXSaladaPrice: number;
@@ -72,6 +88,7 @@ interface ProductsCombosManagerProps {
 
 export function ProductsCombosManager({
   workspaceId,
+  businessSegment = 'lanchonete',
   products,
   combos,
   defaultXSaladaPrice,
@@ -83,6 +100,8 @@ export function ProductsCombosManager({
   isLoading = false,
 }: ProductsCombosManagerProps) {
   const effectiveWorkspaceId = workspaceId || 'mgw_lanches';
+  const resolvedSegment = normalizeBusinessSegment(businessSegment);
+  const isAdega = resolvedSegment === 'adega';
 
   const [sectionTab, setSectionTab] = useState<CatalogSectionTab>('products');
   const [feedback, setFeedback] = useState<{
@@ -132,6 +151,18 @@ export function ProductsCombosManager({
   const [prodActive, setProdActive] = useState(true);
   const [prodImageUrl, setProdImageUrl] = useState('');
   const [prodImagePath, setProdImagePath] = useState('');
+  const [prodDescription, setProdDescription] = useState('');
+  const [prodInternalCode, setProdInternalCode] = useState('');
+  const [prodCostPrice, setProdCostPrice] = useState('');
+  const [prodBrand, setProdBrand] = useState('');
+  const [prodNotes, setProdNotes] = useState('');
+  const [prodBarcode, setProdBarcode] = useState('');
+  const [prodVolumeValue, setProdVolumeValue] = useState('');
+  const [prodVolumeUnit, setProdVolumeUnit] = useState('');
+  const [prodSaleUnit, setProdSaleUnit] = useState<ProductSaleUnit>('unidade');
+  const [prodPackageType, setProdPackageType] =
+    useState<ProductPackageType>('individual');
+  const [prodUnitsPerPackage, setProdUnitsPerPackage] = useState('1');
   const [uploadingProdImage, setUploadingProdImage] = useState(false);
   const [selectedAddonGroupIds, setSelectedAddonGroupIds] = useState<string[]>(
     [],
@@ -341,10 +372,23 @@ export function ProductsCombosManager({
     [rawCategories, products],
   );
 
-  const selectableCategoryNames = useMemo(
-    () => buildSelectableCategoryNames(categories),
-    [categories],
+  const selectableCategoryNames = useMemo(() => {
+    const names = buildSelectableCategoryNames(categories);
+    if (isAdega && rawCategories.length === 0 && products.length === 0) {
+      return ['Bebida', 'Outro'];
+    }
+    return names;
+  }, [categories, isAdega, rawCategories.length, products.length]);
+
+  const availableBrands = useMemo(
+    () => collectTenantBrands(products),
+    [products],
   );
+
+  const barcodeDuplicateProduct = useMemo(() => {
+    if (!isAdega || !productFormOpen) return undefined;
+    return findProductByBarcode(products, prodBarcode, editingProduct?.id);
+  }, [isAdega, productFormOpen, products, prodBarcode, editingProduct?.id]);
 
   const filteredProducts = useMemo(
     () =>
@@ -391,12 +435,25 @@ export function ProductsCombosManager({
     setEditingProduct(null);
     setDraftProductId(generateDraftEntityId('prod'));
     setProdName('');
-    setProdCategory(selectableCategoryNames[0] || 'Lanche');
+    setProdCategory(
+      selectableCategoryNames[0] || (isAdega ? 'Bebida' : 'Lanche'),
+    );
     setProdPrice('');
     setProdCountsXSalada(false);
     setProdActive(true);
     setProdImageUrl('');
     setProdImagePath('');
+    setProdDescription('');
+    setProdInternalCode('');
+    setProdCostPrice('');
+    setProdBrand('');
+    setProdNotes('');
+    setProdBarcode('');
+    setProdVolumeValue('');
+    setProdVolumeUnit('');
+    setProdSaleUnit('unidade');
+    setProdPackageType('individual');
+    setProdUnitsPerPackage('1');
     setSelectedAddonGroupIds([]);
     setProductModalError(null);
     setProductFormOpen(true);
@@ -412,6 +469,27 @@ export function ProductsCombosManager({
     setProdActive(p.active);
     setProdImageUrl(p.imageUrl || '');
     setProdImagePath(p.imagePath || '');
+    setProdDescription(p.description || '');
+    setProdInternalCode(p.internalCode || '');
+    setProdCostPrice(
+      p.costPrice !== undefined && p.costPrice > 0 ? String(p.costPrice) : '',
+    );
+    setProdBrand(p.brand || '');
+    setProdNotes(p.notes || '');
+    setProdBarcode(p.barcode || '');
+    setProdVolumeValue(
+      p.volumeValue !== undefined && p.volumeValue !== null
+        ? String(p.volumeValue)
+        : '',
+    );
+    setProdVolumeUnit(p.volumeUnit || '');
+    setProdSaleUnit(normalizeSaleUnit(p.saleUnit));
+    setProdPackageType(normalizePackageType(p.packageType));
+    setProdUnitsPerPackage(
+      p.unitsPerPackage && p.unitsPerPackage >= 1
+        ? String(p.unitsPerPackage)
+        : '1',
+    );
     setProductModalError(null);
 
     const prelinked = addonGroups
@@ -439,21 +517,57 @@ export function ProductsCombosManager({
     if (savingProduct || uploadingProdImage) return;
     setProductModalError(null);
 
-    const cleanName = prodName.trim();
-    const parsedPrice = Number(String(prodPrice).replace(',', '.'));
-    if (!cleanName) {
-      setProductModalError('Informe o nome do produto.');
-      return;
-    }
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      setProductModalError('Informe um preço válido para o produto.');
-      return;
-    }
+    let payload: ProductInput;
+    if (isAdega) {
+      try {
+        payload = validateUniversalProductInput(
+          {
+            name: prodName,
+            category: prodCategory,
+            unitPriceRaw: prodPrice,
+            costPriceRaw: prodCostPrice,
+            description: prodDescription,
+            internalCode: prodInternalCode,
+            brand: prodBrand,
+            notes: prodNotes,
+            barcode: prodBarcode,
+            volumeValueRaw: prodVolumeValue,
+            volumeUnit: prodVolumeUnit,
+            saleUnit: prodSaleUnit,
+            packageType: prodPackageType,
+            unitsPerPackageRaw: prodUnitsPerPackage,
+            countsAsXSalada: false,
+            active: prodActive,
+            imageUrl: prodImageUrl,
+            imagePath: prodImagePath,
+          },
+          products,
+          {
+            editingProductId: editingProduct?.id,
+            segment: 'adega',
+          },
+        );
+      } catch (validationErr) {
+        setProductModalError(
+          validationErr instanceof Error
+            ? validationErr.message
+            : 'Dados do produto inválidos.',
+        );
+        return;
+      }
+    } else {
+      const cleanName = prodName.trim();
+      const parsedPrice = Number(String(prodPrice).replace(',', '.'));
+      if (!cleanName) {
+        setProductModalError('Informe o nome do produto.');
+        return;
+      }
+      if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+        setProductModalError('Informe um preço válido para o produto.');
+        return;
+      }
 
-    const previousSavedPath = editingProduct?.imagePath || '';
-    setSavingProduct(true);
-    try {
-      const payload: ProductInput = {
+      const legacyOverrides: ProductInput = {
         name: cleanName,
         category: prodCategory,
         unitPrice: parsedPrice,
@@ -462,6 +576,14 @@ export function ProductsCombosManager({
         imageUrl: prodImageUrl,
         imagePath: prodImagePath,
       };
+      payload = editingProduct
+        ? buildProductInputFromRecord(editingProduct, legacyOverrides)
+        : legacyOverrides;
+    }
+
+    const previousSavedPath = editingProduct?.imagePath || '';
+    setSavingProduct(true);
+    try {
       let savedProductId = editingProduct?.id || draftProductId;
       if (editingProduct) {
         await onUpdateProduct(editingProduct.id, payload);
@@ -516,15 +638,10 @@ export function ProductsCombosManager({
 
   async function handleToggleProductActive(p: ProductRecord) {
     try {
-      await onUpdateProduct(p.id, {
-        name: p.name,
-        category: p.category,
-        unitPrice: p.unitPrice,
-        countsAsXSalada: p.countsAsXSalada,
-        active: !p.active,
-        imageUrl: p.imageUrl || '',
-        imagePath: p.imagePath || '',
-      });
+      await onUpdateProduct(
+        p.id,
+        buildProductInputFromRecord(p, { active: !p.active }),
+      );
       showNotice(
         p.active
           ? `Produto "${p.name}" desativado.`
@@ -784,15 +901,10 @@ export function ProductsCombosManager({
             editingCategory.name.trim().toLowerCase(),
         );
         for (const prod of linkedProducts) {
-          await onUpdateProduct(prod.id, {
-            name: prod.name,
-            category: name,
-            unitPrice: prod.unitPrice,
-            countsAsXSalada: prod.countsAsXSalada,
-            active: prod.active,
-            imageUrl: prod.imageUrl || '',
-            imagePath: prod.imagePath || '',
-          });
+          await onUpdateProduct(
+            prod.id,
+            buildProductInputFromRecord(prod, { category: name }),
+          );
         }
       }
 
@@ -1270,8 +1382,8 @@ export function ProductsCombosManager({
         </div>
       </section>
 
-      {/* Quick Seed Banner when empty */}
-      {products.length === 0 && combos.length === 0 && (
+      {/* Quick Seed Banner when empty (somente Lanchonete para nao criar itens artificiais de lanche em Adegas) */}
+      {!isAdega && products.length === 0 && combos.length === 0 && (
         <section className="bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-[#172033] flex items-center gap-2">
@@ -1430,7 +1542,11 @@ export function ProductsCombosManager({
               <input
                 type="search"
                 aria-label="Buscar produtos"
-                placeholder="Buscar produtos..."
+                placeholder={
+                  isAdega
+                    ? 'Buscar por nome, marca ou código de barras...'
+                    : 'Buscar produtos...'
+                }
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 className="w-full min-h-[42px] pl-10 pr-3.5 rounded-xl bg-[#F7F8FC] border border-[#E8EAF0] focus:bg-white focus:border-[#F5B900] focus:outline-none text-xs sm:text-sm text-[#172033] placeholder:text-[#778094]"
@@ -1496,8 +1612,9 @@ export function ProductsCombosManager({
                   Nenhum produto cadastrado ainda.
                 </p>
                 <p className="text-xs text-[#778094] max-w-md mx-auto">
-                  Cadastre seus lanches, pastéis e bebidas para utilizá-los nas
-                  vendas, combos e no cardápio digital.
+                  {isAdega
+                    ? 'Cadastre suas bebidas, destilados, gelo e conveniências com custo, margem, volume e código de barras.'
+                    : 'Cadastre seus lanches, pastéis e bebidas para utilizá-los nas vendas, combos e no cardápio digital.'}
                 </p>
               </div>
               <button
@@ -1597,6 +1714,51 @@ export function ProductsCombosManager({
                             </>
                           )}
                         </p>
+                        {isAdega && (() => {
+                          const volumeLabel = formatProductVolumeLabel(
+                            p.volumeValue,
+                            p.volumeUnit,
+                          );
+                          const packagingLabel = formatProductPackagingLabel(p);
+                          const financials = calculateProductFinancials({
+                            unitPrice: p.unitPrice,
+                            costPrice: p.costPrice,
+                          });
+                          const hasMeta =
+                            Boolean(p.brand) ||
+                            Boolean(volumeLabel) ||
+                            Boolean(packagingLabel) ||
+                            Boolean(p.barcode) ||
+                            financials.hasValidCost;
+
+                          if (!hasMeta) return null;
+                          return (
+                            <div className="pt-1 space-y-1 text-[11px] text-[#778094]">
+                              {(p.brand || volumeLabel || packagingLabel) && (
+                                <p className="truncate">
+                                  {[p.brand, volumeLabel, packagingLabel]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {financials.hasValidCost && (
+                                  <span className="px-1.5 py-0.5 rounded bg-[#F7F8FC] border border-[#E8EAF0] font-mono tabular-nums text-[#172033]">
+                                    Custo {formatCurrencyBRL(financials.costPrice)}
+                                    {financials.marginPercent !== null
+                                      ? ` · ${financials.marginPercent.toFixed(1).replace('.', ',')}%`
+                                      : ''}
+                                  </span>
+                                )}
+                                {p.barcode && (
+                                  <span className="px-1.5 py-0.5 rounded bg-[#F7F8FC] border border-[#E8EAF0] font-mono tabular-nums">
+                                    EAN {p.barcode}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className="pt-2.5 border-t border-[#E8EAF0] flex items-center justify-between gap-2">
@@ -1647,17 +1809,24 @@ export function ProductsCombosManager({
         <div className="space-y-4">
           {products.length === 0 && (
             <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-4 text-xs text-[#172033]">
-              Cadastre primeiro os produtos (ex: X-Salada, Refrigerante 250 ml)
-              na aba{' '}
+              {isAdega
+                ? 'Cadastre primeiro os produtos da sua adega (ex: Gin, Energético, Gelo saborizado) na aba '
+                : 'Cadastre primeiro os produtos (ex: X-Salada, Refrigerante 250 ml) na aba '}
               <button
                 type="button"
                 onClick={() => setSectionTab('products')}
                 className="font-bold underline cursor-pointer"
               >
                 Produtos
-              </button>{' '}
-              ou clique em <strong>Criar catálogo inicial</strong> acima para
-              montar combos.
+              </button>
+              {isAdega
+                ? ' para montar combos.'
+                : (
+                    <>
+                      {' '}ou clique em <strong>Criar catálogo inicial</strong>{' '}
+                      acima para montar combos.
+                    </>
+                  )}
             </div>
           )}
 
@@ -2399,6 +2568,7 @@ export function ProductsCombosManager({
       {/* ==================== MODAIS DE ETAPA 5 ==================== */}
       <ProductFormModal
         open={productFormOpen}
+        businessSegment={resolvedSegment}
         editingProduct={editingProduct}
         draftProductId={draftProductId}
         workspaceId={effectiveWorkspaceId}
@@ -2436,6 +2606,30 @@ export function ProductsCombosManager({
           setProductModalError(null);
         }}
         onSubmit={(e) => void handleSaveProduct(e)}
+        prodDescription={prodDescription}
+        onProdDescriptionChange={setProdDescription}
+        prodInternalCode={prodInternalCode}
+        onProdInternalCodeChange={setProdInternalCode}
+        prodCostPrice={prodCostPrice}
+        onProdCostPriceChange={setProdCostPrice}
+        prodBrand={prodBrand}
+        onProdBrandChange={setProdBrand}
+        availableBrands={availableBrands}
+        prodNotes={prodNotes}
+        onProdNotesChange={setProdNotes}
+        prodBarcode={prodBarcode}
+        onProdBarcodeChange={setProdBarcode}
+        barcodeDuplicateProductName={barcodeDuplicateProduct?.name ?? null}
+        prodVolumeValue={prodVolumeValue}
+        onProdVolumeValueChange={setProdVolumeValue}
+        prodVolumeUnit={prodVolumeUnit}
+        onProdVolumeUnitChange={setProdVolumeUnit}
+        prodSaleUnit={prodSaleUnit}
+        onProdSaleUnitChange={setProdSaleUnit}
+        prodPackageType={prodPackageType}
+        onProdPackageTypeChange={setProdPackageType}
+        prodUnitsPerPackage={prodUnitsPerPackage}
+        onProdUnitsPerPackageChange={setProdUnitsPerPackage}
       />
 
       <ComboFormModal

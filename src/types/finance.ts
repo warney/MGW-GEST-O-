@@ -1,3 +1,5 @@
+import type { BusinessSegment } from './segments';
+
 export const ADMIN_EMAILS = [
   'warney.fernandes22@gmail.com',
   'fernandes38mk@gmail.com',
@@ -153,6 +155,7 @@ export type AppRoute =
   | 'delivery_regions'
   | 'delivery_finance'
   | 'delivery_reports'
+  | 'inventory'
   | 'sales'
   | 'expenses'
   | 'reports'
@@ -219,11 +222,14 @@ export interface PublicCatalogCombo {
   items: ComboProductItem[];
   salePrice: number;
   imageUrl?: string;
+  category?: string;
+  isAvailable?: boolean;
+  maxAvailableQty?: number | null;
 }
 
 export interface PublicDigitalMenuPayload {
   found: boolean;
-  store: (DigitalMenuSettingsInput & { timezone?: string }) | null;
+  store: (DigitalMenuSettingsInput & { timezone?: string; businessSegment?: BusinessSegment }) | null;
   products: PublicCatalogProduct[];
   combos: PublicCatalogCombo[];
   deliveryPricing?: PublicDeliveryPricingSettings | null;
@@ -384,6 +390,18 @@ export interface PublicOrderTrackingRecord {
   statusHistory: OnlineOrderStatusEvent[];
 }
 
+export type ProductVolumeUnit = 'ml' | 'l' | 'g' | 'kg' | 'un';
+
+export type ProductSaleUnit =
+  | 'unidade'
+  | 'garrafa'
+  | 'lata'
+  | 'pacote'
+  | 'caixa'
+  | 'fardo';
+
+export type ProductPackageType = 'individual' | 'pacote' | 'caixa' | 'fardo';
+
 export interface ProductRecord {
   id: string;
   ownerId: string;
@@ -394,6 +412,17 @@ export interface ProductRecord {
   active: boolean;
   imageUrl?: string;
   imagePath?: string;
+  description?: string;
+  internalCode?: string | null;
+  costPrice?: number;
+  brand?: string;
+  notes?: string;
+  barcode?: string | null;
+  volumeValue?: number | null;
+  volumeUnit?: ProductVolumeUnit | null;
+  saleUnit?: ProductSaleUnit;
+  packageType?: ProductPackageType;
+  unitsPerPackage?: number;
   createdAtMs: number;
   updatedAtMs: number;
 }
@@ -407,6 +436,17 @@ export interface ProductInput {
   active: boolean;
   imageUrl?: string;
   imagePath?: string;
+  description?: string;
+  internalCode?: string | null;
+  costPrice?: number;
+  brand?: string;
+  notes?: string;
+  barcode?: string | null;
+  volumeValue?: number | null;
+  volumeUnit?: ProductVolumeUnit | null;
+  saleUnit?: ProductSaleUnit;
+  packageType?: ProductPackageType;
+  unitsPerPackage?: number;
 }
 
 export interface ComboProductItem {
@@ -416,12 +456,40 @@ export interface ComboProductItem {
   countsAsXSalada: boolean;
 }
 
+export interface ComboComponentRecord {
+  id: string;
+  tenantId: string;
+  comboId: string;
+  productId: string;
+  quantity: number;
+  unitLabel: string;
+  conversionFactor: number;
+  packagingConversionId: string | null;
+  baseQuantity: number;
+  unitCostSnapshot: number;
+  totalCostSnapshot: number;
+  sortOrder: number;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface ComboComponentInput {
+  productId: string;
+  quantity: number;
+  unitLabel?: string;
+  conversionFactor?: number;
+  packagingConversionId?: string | null;
+}
+
 export interface ComboRecord {
   id: string;
   ownerId: string;
   name: string;
   description: string;
+  category?: string;
+  notes?: string;
   items: ComboProductItem[];
+  components?: ComboComponentRecord[];
   salePrice: number;
   estimatedCost: number;
   active: boolean;
@@ -435,7 +503,10 @@ export interface ComboInput {
   preferredId?: string;
   name: string;
   description: string;
+  category?: string;
+  notes?: string;
   items: ComboProductItem[];
+  components?: ComboComponentInput[];
   salePrice: number;
   estimatedCost: number;
   active: boolean;
@@ -619,6 +690,7 @@ export interface TenantContext {
   retentionEndsAt?: string | null;
   retentionStatus?: RetentionStatus;
   onboardingCompleted?: boolean;
+  businessSegment?: BusinessSegment;
   accessAllowed?: boolean;
   accessBlockReason?: TenantBillingBlockReason | null;
 }
@@ -935,6 +1007,396 @@ export interface DeliveryCoverageResolution {
   missingForFreeDelivery: number;
 }
 
+// ==================== ETAPA 4 — ESTOQUE PROFISSIONAL (SEGMENTO ADEGA) ====================
 
+export type InventoryStockStatus = 'normal' | 'near_minimum' | 'low' | 'out_of_stock';
 
+export type InventoryMovementType =
+  | 'manual_entry'
+  | 'purchase_receipt'
+  | 'manual_exit'
+  | 'loss'
+  | 'damage'
+  | 'expiry'
+  | 'internal_consumption'
+  | 'adjustment_in'
+  | 'adjustment_out'
+  | 'inventory_adjustment'
+  | 'return_in'
+  | 'combo_consumption';
 
+export type InventoryMovementDirection = 'in' | 'out';
+
+export type InventoryMovementOriginType =
+  | 'manual'
+  | 'purchase_receipt'
+  | 'inventory_count'
+  | 'adjustment'
+  | 'return'
+  | 'combo_consumption'
+  | 'sale'
+  | 'online_order';
+
+export interface InventoryBalanceRecord {
+  id: string;
+  tenantId: string;
+  productId: string;
+  availableQty: number;
+  reservedQty: number;
+  minStockQty: number;
+  averageUnitCost: number;
+  lastCostPrice: number;
+  allowNegativeStock: boolean;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface InventoryPackagingConversionRecord {
+  id: string;
+  tenantId: string;
+  productId: string;
+  packageLabel: string;
+  packageType: ProductSaleUnit;
+  factorToBase: number;
+  isDefaultPurchase: boolean;
+  active: boolean;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface InventoryPackagingConversionInput {
+  productId: string;
+  packageLabel: string;
+  packageType: ProductSaleUnit;
+  factorToBase: number;
+  isDefaultPurchase?: boolean;
+  active?: boolean;
+}
+
+export interface InventoryMovementRecord {
+  id: string;
+  tenantId: string;
+  productId: string;
+  movementType: InventoryMovementType;
+  direction: InventoryMovementDirection;
+  inputQuantity: number;
+  inputUnit: string;
+  conversionFactorUsed: number;
+  baseQuantity: number;
+  previousBalance: number;
+  newBalance: number;
+  unitCost: number;
+  totalCost: number;
+  previousAvgCost: number;
+  newAvgCost: number;
+  reason: string;
+  notes: string;
+  originType: InventoryMovementOriginType;
+  originId: string | null;
+  supplierId: string | null;
+  packagingConversionId: string | null;
+  idempotencyKey: string;
+  actorUserId: string | null;
+  actorEmail: string;
+  createdAtMs: number;
+}
+
+export interface RecordInventoryMovementInput {
+  productId: string;
+  movementType: Exclude<InventoryMovementType, 'purchase_receipt' | 'inventory_adjustment'>;
+  inputQuantity: number;
+  inputUnit?: string;
+  conversionFactor?: number;
+  totalCost?: number | null;
+  reason?: string;
+  notes?: string;
+  supplierId?: string | null;
+  packagingConversionId?: string | null;
+  idempotencyKey?: string;
+  allowNegativeOverride?: boolean;
+}
+
+export interface SupplierRecord {
+  id: string;
+  tenantId: string;
+  name: string;
+  tradeName: string;
+  document: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  address: string;
+  notes: string;
+  active: boolean;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface SupplierInput {
+  name: string;
+  tradeName?: string;
+  document?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  active?: boolean;
+}
+
+export interface ProductSupplierLinkRecord {
+  id: string;
+  tenantId: string;
+  productId: string;
+  supplierId: string;
+  supplierSku: string;
+  lastUnitCost: number;
+  isPreferred: boolean;
+  notes: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface ProductSupplierLinkInput {
+  productId: string;
+  supplierId: string;
+  supplierSku?: string;
+  lastUnitCost?: number;
+  isPreferred?: boolean;
+  notes?: string;
+}
+
+export type PurchaseOrderStatus =
+  | 'draft'
+  | 'pending'
+  | 'partially_received'
+  | 'received'
+  | 'cancelled';
+
+export interface PurchaseOrderItemRecord {
+  id: string;
+  tenantId: string;
+  purchaseOrderId: string;
+  productId: string;
+  packagingConversionId: string | null;
+  unitLabel: string;
+  conversionFactor: number;
+  orderedQty: number;
+  orderedBaseQty: number;
+  receivedBaseQty: number;
+  unitCost: number;
+  totalCost: number;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface PurchaseOrderRecord {
+  id: string;
+  tenantId: string;
+  orderNumber: number;
+  supplierId: string;
+  status: PurchaseOrderStatus;
+  paymentTerms: string;
+  expectedDeliveryDate: string | null;
+  discountAmount: number;
+  additionalExpenses: number;
+  itemsSubtotal: number;
+  totalAmount: number;
+  notes: string;
+  idempotencyKey: string;
+  cancelledReason: string;
+  cancelledAtMs: number | null;
+  createdByEmail: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface PurchaseOrderItemInput {
+  productId: string;
+  packagingConversionId?: string | null;
+  unitLabel: string;
+  conversionFactor: number;
+  orderedQty: number;
+  unitCost: number;
+}
+
+export interface CreatePurchaseOrderInput {
+  supplierId: string;
+  status?: 'draft' | 'pending';
+  paymentTerms?: string;
+  expectedDeliveryDate?: string | null;
+  discountAmount?: number;
+  additionalExpenses?: number;
+  notes?: string;
+  items: PurchaseOrderItemInput[];
+  idempotencyKey?: string;
+}
+
+export interface PurchaseReceiptItemRecord {
+  id: string;
+  tenantId: string;
+  receiptId: string;
+  purchaseOrderItemId: string;
+  productId: string;
+  receivedQty: number;
+  unitLabel: string;
+  conversionFactor: number;
+  receivedBaseQty: number;
+  unitCost: number;
+  totalCost: number;
+  movementId: string;
+  createdAtMs: number;
+}
+
+export interface PurchaseReceiptRecord {
+  id: string;
+  tenantId: string;
+  purchaseOrderId: string;
+  receiptNumber: number;
+  notes: string;
+  idempotencyKey: string;
+  receivedByEmail: string;
+  receivedAtMs: number;
+}
+
+export interface ReceivePurchaseItemInput {
+  purchaseOrderItemId: string;
+  receivedQty: number;
+  unitCost?: number;
+}
+
+export type InventoryCountStatus = 'open' | 'finalized' | 'cancelled';
+
+export interface InventoryCountRecord {
+  id: string;
+  tenantId: string;
+  countNumber: number;
+  title: string;
+  status: InventoryCountStatus;
+  notes: string;
+  startedByEmail: string;
+  finalizedByEmail: string;
+  finalizedAtMs: number | null;
+  idempotencyKey: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export interface InventoryCountItemRecord {
+  id: string;
+  tenantId: string;
+  countId: string;
+  productId: string;
+  expectedQty: number;
+  countedQty: number | null;
+  differenceQty: number;
+  unitCostSnapshot: number;
+  estimatedDifferenceValue: number;
+  adjustmentMovementId: string | null;
+  notes: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+}
+
+export type ComboConsumptionOriginType =
+  | 'combo_consumption'
+  | 'sale'
+  | 'online_order';
+
+export interface ComboConsumptionItemSnapshot {
+  id: string;
+  tenantId: string;
+  consumptionId: string;
+  productId: string | null;
+  productNameSnapshot: string;
+  componentQtyPerCombo: number;
+  unitLabel: string;
+  conversionFactor: number;
+  baseQtyPerCombo: number;
+  totalBaseQtyDeducted: number;
+  unitCostSnapshot: number;
+  totalCostSnapshot: number;
+  movementId: string;
+  createdAtMs: number;
+}
+
+export interface ComboConsumptionRecord {
+  id: string;
+  tenantId: string;
+  comboId: string | null;
+  comboNameSnapshot: string;
+  comboQuantity: number;
+  salePriceSnapshot: number;
+  totalCostSnapshot: number;
+  originType: ComboConsumptionOriginType;
+  originId: string | null;
+  notes: string;
+  idempotencyKey: string;
+  actorUserId: string | null;
+  actorEmail: string;
+  createdAtMs: number;
+  items: ComboConsumptionItemSnapshot[];
+}
+
+export interface ComboAvailabilityComponentDetail {
+  productId: string;
+  productName: string;
+  unitLabel: string;
+  conversionFactor: number;
+  requiredPerComboInput: number;
+  requiredPerComboBase: number;
+  requiredTotalBase: number;
+  availableQty: number;
+  allowNegativeStock: boolean;
+  sufficient: boolean;
+  maxCombosFromComponent: number | null;
+}
+
+export interface ComboAvailabilityResult {
+  comboId: string;
+  comboName: string;
+  requestedQuantity: number;
+  available: boolean;
+  maxProducibleQty: number | null;
+  limitingProductId: string | null;
+  limitingProductName: string | null;
+  components: ComboAvailabilityComponentDetail[];
+}
+
+export interface ConsumeComboInput {
+  comboId: string;
+  comboQuantity: number;
+  originType?: ComboConsumptionOriginType;
+  originId?: string | null;
+  notes?: string;
+  idempotencyKey?: string;
+}
+
+export interface ConsumeComboResult {
+  consumptionId: string;
+  comboId: string;
+  comboQuantity: number;
+  totalCost: number;
+  idempotentReplay: boolean;
+  movements: Array<{
+    productId: string;
+    movementId: string;
+    deductedBaseQty: number;
+    newBalance: number;
+  }>;
+}
+
+export interface InventoryDataBundle {
+  balances: InventoryBalanceRecord[];
+  packagingConversions: InventoryPackagingConversionRecord[];
+  movements: InventoryMovementRecord[];
+  suppliers: SupplierRecord[];
+  productSuppliers: ProductSupplierLinkRecord[];
+  purchaseOrders: PurchaseOrderRecord[];
+  purchaseOrderItems: PurchaseOrderItemRecord[];
+  purchaseReceipts: PurchaseReceiptRecord[];
+  purchaseReceiptItems: PurchaseReceiptItemRecord[];
+  inventoryCounts: InventoryCountRecord[];
+  inventoryCountItems: InventoryCountItemRecord[];
+  comboConsumptions?: ComboConsumptionRecord[];
+}
