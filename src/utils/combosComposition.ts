@@ -442,7 +442,7 @@ export function validateAdegaComboInput(params: {
     }
     if (rawComp.packagingConversionId) {
       const pkg = pkgMap.get(rawComp.packagingConversionId);
-      if (!pkg || pkg.productId !== prod.id) {
+      if (!pkg || pkg.productId !== prod.id || !pkg.active) {
         throw new Error(
           `Embalagem de conversão inválida para "${prod.name}".`,
         );
