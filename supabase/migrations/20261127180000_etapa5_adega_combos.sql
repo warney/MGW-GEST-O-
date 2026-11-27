@@ -425,7 +425,8 @@ BEGIN
       FROM public.inventory_packaging_conversions pc
       WHERE pc.id = v_pkg_id
         AND pc.tenant_id = p_tenant_id
-        AND pc.product_id = v_product_id;
+        AND pc.product_id = v_product_id
+        AND pc.active = true;
       IF NOT FOUND THEN
         RAISE EXCEPTION 'Embalagem de conversao invalida para "%".', v_product.name;
       END IF;
