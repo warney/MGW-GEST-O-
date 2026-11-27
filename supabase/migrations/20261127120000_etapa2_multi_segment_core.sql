@@ -138,10 +138,10 @@ BEGIN
   END IF;
 
   v_segment_raw := lower(btrim(coalesce(new.raw_user_meta_data ->> 'business_segment', '')));
-  v_business_segment := CASE
-    WHEN v_segment_raw = 'adega' THEN 'adega'
-    ELSE 'lanchonete'
-  END;
+  IF v_segment_raw <> '' AND v_segment_raw NOT IN ('lanchonete', 'adega') THEN
+    RAISE EXCEPTION 'Segmento comercial invalido. Valores permitidos: lanchonete ou adega.';
+  END IF;
+  v_business_segment := coalesce(nullif(v_segment_raw, ''), 'lanchonete');
 
   SELECT amount_cents INTO v_trial_amount
   FROM public.plans
