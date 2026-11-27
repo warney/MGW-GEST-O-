@@ -139,6 +139,8 @@ export function consolidateComboComponentInputs(
       throw new Error('O fator de conversão do componente deve ser maior que zero.');
     }
 
+    const unitLabel = String(raw.unitLabel || '').trim() || undefined;
+    const packagingConversionId = raw.packagingConversionId ?? null;
     const existing = map.get(productId);
     if (existing) {
       if (!options?.mergeSameProduct) {
@@ -146,21 +148,30 @@ export function consolidateComboComponentInputs(
           'Este produto já foi adicionado ao combo. Ajuste a quantidade no item existente.',
         );
       }
-      const existingBase = roundQty(existing.quantity * (existing.conversionFactor || 1));
-      const addedBase = roundQty(quantity * factor);
-      const totalBase = roundQty(existingBase + addedBase);
-      const nextFactor = existing.conversionFactor || 1;
+
+      // Só é seguro consolidar quando os dois lançamentos representam a
+      // mesma unidade/embalagem. Somar quantidades de embalagens diferentes
+      // usando o fator do primeiro item distorce o consumo e o custo.
+      const samePackaging =
+        roundQty(existing.conversionFactor || 1) === factor &&
+        (existing.packagingConversionId ?? null) === packagingConversionId &&
+        (String(existing.unitLabel || '').trim() || undefined) === unitLabel;
+      if (!samePackaging) {
+        throw new Error(
+          'O mesmo produto foi informado com embalagens ou unidades diferentes. Mantenha os componentes separados ou padronize a unidade.',
+        );
+      }
       map.set(productId, {
         ...existing,
-        quantity: roundQty(totalBase / nextFactor),
+        quantity: roundQty(existing.quantity + quantity),
       });
     } else {
       map.set(productId, {
         productId,
         quantity,
-        unitLabel: String(raw.unitLabel || '').trim() || undefined,
+        unitLabel,
         conversionFactor: factor,
-        packagingConversionId: raw.packagingConversionId ?? null,
+        packagingConversionId,
       });
     }
   }
@@ -183,18 +194,33 @@ export function calculateComboCompositionMetrics(params: {
   let realComponentCost = 0;
   let standaloneTotalPrice = 0;
 
+  if (!Array.isArray(params.components) || params.components.length === 0) {
+    throw new Error('O combo precisa possuir pelo menos um componente válido.');
+  }
+
   for (const comp of params.components) {
     const prod = productMap.get(comp.productId);
-    if (!prod) continue;
-    const qty = roundQty(Number(comp.quantity) || 0);
-    if (qty <= 0) continue;
+    if (!prod) {
+      throw new Error(
+        `O componente "${comp.productId}" não foi encontrado nos produtos deste estabelecimento.`,
+      );
+    }
+    const qty = Number(comp.quantity);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new Error(`Quantidade inválida para o componente "${prod.name}".`);
+    }
 
     const pkg = comp.packagingConversionId
       ? pkgMap.get(comp.packagingConversionId)
       : undefined;
-    const conversionFactor = pkg
-      ? roundQty(pkg.factorToBase)
-      : roundQty(Math.max(0.001, Number(comp.conversionFactor) || 1));
+    if (comp.packagingConversionId && (!pkg || pkg.productId !== prod.id)) {
+      throw new Error(`Embalagem de conversão inválida para "${prod.name}".`);
+    }
+    const rawFactor = pkg ? Number(pkg.factorToBase) : Number(comp.conversionFactor ?? 1);
+    if (!Number.isFinite(rawFactor) || rawFactor <= 0) {
+      throw new Error(`Fator de conversão inválido para "${prod.name}".`);
+    }
+    const conversionFactor = roundQty(rawFactor);
     const unitLabel =
       String(comp.unitLabel || '').trim() ||
       pkg?.packageLabel ||
@@ -288,10 +314,18 @@ export function evaluateComboStockAvailability(params: {
     const availableQty = roundQty(bal?.availableQty ?? 0);
     const allowNegativeStock = Boolean(bal?.allowNegativeStock);
     const productName = prod?.name || 'Produto removido';
+    if (!prod) {
+      available = false;
+      maxProducibleQty = 0;
+      limitingProductId = comp.productId;
+      limitingProductName = productName;
+    }
 
-    const maxFromComp = allowNegativeStock
-      ? null
-      : Math.max(0, Math.floor(availableQty / requiredPerComboBase + 1e-9));
+    const maxFromComp = !prod
+      ? 0
+      : allowNegativeStock
+        ? null
+        : Math.max(0, Math.floor(availableQty / requiredPerComboBase + 1e-9));
 
     if (!allowNegativeStock && maxFromComp !== null) {
       if (maxProducibleQty === null || maxFromComp < maxProducibleQty) {
@@ -314,7 +348,7 @@ export function evaluateComboStockAvailability(params: {
       requiredTotalBase,
       availableQty,
       allowNegativeStock,
-      sufficient: allowNegativeStock || availableQty >= requiredTotalBase - 1e-9,
+      sufficient: Boolean(prod) && (allowNegativeStock || availableQty >= requiredTotalBase - 1e-9),
       maxCombosFromComponent: maxFromComp,
     });
   }
@@ -408,7 +442,7 @@ export function validateAdegaComboInput(params: {
     }
     if (rawComp.packagingConversionId) {
       const pkg = pkgMap.get(rawComp.packagingConversionId);
-      if (!pkg || pkg.productId !== prod.id) {
+      if (!pkg || pkg.productId !== prod.id || !pkg.active) {
         throw new Error(
           `Embalagem de conversão inválida para "${prod.name}".`,
         );
