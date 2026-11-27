@@ -29,27 +29,13 @@ ALTER TABLE public.combos
 -- 2) Ampliacao controlada dos CHECK constraints de inventory_movements
 --    para registrar baixas individuais geradas por consumo de combo
 -- ----------------------------------------------------------------------------
-DO $$
-DECLARE
-  v_conname text;
-BEGIN
-  FOR v_conname IN
-    SELECT c.conname
-    FROM pg_catalog.pg_constraint c
-    JOIN pg_catalog.pg_class rel ON rel.oid = c.conrelid
-    JOIN pg_catalog.pg_namespace nsp ON nsp.oid = rel.relnamespace
-    WHERE nsp.nspname = 'public'
-      AND rel.relname = 'inventory_movements'
-      AND c.contype = 'c'
-      AND (
-        pg_catalog.pg_get_constraintdef(c.oid) ILIKE '%movement_type%'
-        OR pg_catalog.pg_get_constraintdef(c.oid) ILIKE '%origin_type%'
-      )
-  LOOP
-    EXECUTE format('ALTER TABLE public.inventory_movements DROP CONSTRAINT IF EXISTS %I', v_conname);
-  END LOOP;
-END
-$$;
+-- Remover apenas os CHECKs originais de domínio criados na Etapa 4.
+-- Não apagar constraints adicionais que porventura protejam outras regras.
+ALTER TABLE public.inventory_movements
+  DROP CONSTRAINT IF EXISTS inventory_movements_movement_type_check,
+  DROP CONSTRAINT IF EXISTS inventory_movements_origin_type_check,
+  DROP CONSTRAINT IF EXISTS chk_inventory_movements_movement_type,
+  DROP CONSTRAINT IF EXISTS chk_inventory_movements_origin_type;
 
 ALTER TABLE public.inventory_movements
   ADD CONSTRAINT chk_inventory_movements_movement_type
@@ -782,7 +768,7 @@ BEGIN
   END IF;
 
   IF char_length(v_key) < 8 THEN
-    v_key := 'cmb_' || replace(gen_random_uuid()::text, '-', '');
+    RAISE EXCEPTION 'Chave de idempotencia obrigatoria (minimo de 8 caracteres) para consumir combo.';
   END IF;
 
   PERFORM pg_catalog.pg_advisory_xact_lock(
@@ -795,6 +781,12 @@ BEGIN
     AND cc.idempotency_key = v_key;
 
   IF FOUND THEN
+    IF v_existing.combo_id IS DISTINCT FROM p_combo_id
+       OR v_existing.combo_quantity IS DISTINCT FROM v_qty
+       OR v_existing.origin_type IS DISTINCT FROM v_origin
+       OR v_existing.origin_id IS DISTINCT FROM p_origin_id THEN
+      RAISE EXCEPTION 'Chave de idempotencia ja utilizada com dados diferentes. Gere uma nova chave para esta operacao.';
+    END IF;
     RETURN jsonb_build_object(
       'consumptionId', v_existing.id,
       'comboId', v_existing.combo_id,
