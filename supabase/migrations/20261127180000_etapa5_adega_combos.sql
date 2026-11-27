@@ -29,27 +29,11 @@ ALTER TABLE public.combos
 -- 2) Ampliacao controlada dos CHECK constraints de inventory_movements
 --    para registrar baixas individuais geradas por consumo de combo
 -- ----------------------------------------------------------------------------
-DO $$
-DECLARE
-  v_conname text;
-BEGIN
-  FOR v_conname IN
-    SELECT c.conname
-    FROM pg_catalog.pg_constraint c
-    JOIN pg_catalog.pg_class rel ON rel.oid = c.conrelid
-    JOIN pg_catalog.pg_namespace nsp ON nsp.oid = rel.relnamespace
-    WHERE nsp.nspname = 'public'
-      AND rel.relname = 'inventory_movements'
-      AND c.contype = 'c'
-      AND (
-        pg_catalog.pg_get_constraintdef(c.oid) ILIKE '%movement_type%'
-        OR pg_catalog.pg_get_constraintdef(c.oid) ILIKE '%origin_type%'
-      )
-  LOOP
-    EXECUTE format('ALTER TABLE public.inventory_movements DROP CONSTRAINT IF EXISTS %I', v_conname);
-  END LOOP;
-END
-$$;
+-- Remover exclusivamente os CHECKs de domínio criados na Etapa 4.
+-- Não tocar em constraints adicionais que protejam outras regras do ledger.
+ALTER TABLE public.inventory_movements
+  DROP CONSTRAINT IF EXISTS inventory_movements_movement_type_check,
+  DROP CONSTRAINT IF EXISTS inventory_movements_origin_type_check;
 
 ALTER TABLE public.inventory_movements
   ADD CONSTRAINT chk_inventory_movements_movement_type
@@ -156,6 +140,7 @@ BEGIN
     WHERE pc.id = NEW.packaging_conversion_id
       AND pc.tenant_id = NEW.tenant_id
       AND pc.product_id = NEW.product_id
+      AND pc.active = true
   ) THEN
     RAISE EXCEPTION 'Embalagem de conversao invalida para o produto componente.';
   END IF;
@@ -439,7 +424,8 @@ BEGIN
       FROM public.inventory_packaging_conversions pc
       WHERE pc.id = v_pkg_id
         AND pc.tenant_id = p_tenant_id
-        AND pc.product_id = v_product_id;
+        AND pc.product_id = v_product_id
+        AND pc.active = true;
       IF NOT FOUND THEN
         RAISE EXCEPTION 'Embalagem de conversao invalida para "%".', v_product.name;
       END IF;
@@ -546,7 +532,13 @@ BEGIN
     IF v_pkg_id IS NOT NULL THEN
       SELECT * INTO v_pkg
       FROM public.inventory_packaging_conversions pc
-      WHERE pc.id = v_pkg_id AND pc.tenant_id = p_tenant_id;
+      WHERE pc.id = v_pkg_id
+        AND pc.tenant_id = p_tenant_id
+        AND pc.product_id = v_product_id
+        AND pc.active = true;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Embalagem de conversao invalida para o produto componente.';
+      END IF;
       v_factor := round(v_pkg.factor_to_base, 3);
       v_unit_label := left(btrim(coalesce(nullif(v_comp->>'unitLabel', ''), v_pkg.package_label)), 60);
     ELSE
@@ -745,7 +737,8 @@ DECLARE
   v_qty numeric(14, 3) := round(coalesce(p_combo_quantity, 1), 3);
   v_origin text := lower(btrim(coalesce(p_origin_type, 'combo_consumption')));
   v_clean_notes text := left(btrim(coalesce(p_notes, '')), 600);
-  v_key text := left(btrim(coalesce(p_idempotency_key, '')), 160);
+  -- Reservar espaço para o sufixo ":" + UUID do produto nas movimentações.
+  v_key text := left(btrim(coalesce(p_idempotency_key, '')), 120);
   v_combo record;
   v_existing record;
   v_comp record;
@@ -782,7 +775,7 @@ BEGIN
   END IF;
 
   IF char_length(v_key) < 8 THEN
-    v_key := 'cmb_' || replace(gen_random_uuid()::text, '-', '');
+    RAISE EXCEPTION 'Chave de idempotencia obrigatoria (minimo de 8 caracteres) para consumir combo.';
   END IF;
 
   PERFORM pg_catalog.pg_advisory_xact_lock(
@@ -795,6 +788,12 @@ BEGIN
     AND cc.idempotency_key = v_key;
 
   IF FOUND THEN
+    IF v_existing.combo_id IS DISTINCT FROM p_combo_id
+       OR v_existing.combo_quantity IS DISTINCT FROM v_qty
+       OR v_existing.origin_type IS DISTINCT FROM v_origin
+       OR v_existing.origin_id IS DISTINCT FROM p_origin_id THEN
+      RAISE EXCEPTION 'Chave de idempotencia ja utilizada com dados diferentes. Gere uma nova chave para esta operacao.';
+    END IF;
     RETURN jsonb_build_object(
       'consumptionId', v_existing.id,
       'comboId', v_existing.combo_id,
