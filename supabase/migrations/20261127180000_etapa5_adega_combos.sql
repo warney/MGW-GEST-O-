@@ -36,6 +36,10 @@ ALTER TABLE public.inventory_movements
   DROP CONSTRAINT IF EXISTS inventory_movements_origin_type_check;
 
 ALTER TABLE public.inventory_movements
+  DROP CONSTRAINT IF EXISTS chk_inventory_movements_movement_type,
+  DROP CONSTRAINT IF EXISTS chk_inventory_movements_origin_type;
+
+ALTER TABLE public.inventory_movements
   ADD CONSTRAINT chk_inventory_movements_movement_type
   CHECK (
     movement_type IN (
